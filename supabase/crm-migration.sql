@@ -38,6 +38,11 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS vendedor_id UUID REFERENCES profiles(
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS valor_potencial DECIMAL(12,2);
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS proxima_acao TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS data_proxima_acao TIMESTAMPTZ;
+-- Bolsão de Leads (estilo C2S): SLA de 1º contato + atribuição
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS atribuido_em        TIMESTAMPTZ;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS sla_expira_em       TIMESTAMPTZ;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS primeiro_contato_em TIMESTAMPTZ;
+-- Lead "no bolsão" = vendedor_id IS NULL OU (sem 1º contato E SLA expirado)
 
 -- A equipe lê/edita os leads (o pipeline precisa disso). INSERT público continua (site/Kubinho).
 DROP POLICY IF EXISTS "leads_team_read"   ON leads;
@@ -161,6 +166,8 @@ END $$;
 -- ─── 7) Índices ───────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_leads_etapa        ON leads(etapa);
 CREATE INDEX IF NOT EXISTS idx_leads_vendedor     ON leads(vendedor_id);
+CREATE INDEX IF NOT EXISTS idx_leads_sla          ON leads(sla_expira_em);
+CREATE INDEX IF NOT EXISTS idx_leads_modulo       ON leads(modulo);
 CREATE INDEX IF NOT EXISTS idx_vendas_vendedor    ON vendas(vendedor_id);
 CREATE INDEX IF NOT EXISTS idx_vendas_data        ON vendas(data_venda DESC);
 CREATE INDEX IF NOT EXISTS idx_parcelas_venda     ON parcelas(venda_id);

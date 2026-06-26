@@ -12,6 +12,7 @@ import { SectionPage } from "./pages/SectionPage";
 import { DashboardSeguros } from "./pages/seguros/DashboardSeguros";
 import { Vendas } from "./pages/seguros/Vendas";
 import { Pipeline } from "./pages/Pipeline";
+import { Bolsao } from "./pages/Bolsao";
 import { Clientes } from "./pages/Clientes";
 import { Usuarios } from "./pages/admin/Usuarios";
 
@@ -90,6 +91,7 @@ function Shell() {
       <Route element={<Layout />}>
         {/* Seguros */}
         <Route path="/seguros" element={<DashboardSeguros />} />
+        <Route path="/seguros/bolsao" element={<Bolsao />} />
         <Route path="/seguros/vendas" element={<Vendas />} />
         <Route path="/seguros/endossos" element={<Endossos />} />
         <Route path="/seguros/parcelas" element={<Parcelas />} />
@@ -110,6 +112,7 @@ function Shell() {
 
         {/* Consórcios */}
         <Route path="/consorcios" element={<DashboardConsorcios />} />
+        <Route path="/consorcios/bolsao" element={<Bolsao />} />
         <Route path="/consorcios/pipeline" element={<Pipeline modulo="consorcios" />} />
         <Route path="/consorcios/cotas" element={<Cotas />} />
         <Route path="/consorcios/contemplacoes" element={<Contemplacoes />} />

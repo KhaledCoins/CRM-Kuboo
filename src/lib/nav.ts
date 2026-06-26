@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, ShoppingCart, FileEdit, Receipt, DollarSign, Trophy,
   KanbanSquare, RefreshCcw, Target, ShieldAlert, ClipboardCheck, BarChart3,
-  Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays,
+  Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../context/AuthContext";
@@ -42,6 +42,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
       title: "Menu Principal",
       items: [
         { label: "Dashboard", to: "/seguros", icon: LayoutDashboard },
+        { label: "Bolsão de Leads", to: "/seguros/bolsao", icon: Inbox },
         { label: "Vendas", to: "/seguros/vendas", icon: ShoppingCart },
         { label: "Endossos", to: "/seguros/endossos", icon: FileEdit },
         { label: "Parcelas", to: "/seguros/parcelas", icon: Receipt },
@@ -63,6 +64,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
       title: "Menu Principal",
       items: [
         { label: "Dashboard", to: "/consorcios", icon: LayoutDashboard },
+        { label: "Bolsão de Leads", to: "/consorcios/bolsao", icon: Inbox },
         { label: "Pipeline", to: "/consorcios/pipeline", icon: KanbanSquare },
         { label: "Cotas", to: "/consorcios/cotas", icon: Layers },
         { label: "Contemplações", to: "/consorcios/contemplacoes", icon: Award },
