@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/* ===================== Tema Kuboo (azul) ===================== */
+@theme {
+  --font-display: "Anton", sans-serif;
+  --font-sans: "Nunito", sans-serif;
+
+  --color-brand-50: #eaf3fd;
+  --color-brand-100: #d1e4f6;
+  --color-brand-200: #9fd0f0;
+  --color-brand-300: #5bc4f5;
+  --color-brand-400: #36abe2;
+  --color-brand-500: #1873ba;
+  --color-brand-600: #1560a0;
+  --color-brand-700: #0d4f8a;
+  --color-brand-800: #0a3a6e;
+  --color-brand-900: #0a1628;
+
+  --color-ink: #1a1a2e;
+  --color-muted: #6b7280;
+
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+  --color-wa: #25d366;
+}
+
+:root {
+  --sidebar-w: 248px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: #f4f7fb;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: 0.4px;
+  font-weight: 400;
+}
+
+::selection {
+  background: rgba(24, 115, 186, 0.18);
+  color: #0d4f8a;
+}
+
+/* Scrollbar da marca */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #b8d4ec transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c3dcef;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9fc4e6;
+  background-clip: padding-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-brand-500) !important;
+  box-shadow: 0 0 0 3px rgba(24, 115, 186, 0.12);
+}
+
+@keyframes kuboo-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.kuboo-fade {
+  animation: kuboo-fade 0.25s ease;
+}
+
+@keyframes kuboo-spin {
+  to { transform: rotate(360deg); }
+}
+.kuboo-spin {
+  animation: kuboo-spin 0.8s linear infinite;
+}
