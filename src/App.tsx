@@ -19,6 +19,8 @@ import {
   Vendas, Parcelas, Comissoes, Endossos, Metas, Sinistros, Parceiros, Produtos,
   Cotas, Contemplacoes, Grupos,
 } from "./pages/sections";
+import { TvSalao } from "./pages/TvSalao";
+import { DashboardConsorcios } from "./pages/DashboardConsorcios";
 
 /* ---- Seções bespoke que ainda são placeholders (relatórios/configurações) ---- */
 const Ranking = () => <SectionPage title="Ranking de Vendedores" subtitle="Desempenho da equipe" icon={Trophy}
@@ -31,13 +33,6 @@ const Auditoria = () => <SectionPage title="Auditoria & Cobrança" subtitle="Pó
 
 const Producao = () => <SectionPage title="Produção Mensal" subtitle="Relatório consolidado" icon={BarChart3}
   emptyIcon={BarChart3} emptyTitle="Sem produção no período" emptyHint="Consolidado por consultor, seguradora e produto." />;
-
-const TvSalao = () => <SectionPage title="TV do Salão" subtitle="Painel de ranking e metas para o escritório" icon={Tv}
-  emptyIcon={Tv} emptyTitle="Painel pronto" emptyHint="Modo apresentação (tela cheia) com ranking, metas e últimas vendas — ideal para a TV do salão." />;
-
-const DashboardConsorcios = () => <SectionPage title="Dashboard" subtitle="Visão geral — Consórcios" icon={LayoutDashboard}
-  kpis={[{ label: "Cotas Vendidas (mês)", icon: Layers }, { label: "Crédito Comercializado", icon: DollarSign, accent: "success" }, { label: "Contemplações", icon: Award, accent: "warning" }, { label: "Comissão Média", icon: TrendingUp, accent: "sky" }]}
-  emptyIcon={LayoutDashboard} emptyTitle="Sem dados de consórcio ainda" emptyHint="Produção, contemplações e grupos aparecem aqui." />;
 
 const Configuracoes = () => <SectionPage title="Configurações" subtitle="Preferências do sistema" icon={Settings}
   emptyIcon={Settings} emptyTitle="Configurações" emptyHint="Dados da corretora, metas padrão, integrações (site/Kubinho) e permissões." />;
