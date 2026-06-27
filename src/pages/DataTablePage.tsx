@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { X } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, EmptyState, KpiCard } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
@@ -12,45 +14,72 @@ export interface Kpi {
   label: string; value: string; icon: LucideIcon;
   accent?: "brand" | "success" | "warning" | "danger" | "sky";
 }
+export interface FormField {
+  key: string; label: string;
+  type?: "text" | "number" | "currency" | "date" | "select" | "textarea";
+  options?: { value: string; label: string }[];
+  required?: boolean; placeholder?: string;
+}
 
-// Página genérica que lê uma tabela do Supabase (RLS de equipe) e exibe os dados,
-// ou um empty state limpo quando ainda não há registros. "Pronta esperando os dados."
+const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none text-ink focus:border-brand-400 transition-colors";
+
 export function DataTablePage({
   title, subtitle, icon, table, select = "*", orderBy, ascending = false,
-  columns, computeKpis, emptyIcon, emptyTitle, emptyHint, primaryAction,
+  columns, computeKpis, emptyIcon, emptyTitle, emptyHint, primaryAction, formFields,
 }: {
   title: string; subtitle?: string; icon: LucideIcon;
   table: string; select?: string; orderBy?: string; ascending?: boolean;
   columns: Column[];
   computeKpis?: (rows: any[]) => Kpi[];
-  emptyIcon: LucideIcon; emptyTitle: string; emptyHint?: string; primaryAction?: string;
+  emptyIcon: LucideIcon; emptyTitle: string; emptyHint?: string;
+  primaryAction?: string; formFields?: FormField[];
 }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    let active = true;
+  async function load() {
+    if (!supabase) { setLoading(false); return; }
     setLoading(true); setError(false);
-    (async () => {
-      if (!supabase) { setLoading(false); return; }
-      let query: any = supabase.from(table).select(select).limit(500);
-      if (orderBy) query = query.order(orderBy, { ascending });
-      const { data, error } = await query;
-      if (!active) return;
-      if (error) { setError(true); setRows([]); }
-      else setRows(data || []);
-      setLoading(false);
-    })();
-    return () => { active = false; };
-  }, [table, select, orderBy, ascending]);
+    let query: any = supabase.from(table).select(select).limit(500);
+    if (orderBy) query = query.order(orderBy, { ascending });
+    const { data, error } = await query;
+    if (error) { setError(true); setRows([]); }
+    else setRows(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [table, select, orderBy, ascending]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase || !formFields) return;
+    setSaving(true);
+    const payload: Record<string, any> = {};
+    for (const f of formFields) {
+      let v: any = form[f.key];
+      if (v === undefined || v === "") { v = null; }
+      else if (f.type === "number" || f.type === "currency") v = Number(String(v).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", ".")) || 0;
+      payload[f.key] = v;
+    }
+    const { error } = await supabase.from(table).insert(payload);
+    setSaving(false);
+    if (error) { toast.error("Não foi possível salvar: " + error.message); return; }
+    toast.success("Registro criado!");
+    setShowForm(false); setForm({});
+    load();
+  }
 
   const kpis = computeKpis && rows.length ? computeKpis(rows) : [];
+  const canCreate = !!(primaryAction && formFields && formFields.length);
 
   return (
     <>
       <PageHeader title={title} subtitle={subtitle} icon={icon}
-        actions={primaryAction ? <Button>{primaryAction}</Button> : undefined} />
+        actions={primaryAction ? <Button onClick={canCreate ? () => setShowForm(true) : undefined}>{primaryAction}</Button> : undefined} />
 
       {kpis.length > 0 && (
         <div className={`grid grid-cols-1 sm:grid-cols-2 ${kpis.length >= 4 ? "xl:grid-cols-4" : "lg:grid-cols-3"} gap-4 mb-6`}>
@@ -78,9 +107,49 @@ export function DataTablePage({
             hint={error
               ? "Confira sua conexão e se sua conta tem papel de equipe (vendedor/gestor/admin)."
               : (emptyHint ?? "Estrutura pronta. Assim que os dados forem inseridos, aparecem aqui automaticamente.")}
+            action={canCreate ? <Button onClick={() => setShowForm(true)}>{primaryAction}</Button> : undefined}
           />
         )}
       </Card>
+
+      {/* Modal de cadastro */}
+      {showForm && canCreate && (
+        <div onClick={() => setShowForm(false)}
+          className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
+          <form onClick={(e) => e.stopPropagation()} onSubmit={handleSave}
+            className="bg-white rounded-2xl shadow-2xl w-[min(480px,94vw)] max-h-[88vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
+              <h3 className="font-extrabold text-ink text-lg">{primaryAction}</h3>
+              <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+            <div className="p-6 grid grid-cols-1 gap-4">
+              {formFields!.map((f) => (
+                <label key={f.key} className="block">
+                  <span className="text-xs font-bold text-muted uppercase tracking-wide block mb-1.5">{f.label}{f.required && " *"}</span>
+                  {f.type === "select" ? (
+                    <select className={inputCls} required={f.required} value={form[f.key] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}>
+                      <option value="">Selecione…</option>
+                      {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  ) : f.type === "textarea" ? (
+                    <textarea className={inputCls} rows={3} required={f.required} placeholder={f.placeholder} value={form[f.key] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))} />
+                  ) : (
+                    <input className={inputCls} required={f.required}
+                      type={f.type === "date" ? "date" : f.type === "number" || f.type === "currency" ? "text" : "text"}
+                      inputMode={f.type === "number" || f.type === "currency" ? "decimal" : undefined}
+                      placeholder={f.placeholder ?? (f.type === "currency" ? "R$ 0,00" : "")}
+                      value={form[f.key] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))} />
+                  )}
+                </label>
+              ))}
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+              <Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button>
+            </div>
+          </form>
+        </div>
+      )}
     </>
   );
 }

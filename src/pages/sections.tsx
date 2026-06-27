@@ -4,17 +4,23 @@ import {
 } from "lucide-react";
 import { Badge } from "../components/ui";
 import { brl, brlShort, dateBR, pct } from "../lib/format";
-import { DataTablePage } from "./DataTablePage";
+import { DataTablePage, type FormField } from "./DataTablePage";
 
 const sum = (rows: any[], k: string) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
 const count = (rows: any[], pred: (r: any) => boolean) => rows.filter(pred).length;
 
 const statusTone: Record<string, "slate" | "green" | "blue" | "amber" | "red" | "violet"> = {
-  ativa: "green", ativo: "green", paga: "green", pago: "green", aprovado: "green", contemplada: "blue",
-  pendente: "amber", aberta: "amber", a_pagar: "amber", reanalise: "amber",
-  atrasada: "red", cancelada: "red", cancelado: "red", vencida: "red", aberto: "amber", fechado: "slate",
+  ativa: "green", ativo: "green", paga: "green", pago: "green", aprovado: "green", contemplada: "blue", concluido: "green",
+  pendente: "amber", aberta: "amber", a_pagar: "amber", reanalise: "amber", em_andamento: "amber", aberto: "amber",
+  atrasada: "red", cancelada: "red", cancelado: "red", vencida: "red", inativo: "slate",
 };
 const St = ({ s }: { s?: string }) => <Badge tone={statusTone[s || ""] ?? "slate"}>{s || "—"}</Badge>;
+
+const optStatusVenda: FormField["options"] = [
+  { value: "ativa", label: "Ativa" }, { value: "pendente", label: "Pendente" },
+  { value: "cancelada", label: "Cancelada" }, { value: "vencida", label: "Vencida" },
+];
+const optModulo: FormField["options"] = [{ value: "seguros", label: "Seguros" }, { value: "consorcios", label: "Consórcios" }];
 
 /* ───────── SEGUROS ───────── */
 
@@ -22,6 +28,18 @@ export const Vendas = () => (
   <DataTablePage
     title="Vendas" subtitle="Apólices e propostas registradas" icon={Receipt}
     table="vendas" orderBy="data_venda" primaryAction="Nova Venda"
+    formFields={[
+      { key: "data_venda", label: "Data da venda", type: "date", required: true },
+      { key: "cliente_nome", label: "Cliente", required: true },
+      { key: "numero_proposta", label: "Nº proposta" },
+      { key: "seguradora", label: "Seguradora" },
+      { key: "produto", label: "Produto", placeholder: "Auto, Vida, Residencial…" },
+      { key: "valor", label: "Valor (prêmio)", type: "currency", required: true },
+      { key: "parcelas", label: "Parcelas", type: "number" },
+      { key: "comissao_valor", label: "Comissão (R$)", type: "currency" },
+      { key: "vendedor_nome", label: "Vendedor" },
+      { key: "status", label: "Status", type: "select", options: optStatusVenda },
+    ]}
     computeKpis={(r) => [
       { label: "Vendas", value: String(r.length), icon: Receipt, accent: "brand" },
       { label: "Produção", value: brlShort(sum(r, "valor")), icon: DollarSign, accent: "success" },
@@ -45,7 +63,17 @@ export const Vendas = () => (
 export const Parcelas = () => (
   <DataTablePage
     title="Parcelas" subtitle="Controle financeiro das apólices" icon={Receipt}
-    table="parcelas" orderBy="vencimento" ascending primaryAction="Registrar Pagamento"
+    table="parcelas" orderBy="vencimento" ascending primaryAction="Nova Parcela"
+    formFields={[
+      { key: "numero", label: "Nº da parcela", type: "number" },
+      { key: "valor", label: "Valor", type: "currency", required: true },
+      { key: "vencimento", label: "Vencimento", type: "date", required: true },
+      { key: "pagamento", label: "Data de pagamento", type: "date" },
+      { key: "status", label: "Status", type: "select", options: [
+        { value: "aberta", label: "Aberta" }, { value: "paga", label: "Paga" },
+        { value: "atrasada", label: "Atrasada" }, { value: "cancelada", label: "Cancelada" },
+      ] },
+    ]}
     computeKpis={(r) => [
       { label: "Parcelas", value: String(r.length), icon: Receipt, accent: "brand" },
       { label: "A receber", value: brlShort(sum(r.filter((x) => x.status !== "paga"), "valor")), icon: DollarSign, accent: "warning" },
@@ -89,6 +117,13 @@ export const Endossos = () => (
   <DataTablePage
     title="Endossos" subtitle="Alterações de apólices" icon={FileEdit}
     table="endossos" orderBy="data" primaryAction="Novo Endosso"
+    formFields={[
+      { key: "data", label: "Data", type: "date", required: true },
+      { key: "cliente_nome", label: "Cliente", required: true },
+      { key: "seguradora", label: "Seguradora" },
+      { key: "motivo", label: "Motivo", placeholder: "Troca de veículo, inclusão de condutor…" },
+      { key: "valor", label: "Valor", type: "currency" },
+    ]}
     columns={[
       { header: "Data", render: (r) => dateBR(r.data) },
       { header: "Cliente", render: (r) => r.cliente_nome || "—" },
@@ -105,6 +140,14 @@ export const Metas = () => (
   <DataTablePage
     title="Metas & Performance" subtitle="Metas da corretora e individuais" icon={Target}
     table="metas" orderBy="mes" primaryAction="Definir Meta"
+    formFields={[
+      { key: "mes", label: "Mês de referência", type: "date", required: true },
+      { key: "escopo", label: "Escopo", type: "select", required: true, options: [
+        { value: "corretora", label: "Corretora (geral)" }, { value: "individual", label: "Individual" },
+      ] },
+      { key: "modulo", label: "Módulo", type: "select", options: optModulo },
+      { key: "valor_meta", label: "Meta (R$)", type: "currency", required: true },
+    ]}
     columns={[
       { header: "Mês", render: (r) => dateBR(r.mes) },
       { header: "Escopo", render: (r) => r.escopo || "—" },
@@ -120,6 +163,18 @@ export const Sinistros = () => (
   <DataTablePage
     title="Sinistros & Assistências" subtitle="Atendimentos vinculados às apólices" icon={ShieldAlert}
     table="atendimentos" orderBy="data" primaryAction="Novo Atendimento"
+    formFields={[
+      { key: "data", label: "Data", type: "date", required: true },
+      { key: "tipo", label: "Tipo", type: "select", required: true, options: [
+        { value: "sinistro", label: "Sinistro" }, { value: "assistencia", label: "Assistência" },
+      ] },
+      { key: "numero_registro", label: "Nº de registro" },
+      { key: "cliente_nome", label: "Cliente", required: true },
+      { key: "descricao", label: "Descrição", type: "textarea" },
+      { key: "status", label: "Status", type: "select", options: [
+        { value: "aberto", label: "Aberto" }, { value: "em_andamento", label: "Em andamento" }, { value: "concluido", label: "Concluído" },
+      ] },
+    ]}
     computeKpis={(r) => [
       { label: "Atendimentos", value: String(r.length), icon: ShieldAlert, accent: "brand" },
       { label: "Abertos", value: String(count(r, (x) => x.status === "aberto")), icon: ShieldAlert, accent: "warning" },
@@ -141,12 +196,20 @@ export const Parceiros = () => (
   <DataTablePage
     title="Parceiros" subtitle="Seguradoras e administradoras" icon={Building2}
     table="seguradoras" orderBy="nome" ascending primaryAction="Novo Parceiro"
+    formFields={[
+      { key: "nome", label: "Nome", required: true, placeholder: "Porto Seguro, Âncora…" },
+      { key: "tipo", label: "Tipo", type: "select", required: true, options: [
+        { value: "seguradora", label: "Seguradora" }, { value: "administradora", label: "Administradora" },
+      ] },
+      { key: "comissao_padrao", label: "Comissão padrão (%)", type: "number" },
+      { key: "site", label: "Site" },
+    ]}
     columns={[
       { header: "Nome", render: (r) => <span className="font-semibold text-ink">{r.nome}</span> },
       { header: "Tipo", render: (r) => <Badge tone={r.tipo === "administradora" ? "violet" : "blue"}>{r.tipo}</Badge> },
       { header: "Comissão padrão", render: (r) => (r.comissao_padrao != null ? pct(r.comissao_padrao) : "—") },
       { header: "Site", render: (r) => r.site || "—" },
-      { header: "Ativo", render: (r) => <St s={r.ativo ? "ativo" : "inativo"} /> },
+      { header: "Ativo", render: (r) => <St s={r.ativo === false ? "inativo" : "ativo"} /> },
     ]}
     emptyIcon={Building2} emptyTitle="Nenhum parceiro cadastrado"
     emptyHint="Cadastre as seguradoras e administradoras com quem a Kuboo trabalha e suas comissões padrão."
@@ -157,11 +220,16 @@ export const Produtos = () => (
   <DataTablePage
     title="Produtos" subtitle="Catálogo de produtos" icon={Package}
     table="produtos" orderBy="nome" ascending primaryAction="Novo Produto"
+    formFields={[
+      { key: "nome", label: "Nome do produto", required: true, placeholder: "Seguro Auto, Consórcio Imóvel…" },
+      { key: "modulo", label: "Módulo", type: "select", required: true, options: optModulo },
+      { key: "descricao", label: "Descrição", type: "textarea" },
+    ]}
     columns={[
       { header: "Produto", render: (r) => <span className="font-semibold text-ink">{r.nome}</span> },
       { header: "Módulo", render: (r) => <Badge tone={r.modulo === "consorcios" ? "violet" : "blue"}>{r.modulo}</Badge> },
       { header: "Descrição", render: (r) => r.descricao || "—" },
-      { header: "Ativo", render: (r) => <St s={r.ativo ? "ativo" : "inativo"} /> },
+      { header: "Ativo", render: (r) => <St s={r.ativo === false ? "inativo" : "ativo"} /> },
     ]}
     emptyIcon={Package} emptyTitle="Nenhum produto cadastrado"
     emptyHint="Monte o catálogo de produtos (Auto, Vida, Imóvel, etc.) que a equipe oferece."
@@ -174,6 +242,23 @@ export const Cotas = () => (
   <DataTablePage
     title="Cotas" subtitle="Cartas de crédito dos clientes" icon={Layers}
     table="cotas" orderBy="created_at" primaryAction="Nova Cota"
+    formFields={[
+      { key: "cliente_nome", label: "Cliente", required: true },
+      { key: "administradora", label: "Administradora", placeholder: "Âncora, Porto, Tradição…" },
+      { key: "tipo", label: "Tipo", type: "select", options: [
+        { value: "Imóvel", label: "Imóvel" }, { value: "Veículo", label: "Veículo" }, { value: "Empresarial", label: "Empresarial" },
+      ] },
+      { key: "grupo", label: "Grupo" },
+      { key: "numero_cota", label: "Cota" },
+      { key: "valor_credito", label: "Valor do crédito", type: "currency", required: true },
+      { key: "parcela", label: "Parcela mensal", type: "currency" },
+      { key: "prazo", label: "Prazo (meses)", type: "number" },
+      { key: "parcelas_pagas", label: "Parcelas pagas", type: "number" },
+      { key: "status", label: "Status", type: "select", options: [
+        { value: "ativa", label: "Ativa" }, { value: "contemplada", label: "Contemplada" },
+        { value: "cancelada", label: "Cancelada" }, { value: "quitada", label: "Quitada" },
+      ] },
+    ]}
     computeKpis={(r) => [
       { label: "Cotas", value: String(r.length), icon: Layers, accent: "brand" },
       { label: "Crédito total", value: brlShort(sum(r, "valor_credito")), icon: DollarSign, accent: "success" },
@@ -196,7 +281,14 @@ export const Cotas = () => (
 export const Contemplacoes = () => (
   <DataTablePage
     title="Contemplações" subtitle="Sorteios e lances" icon={Award}
-    table="contemplacoes" orderBy="data"
+    table="contemplacoes" orderBy="data" primaryAction="Registrar Contemplação"
+    formFields={[
+      { key: "data", label: "Data", type: "date", required: true },
+      { key: "forma", label: "Forma", type: "select", required: true, options: [
+        { value: "sorteio", label: "Sorteio" }, { value: "lance", label: "Lance" },
+      ] },
+      { key: "valor_lance", label: "Valor do lance", type: "currency" },
+    ]}
     columns={[
       { header: "Data", render: (r) => dateBR(r.data) },
       { header: "Forma", render: (r) => <Badge tone={r.forma === "lance" ? "amber" : "green"}>{r.forma}</Badge> },
@@ -211,6 +303,13 @@ export const Grupos = () => (
   <DataTablePage
     title="Grupos & Assembleias" subtitle="Calendário de assembleias e grupos" icon={CalendarDays}
     table="grupos" orderBy="proxima_assembleia" ascending primaryAction="Novo Grupo"
+    formFields={[
+      { key: "administradora", label: "Administradora", required: true },
+      { key: "numero", label: "Nº do grupo" },
+      { key: "tipo", label: "Tipo", placeholder: "Imóvel, Veículo…" },
+      { key: "proxima_assembleia", label: "Próxima assembleia", type: "date" },
+      { key: "participantes", label: "Participantes", type: "number" },
+    ]}
     columns={[
       { header: "Administradora", render: (r) => r.administradora || "—" },
       { header: "Grupo", render: (r) => r.numero || "—" },
