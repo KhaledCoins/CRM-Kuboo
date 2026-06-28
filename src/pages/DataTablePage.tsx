@@ -110,7 +110,15 @@ export function DataTablePage({
 
       <Card pad={false}>
         {loading ? (
-          <div className="p-12 text-center text-muted text-sm">Carregando…</div>
+          <div className="p-4 space-y-2.5">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="h-9 flex-1 rounded-lg bg-slate-100 animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+                <div className="h-9 w-24 rounded-lg bg-slate-100 animate-pulse" />
+                <div className="h-9 w-16 rounded-lg bg-slate-100 animate-pulse" />
+              </div>
+            ))}
+          </div>
         ) : rows.length > 0 ? (
           <div className="p-2">
             <Table head={<>{columns.map((c, i) => <Th key={i} right={c.right}>{c.header}</Th>)}{canEdit && <Th right>Ações</Th>}</>}>
