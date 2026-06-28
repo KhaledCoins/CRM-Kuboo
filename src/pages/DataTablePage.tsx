@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { X } from "lucide-react";
+import { X, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, EmptyState, KpiCard } from "../components/ui";
 import { supabase } from "../lib/supabase";
@@ -39,6 +39,7 @@ export function DataTablePage({
   const [error, setError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
   async function load() {
@@ -54,6 +55,14 @@ export function DataTablePage({
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [table, select, orderBy, ascending]);
 
+  function openCreate() { setEditingId(null); setForm({}); setShowForm(true); }
+  function openEdit(row: any) {
+    setEditingId(row.id);
+    const f: Record<string, string> = {};
+    for (const ff of formFields!) f[ff.key] = row[ff.key] != null ? String(row[ff.key]) : "";
+    setForm(f); setShowForm(true);
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase || !formFields) return;
@@ -65,21 +74,33 @@ export function DataTablePage({
       else if (f.type === "number" || f.type === "currency") v = Number(String(v).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", ".")) || 0;
       payload[f.key] = v;
     }
-    const { error } = await supabase.from(table).insert(payload);
+    const { error } = editingId
+      ? await supabase.from(table).update(payload).eq("id", editingId)
+      : await supabase.from(table).insert(payload);
     setSaving(false);
     if (error) { toast.error("Não foi possível salvar: " + error.message); return; }
-    toast.success("Registro criado!");
-    setShowForm(false); setForm({});
+    toast.success(editingId ? "Registro atualizado!" : "Registro criado!");
+    setShowForm(false); setForm({}); setEditingId(null);
     load();
   }
 
+  async function handleDelete(row: any) {
+    if (!supabase) return;
+    if (!window.confirm("Excluir este registro? Esta ação não pode ser desfeita.")) return;
+    setRows((prev) => prev.filter((r) => r.id !== row.id));
+    const { error } = await supabase.from(table).delete().eq("id", row.id);
+    if (error) { toast.error("Não foi possível excluir: " + error.message); load(); return; }
+    toast.success("Registro excluído");
+  }
+
   const kpis = computeKpis && rows.length ? computeKpis(rows) : [];
-  const canCreate = !!(primaryAction && formFields && formFields.length);
+  const canEdit = !!(formFields && formFields.length);
+  const canCreate = !!(primaryAction && canEdit);
 
   return (
     <>
       <PageHeader title={title} subtitle={subtitle} icon={icon}
-        actions={primaryAction ? <Button onClick={canCreate ? () => setShowForm(true) : undefined}>{primaryAction}</Button> : undefined} />
+        actions={primaryAction ? <Button onClick={canCreate ? openCreate : undefined}>{primaryAction}</Button> : undefined} />
 
       {kpis.length > 0 && (
         <div className={`grid grid-cols-1 sm:grid-cols-2 ${kpis.length >= 4 ? "xl:grid-cols-4" : "lg:grid-cols-3"} gap-4 mb-6`}>
@@ -92,10 +113,18 @@ export function DataTablePage({
           <div className="p-12 text-center text-muted text-sm">Carregando…</div>
         ) : rows.length > 0 ? (
           <div className="p-2">
-            <Table head={<>{columns.map((c, i) => <Th key={i} right={c.right}>{c.header}</Th>)}</>}>
+            <Table head={<>{columns.map((c, i) => <Th key={i} right={c.right}>{c.header}</Th>)}{canEdit && <Th right>Ações</Th>}</>}>
               {rows.map((row, ri) => (
                 <Tr key={row.id ?? ri}>
                   {columns.map((c, ci) => <Td key={ci} right={c.right}>{c.render(row)}</Td>)}
+                  {canEdit && (
+                    <Td right>
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(row)} title="Editar" className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Pencil size={15} /></button>
+                        <button onClick={() => handleDelete(row)} title="Excluir" className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>
+                      </div>
+                    </Td>
+                  )}
                 </Tr>
               ))}
             </Table>
@@ -107,19 +136,18 @@ export function DataTablePage({
             hint={error
               ? "Confira sua conexão e se sua conta tem papel de equipe (vendedor/gestor/admin)."
               : (emptyHint ?? "Estrutura pronta. Assim que os dados forem inseridos, aparecem aqui automaticamente.")}
-            action={canCreate ? <Button onClick={() => setShowForm(true)}>{primaryAction}</Button> : undefined}
+            action={canCreate ? <Button onClick={openCreate}>{primaryAction}</Button> : undefined}
           />
         )}
       </Card>
 
-      {/* Modal de cadastro */}
-      {showForm && canCreate && (
+      {showForm && canEdit && (
         <div onClick={() => setShowForm(false)}
           className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
           <form onClick={(e) => e.stopPropagation()} onSubmit={handleSave}
             className="bg-white rounded-2xl shadow-2xl w-[min(480px,94vw)] max-h-[88vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
-              <h3 className="font-extrabold text-ink text-lg">{primaryAction}</h3>
+              <h3 className="font-extrabold text-ink text-lg">{editingId ? "Editar registro" : primaryAction}</h3>
               <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
             <div className="p-6 grid grid-cols-1 gap-4">
@@ -135,7 +163,7 @@ export function DataTablePage({
                     <textarea className={inputCls} rows={3} required={f.required} placeholder={f.placeholder} value={form[f.key] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))} />
                   ) : (
                     <input className={inputCls} required={f.required}
-                      type={f.type === "date" ? "date" : f.type === "number" || f.type === "currency" ? "text" : "text"}
+                      type={f.type === "date" ? "date" : "text"}
                       inputMode={f.type === "number" || f.type === "currency" ? "decimal" : undefined}
                       placeholder={f.placeholder ?? (f.type === "currency" ? "R$ 0,00" : "")}
                       value={form[f.key] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))} />
@@ -145,7 +173,7 @@ export function DataTablePage({
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
               <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button>
+              <Button type="submit" disabled={saving}>{saving ? "Salvando…" : editingId ? "Salvar alterações" : "Salvar"}</Button>
             </div>
           </form>
         </div>
