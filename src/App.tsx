@@ -22,18 +22,13 @@ import {
 import { TvSalao } from "./pages/TvSalao";
 import { DashboardConsorcios } from "./pages/DashboardConsorcios";
 import { Tarefas } from "./pages/Tarefas";
+import { Ranking } from "./pages/Ranking";
+import { Producao } from "./pages/Producao";
 
 /* ---- Seções bespoke que ainda são placeholders (relatórios/configurações) ---- */
-const Ranking = () => <SectionPage title="Ranking de Vendedores" subtitle="Desempenho da equipe" icon={Trophy}
-  kpis={[{ label: "Total em Vendas", icon: TrendingUp }, { label: "Total em Comissões", icon: DollarSign, accent: "success" }, { label: "Ticket Médio", icon: Trophy, accent: "warning" }]}
-  emptyIcon={Trophy} emptyTitle="Sem vendas no período" emptyHint="O ranking por produção e comissão aparece aqui assim que houver vendas." />;
-
 const Auditoria = () => <SectionPage title="Auditoria & Cobrança" subtitle="Pós-venda — gestão por exceção" icon={ClipboardCheck}
   kpis={[{ label: "A Conferir", icon: ClipboardCheck, accent: "warning" }, { label: "Aprovadas", icon: CheckCircle2, accent: "success" }, { label: "Cobrança em Atraso", icon: AlertTriangle, accent: "danger" }]}
   emptyIcon={ClipboardCheck} emptyTitle="Nada para auditar ainda" emptyHint="Cada venda passa por conferência e controle de cobrança." />;
-
-const Producao = () => <SectionPage title="Produção Mensal" subtitle="Relatório consolidado" icon={BarChart3}
-  emptyIcon={BarChart3} emptyTitle="Sem produção no período" emptyHint="Consolidado por consultor, seguradora e produto." />;
 
 const Configuracoes = () => <SectionPage title="Configurações" subtitle="Preferências do sistema" icon={Settings}
   emptyIcon={Settings} emptyTitle="Configurações" emptyHint="Dados da corretora, metas padrão, integrações (site/Kubinho) e permissões." />;
