@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
-import { KanbanSquare, Phone, MessageCircle, User, Clock, DollarSign, CheckCircle2, AlertTriangle, Inbox } from "lucide-react";
+import { KanbanSquare, MessageCircle, User, Clock, DollarSign, CheckCircle2, AlertTriangle, Inbox, ListPlus } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader, Button, KpiCard, Card } from "../components/ui";
 import { fetchLeads, moverEtapa, registrarContato, noBolsao, slaRestanteMin, moduloDe, type Lead } from "../lib/leads";
+import { criarTarefa } from "../lib/tarefas";
 import { useAuth } from "../context/AuthContext";
 import { brl, brlShort, onlyDigits } from "../lib/format";
 import type { Modulo } from "../lib/nav";
@@ -45,9 +47,21 @@ function LeadCard({ lead, onContato }: { lead: Lead; onContato: (id: string) => 
         {wa && <a href={wa} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg"><MessageCircle size={12} /> WhatsApp</a>}
         {!lead.primeiro_contato_em && (
           <button onClick={() => onContato(lead.id)} className="flex items-center gap-1 text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-lg">
-            <CheckCircle2 size={12} /> Registrar contato
+            <CheckCircle2 size={12} /> Contato
           </button>
         )}
+        <button
+          onClick={async () => {
+            const { error } = await criarTarefa({
+              titulo: `Follow-up: ${lead.nome}`,
+              descricao: lead.produto_interesse ? `Interesse: ${lead.produto_interesse}` : undefined,
+              cliente_nome: lead.nome, status: "a_fazer", prioridade: "media", modulo: moduloDe(lead),
+            });
+            if (error) toast.error("Não foi possível criar a tarefa"); else toast.success("Tarefa criada no quadro!");
+          }}
+          className="flex items-center gap-1 text-[11px] font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-lg">
+          <ListPlus size={12} /> Tarefa
+        </button>
       </div>
     </div>
   );
