@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { KanbanSquare, Plus, Trash2, User, Calendar, Flag, X, ListChecks, Loader2, CheckCircle2 } from "lucide-react";
+import { KanbanSquare, Plus, Trash2, Pencil, User, Calendar, Flag, X, ListChecks, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, KpiCard, Card } from "../components/ui";
-import { fetchTarefas, criarTarefa, moverTarefa, excluirTarefa, type Tarefa } from "../lib/tarefas";
+import { fetchTarefas, criarTarefa, atualizarTarefa, moverTarefa, excluirTarefa, type Tarefa } from "../lib/tarefas";
 import { useAuth } from "../context/AuthContext";
 import { dateBR } from "../lib/format";
 import type { Modulo } from "../lib/nav";
@@ -17,7 +17,7 @@ const COLS = [
 const prioTone: Record<string, string> = { alta: "bg-red-100 text-red-700", media: "bg-amber-100 text-amber-700", baixa: "bg-slate-100 text-slate-600" };
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none text-ink focus:border-brand-400";
 
-function TarefaCard({ t, onDelete }: { t: Tarefa; onDelete: (id: string) => void }) {
+function TarefaCard({ t, onDelete, onEdit }: { t: Tarefa; onDelete: (id: string) => void; onEdit: (t: Tarefa) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: t.id });
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined;
   return (
@@ -25,7 +25,10 @@ function TarefaCard({ t, onDelete }: { t: Tarefa; onDelete: (id: string) => void
       className={`bg-white rounded-xl border border-slate-200 p-3 mb-2.5 cursor-grab active:cursor-grabbing shadow-sm ${isDragging ? "opacity-60 ring-2 ring-brand-300" : ""}`}>
       <div className="flex items-start justify-between gap-2 mb-1">
         <p className="font-bold text-ink text-sm leading-snug">{t.titulo}</p>
-        <button onClick={() => onDelete(t.id)} onPointerDown={(e) => e.stopPropagation()} className="text-slate-300 hover:text-red-500 shrink-0"><Trash2 size={14} /></button>
+        <div className="flex items-center gap-1 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+          <button onClick={() => onEdit(t)} className="text-slate-300 hover:text-brand-500"><Pencil size={13} /></button>
+          <button onClick={() => onDelete(t.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+        </div>
       </div>
       {t.descricao && <p className="text-xs text-muted mb-2 leading-snug">{t.descricao}</p>}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -42,7 +45,7 @@ function TarefaCard({ t, onDelete }: { t: Tarefa; onDelete: (id: string) => void
   );
 }
 
-function Coluna({ col, tarefas, onDelete }: { col: typeof COLS[number]; tarefas: Tarefa[]; onDelete: (id: string) => void }) {
+function Coluna({ col, tarefas, onDelete, onEdit }: { col: typeof COLS[number]; tarefas: Tarefa[]; onDelete: (id: string) => void; onEdit: (t: Tarefa) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
   return (
     <div className="w-[290px] shrink-0">
@@ -52,7 +55,7 @@ function Coluna({ col, tarefas, onDelete }: { col: typeof COLS[number]; tarefas:
         <span className="text-xs bg-slate-100 text-slate-500 rounded-full px-1.5 font-bold">{tarefas.length}</span>
       </div>
       <div ref={setNodeRef} className={`min-h-[180px] rounded-xl p-2 transition-colors ${isOver ? "bg-brand-50" : "bg-slate-100/60"}`}>
-        {tarefas.map((t) => <TarefaCard key={t.id} t={t} onDelete={onDelete} />)}
+        {tarefas.map((t) => <TarefaCard key={t.id} t={t} onDelete={onDelete} onEdit={onEdit} />)}
       </div>
     </div>
   );
@@ -65,8 +68,16 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
   const [erro, setErro] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Tarefa>>({ status: "a_fazer", prioridade: "media", modulo });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  function openCreate() { setEditId(null); setForm({ status: "a_fazer", prioridade: "media", modulo }); setShowForm(true); }
+  function openEdit(t: Tarefa) {
+    setEditId(t.id);
+    setForm({ titulo: t.titulo, descricao: t.descricao || "", status: t.status, prioridade: t.prioridade || "media", cliente_nome: t.cliente_nome || "", vencimento: t.vencimento || "", responsavel_nome: t.responsavel_nome || "" });
+    setShowForm(true);
+  }
 
   async function load() {
     setLoading(true);
@@ -93,11 +104,13 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
     e.preventDefault();
     if (!form.titulo) return;
     setSaving(true);
-    const { error } = await criarTarefa({ ...form, modulo, responsavel_nome: form.responsavel_nome || user?.name });
+    const { error } = editId
+      ? await atualizarTarefa(editId, { ...form })
+      : await criarTarefa({ ...form, modulo, responsavel_nome: form.responsavel_nome || user?.name });
     setSaving(false);
     if (error) { toast.error("Não foi possível salvar: " + error); return; }
-    toast.success("Tarefa criada!");
-    setShowForm(false); setForm({ status: "a_fazer", prioridade: "media", modulo });
+    toast.success(editId ? "Tarefa atualizada!" : "Tarefa criada!");
+    setShowForm(false); setEditId(null); setForm({ status: "a_fazer", prioridade: "media", modulo });
     load();
   }
 
@@ -107,7 +120,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
   return (
     <>
       <PageHeader title="Tarefas & Atividades" subtitle="Quadro da equipe — arraste os cartões entre as colunas" icon={KanbanSquare}
-        actions={<Button icon={Plus} onClick={() => setShowForm(true)}>Nova Tarefa</Button>} />
+        actions={<Button icon={Plus} onClick={openCreate}>Nova Tarefa</Button>} />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <KpiCard label="Total de Tarefas" value={String(tarefas.length)} icon={ListChecks} accent="brand" />
@@ -125,7 +138,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
       ) : (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
-            {COLS.map((c) => <Coluna key={c.id} col={c} tarefas={porCol(c.id)} onDelete={onDelete} />)}
+            {COLS.map((c) => <Coluna key={c.id} col={c} tarefas={porCol(c.id)} onDelete={onDelete} onEdit={openEdit} />)}
           </div>
         </DndContext>
       )}
@@ -134,7 +147,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
         <div onClick={() => setShowForm(false)} className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
           <form onClick={(e) => e.stopPropagation()} onSubmit={salvar} className="bg-white rounded-2xl shadow-2xl w-[min(460px,94vw)]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="font-extrabold text-ink text-lg">Nova Tarefa</h3>
+              <h3 className="font-extrabold text-ink text-lg">{editId ? "Editar Tarefa" : "Nova Tarefa"}</h3>
               <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
             <div className="p-6 grid gap-4">
@@ -161,7 +174,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
               <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Criar tarefa"}</Button>
+              <Button type="submit" disabled={saving}>{saving ? "Salvando…" : editId ? "Salvar alterações" : "Criar tarefa"}</Button>
             </div>
           </form>
         </div>

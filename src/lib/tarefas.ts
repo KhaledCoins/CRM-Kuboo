@@ -30,6 +30,12 @@ export async function moverTarefa(id: string, status: Tarefa["status"]) {
   await supabase.from("tarefas").update({ status }).eq("id", id);
 }
 
+export async function atualizarTarefa(id: string, patch: Partial<Tarefa>): Promise<{ error: string | null }> {
+  if (!supabase) return { error: "Supabase não configurado" };
+  const { error } = await supabase.from("tarefas").update(patch).eq("id", id);
+  return { error: error ? error.message : null };
+}
+
 export async function excluirTarefa(id: string) {
   if (!supabase) return;
   await supabase.from("tarefas").delete().eq("id", id);

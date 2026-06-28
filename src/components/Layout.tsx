@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { NAV, type Modulo } from "../lib/nav";
 import { useAuth } from "../context/AuthContext";
 import { initials } from "../lib/format";
+import { fetchLeads, noBolsao, moduloDe } from "../lib/leads";
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -11,6 +13,19 @@ export function Layout() {
   const modulo: Modulo = loc.pathname.startsWith("/consorcios") ? "consorcios" : "seguros";
   const groups = NAV[modulo];
   const role = user?.role ?? "vendedor";
+  const [bolsaoCount, setBolsaoCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const leads = await fetchLeads();
+      if (!active) return;
+      setBolsaoCount(leads.filter((l) => moduloDe(l) === modulo && noBolsao(l)).length);
+    }
+    load();
+    const t = setInterval(load, 60000);
+    return () => { active = false; clearInterval(t); };
+  }, [modulo, loc.pathname]);
 
   const switchModulo = (m: Modulo) => nav(`/${m}`);
 
@@ -69,7 +84,10 @@ export function Layout() {
                       }
                     >
                       <it.icon size={17} className="shrink-0" />
-                      <span className="truncate">{it.label}</span>
+                      <span className="truncate flex-1">{it.label}</span>
+                      {it.to.endsWith("/bolsao") && bolsaoCount > 0 && (
+                        <span className="shrink-0 text-[10px] font-extrabold bg-red-500 text-white rounded-full min-w-[18px] h-[18px] px-1 grid place-items-center animate-pulse">{bolsaoCount}</span>
+                      )}
                     </NavLink>
                   ))}
               </div>

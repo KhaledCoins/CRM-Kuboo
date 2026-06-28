@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ShoppingCart, TrendingUp, DollarSign, Percent, Package, Trophy, PieChart as PieIcon } from "lucide-react";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { Card, KpiCard, PageHeader, EmptyState } from "../../components/ui";
 import { brl, brlShort } from "../../lib/format";
 import { supabase } from "../../lib/supabase";
@@ -26,6 +26,23 @@ function BarList({ items, color }: { items: { label: string; total: number }[]; 
           <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(it.total / max) * 100}%`, background: color }} /></div>
         </div>
       ))}
+    </div>
+  );
+}
+
+const PIE_COLORS = ["#1873BA", "#2DD4A7", "#F5B53D", "#EC7000", "#7C3AED", "#36ABE2"];
+function PieDist({ items }: { items: { label: string; total: number }[] }) {
+  return (
+    <div className="p-3" style={{ height: 250 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie data={items} dataKey="total" nameKey="label" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
+            {items.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+          </Pie>
+          <Tooltip formatter={(v: number) => brl(v)} />
+          <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+        </PieChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -106,7 +123,7 @@ export function DashboardSeguros() {
         </Card>
         <Card pad={false}>
           <div className="p-5 pb-0"><h3 className="text-lg text-ink flex items-center gap-2"><PieIcon size={18} className="text-brand-500" /> Produção por Seguradora</h3></div>
-          {temDados ? <BarList items={m.topSeg} color="#2DD4A7" /> : <EmptyState icon={PieIcon} title="Nenhuma venda registrada este mês" />}
+          {temDados ? <PieDist items={m.topSeg} /> : <EmptyState icon={PieIcon} title="Nenhuma venda registrada este mês" />}
         </Card>
         <Card pad={false}>
           <div className="p-5 pb-0"><h3 className="text-lg text-ink flex items-center gap-2"><DollarSign size={18} className="text-green-600" /> Resumo do Mês</h3></div>
