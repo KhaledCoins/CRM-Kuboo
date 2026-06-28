@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, DollarSign, ShoppingCart, Percent, Package, Building2, Users, RefreshCw } from "lucide-react";
 import { Card, KpiCard, PageHeader, EmptyState } from "../components/ui";
+import { PeriodoSelect, rangeFor, labelDe, type PeriodoKey } from "../components/Periodo";
 import { brl } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 interface Venda { valor: number | null; comissao_valor: number | null; data_venda: string | null; produto: string | null; seguradora: string | null; vendedor_nome: string | null; tipo: string | null; }
-const monthPrefix = () => new Date().toISOString().slice(0, 7);
 
 function groupTop(rows: Venda[], key: keyof Venda, n = 6) {
   const map: Record<string, number> = {};
@@ -32,17 +32,22 @@ function BarBlock({ title, icon: Icon, items, color }: { title: string; icon: an
 export function Producao() {
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [loading, setLoading] = useState(true);
+  const [periodo, setPeriodo] = useState<PeriodoKey>("mes");
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
     (async () => {
       if (!supabase) { setLoading(false); return; }
-      const { data } = await supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,tipo").gte("data_venda", monthPrefix() + "-01").limit(3000);
+      const r = rangeFor(periodo);
+      let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,tipo").gte("data_venda", r.gte);
+      if (r.lte) qy = qy.lte("data_venda", r.lte);
+      const { data } = await qy.limit(5000);
       if (!active) return;
       setVendas(data || []); setLoading(false);
     })();
     return () => { active = false; };
-  }, []);
+  }, [periodo]);
 
   const m = useMemo(() => {
     let prod = 0, com = 0, novos = 0, renov = 0;
@@ -58,11 +63,10 @@ export function Producao() {
     };
   }, [vendas]);
 
-  const mesNome = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-
   return (
     <>
-      <PageHeader title="Produção Mensal" subtitle={`Relatório consolidado — ${mesNome}`} icon={BarChart3} />
+      <PageHeader title="Produção" subtitle={`Relatório consolidado — ${labelDe(periodo).toLowerCase()}`} icon={BarChart3}
+        actions={<PeriodoSelect value={periodo} onChange={setPeriodo} />} />
 
       {loading ? (
         <Card><p className="text-muted text-sm">Carregando relatório…</p></Card>

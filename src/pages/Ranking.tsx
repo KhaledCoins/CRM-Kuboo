@@ -1,26 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trophy, DollarSign, TrendingUp, Medal } from "lucide-react";
 import { Card, KpiCard, PageHeader, EmptyState } from "../components/ui";
+import { PeriodoSelect, rangeFor, labelDe, type PeriodoKey } from "../components/Periodo";
 import { brl, brlShort } from "../lib/format";
 import { supabase } from "../lib/supabase";
 
 interface Venda { valor: number | null; comissao_valor: number | null; data_venda: string | null; vendedor_nome: string | null; }
-const monthPrefix = () => new Date().toISOString().slice(0, 7);
 
 export function Ranking() {
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [loading, setLoading] = useState(true);
+  const [periodo, setPeriodo] = useState<PeriodoKey>("mes");
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
     (async () => {
       if (!supabase) { setLoading(false); return; }
-      const { data } = await supabase.from("vendas").select("valor,comissao_valor,data_venda,vendedor_nome").gte("data_venda", monthPrefix() + "-01").limit(3000);
+      const r = rangeFor(periodo);
+      let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,vendedor_nome").gte("data_venda", r.gte);
+      if (r.lte) qy = qy.lte("data_venda", r.lte);
+      const { data } = await qy.limit(5000);
       if (!active) return;
       setVendas(data || []); setLoading(false);
     })();
     return () => { active = false; };
-  }, []);
+  }, [periodo]);
 
   const { rank, totVendas, totComissao } = useMemo(() => {
     const map: Record<string, { producao: number; comissao: number; n: number }> = {};
@@ -40,7 +45,8 @@ export function Ranking() {
 
   return (
     <>
-      <PageHeader title="Ranking de Vendedores" subtitle="Desempenho da equipe no mês" icon={Trophy} />
+      <PageHeader title="Ranking de Vendedores" subtitle={`Desempenho da equipe — ${labelDe(periodo).toLowerCase()}`} icon={Trophy}
+        actions={<PeriodoSelect value={periodo} onChange={setPeriodo} />} />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <KpiCard label="Total em Vendas" value={brlShort(totVendas)} icon={TrendingUp} accent="brand" />
