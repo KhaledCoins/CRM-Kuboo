@@ -21,6 +21,7 @@ import {
 } from "./pages/sections";
 import { TvSalao } from "./pages/TvSalao";
 import { DashboardConsorcios } from "./pages/DashboardConsorcios";
+import { Tarefas } from "./pages/Tarefas";
 
 /* ---- Seções bespoke que ainda são placeholders (relatórios/configurações) ---- */
 const Ranking = () => <SectionPage title="Ranking de Vendedores" subtitle="Desempenho da equipe" icon={Trophy}
@@ -62,6 +63,7 @@ function Shell() {
         <Route path="/seguros/comissoes" element={<Comissoes />} />
         <Route path="/seguros/ranking" element={<Ranking />} />
         <Route path="/seguros/pipeline" element={<Pipeline modulo="seguros" />} />
+        <Route path="/seguros/tarefas" element={<Tarefas modulo="seguros" />} />
         <Route path="/seguros/renovacoes" element={<Pipeline modulo="seguros" renovacoes />} />
         <Route path="/seguros/metas" element={<Metas />} />
         <Route path="/seguros/sinistros" element={<Sinistros />} />
@@ -78,6 +80,7 @@ function Shell() {
         <Route path="/consorcios" element={<DashboardConsorcios />} />
         <Route path="/consorcios/bolsao" element={<Bolsao />} />
         <Route path="/consorcios/pipeline" element={<Pipeline modulo="consorcios" />} />
+        <Route path="/consorcios/tarefas" element={<Tarefas modulo="consorcios" />} />
         <Route path="/consorcios/cotas" element={<Cotas />} />
         <Route path="/consorcios/contemplacoes" element={<Contemplacoes />} />
         <Route path="/consorcios/grupos" element={<Grupos />} />

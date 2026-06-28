@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, ShoppingCart, FileEdit, Receipt, DollarSign, Trophy,
   KanbanSquare, RefreshCcw, Target, ShieldAlert, ClipboardCheck, BarChart3,
-  Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox,
+  Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox, ListChecks,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../context/AuthContext";
@@ -50,6 +50,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
         { label: "Ranking", to: "/seguros/ranking", icon: Trophy },
         { label: "Pipeline (Novos)", to: "/seguros/pipeline", icon: KanbanSquare },
         { label: "Pipeline (Renovações)", to: "/seguros/renovacoes", icon: RefreshCcw },
+        { label: "Tarefas & Atividades", to: "/seguros/tarefas", icon: ListChecks },
         { label: "Metas & Performance", to: "/seguros/metas", icon: Target },
         { label: "Sinistros & Assistências", to: "/seguros/sinistros", icon: ShieldAlert },
         { label: "Auditoria & Cobrança", to: "/seguros/auditoria", icon: ClipboardCheck, roles: ["admin", "gestor"] },
@@ -66,6 +67,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
         { label: "Dashboard", to: "/consorcios", icon: LayoutDashboard },
         { label: "Bolsão de Leads", to: "/consorcios/bolsao", icon: Inbox },
         { label: "Pipeline", to: "/consorcios/pipeline", icon: KanbanSquare },
+        { label: "Tarefas & Atividades", to: "/consorcios/tarefas", icon: ListChecks },
         { label: "Cotas", to: "/consorcios/cotas", icon: Layers },
         { label: "Contemplações", to: "/consorcios/contemplacoes", icon: Award },
         { label: "Grupos & Assembleias", to: "/consorcios/grupos", icon: CalendarDays },
