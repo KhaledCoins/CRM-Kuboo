@@ -1,9 +1,21 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { X, Pencil, Trash2 } from "lucide-react";
+import { X, Pencil, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, Button, Card, Table, Th, Td, Tr, EmptyState, KpiCard } from "../components/ui";
+import { PageHeader, Button, Card, Table, Th, Td, Tr, EmptyState, KpiCard, SearchInput } from "../components/ui";
 import { supabase } from "../lib/supabase";
+
+function downloadCsv(filename: string, rows: any[]) {
+  if (!rows.length) return;
+  const keys = Array.from(rows.reduce((s: Set<string>, r) => { Object.keys(r).forEach((k) => s.add(k)); return s; }, new Set<string>()));
+  const esc = (v: any) => { const s = v == null ? "" : String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const csv = [keys.join(";"), ...rows.map((r) => keys.map((k) => esc(r[k])).join(";"))].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
 
 export interface Column {
   header: string;
@@ -41,6 +53,13 @@ export function DataTablePage({
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [q, setQ] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!q.trim()) return rows;
+    const needle = q.toLowerCase();
+    return rows.filter((r) => JSON.stringify(r).toLowerCase().includes(needle));
+  }, [rows, q]);
 
   async function load() {
     if (!supabase) { setLoading(false); return; }
@@ -93,7 +112,7 @@ export function DataTablePage({
     toast.success("Registro excluído");
   }
 
-  const kpis = computeKpis && rows.length ? computeKpis(rows) : [];
+  const kpis = computeKpis && filtered.length ? computeKpis(filtered) : [];
   const canEdit = !!(formFields && formFields.length);
   const canCreate = !!(primaryAction && canEdit);
 
@@ -120,23 +139,37 @@ export function DataTablePage({
             ))}
           </div>
         ) : rows.length > 0 ? (
-          <div className="p-2">
-            <Table head={<>{columns.map((c, i) => <Th key={i} right={c.right}>{c.header}</Th>)}{canEdit && <Th right>Ações</Th>}</>}>
-              {rows.map((row, ri) => (
-                <Tr key={row.id ?? ri}>
-                  {columns.map((c, ci) => <Td key={ci} right={c.right}>{c.render(row)}</Td>)}
-                  {canEdit && (
-                    <Td right>
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(row)} title="Editar" className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Pencil size={15} /></button>
-                        <button onClick={() => handleDelete(row)} title="Excluir" className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>
-                      </div>
-                    </Td>
-                  )}
-                </Tr>
-              ))}
-            </Table>
-          </div>
+          <>
+            <div className="flex items-center gap-3 p-3 border-b border-slate-100 flex-wrap">
+              <SearchInput value={q} onChange={setQ} placeholder="Buscar nesta lista..." />
+              <span className="text-xs text-muted">{filtered.length} de {rows.length}</span>
+              <button onClick={() => downloadCsv(table, filtered)}
+                className="ml-auto inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-xl transition-colors">
+                <Download size={14} /> Exportar CSV
+              </button>
+            </div>
+            {filtered.length > 0 ? (
+              <div className="p-2">
+                <Table head={<>{columns.map((c, i) => <Th key={i} right={c.right}>{c.header}</Th>)}{canEdit && <Th right>Ações</Th>}</>}>
+                  {filtered.map((row, ri) => (
+                    <Tr key={row.id ?? ri}>
+                      {columns.map((c, ci) => <Td key={ci} right={c.right}>{c.render(row)}</Td>)}
+                      {canEdit && (
+                        <Td right>
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => openEdit(row)} title="Editar" className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Pencil size={15} /></button>
+                            <button onClick={() => handleDelete(row)} title="Excluir" className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>
+                          </div>
+                        </Td>
+                      )}
+                    </Tr>
+                  ))}
+                </Table>
+              </div>
+            ) : (
+              <p className="text-center text-sm text-muted py-10">Nenhum resultado para “{q}”.</p>
+            )}
+          </>
         ) : (
           <EmptyState
             icon={emptyIcon}
