@@ -24,6 +24,7 @@ import { DashboardConsorcios } from "./pages/DashboardConsorcios";
 import { Tarefas } from "./pages/Tarefas";
 import { Ranking } from "./pages/Ranking";
 import { Producao } from "./pages/Producao";
+import { Renovacoes } from "./pages/Renovacoes";
 
 /* ---- Seções bespoke que ainda são placeholders (relatórios/configurações) ---- */
 const Auditoria = () => <SectionPage title="Auditoria & Cobrança" subtitle="Pós-venda — gestão por exceção" icon={ClipboardCheck}
@@ -59,7 +60,7 @@ function Shell() {
         <Route path="/seguros/ranking" element={<Ranking />} />
         <Route path="/seguros/pipeline" element={<Pipeline modulo="seguros" />} />
         <Route path="/seguros/tarefas" element={<Tarefas modulo="seguros" />} />
-        <Route path="/seguros/renovacoes" element={<Pipeline modulo="seguros" renovacoes />} />
+        <Route path="/seguros/renovacoes" element={<Renovacoes />} />
         <Route path="/seguros/metas" element={<Metas />} />
         <Route path="/seguros/sinistros" element={<Sinistros />} />
         <Route path="/seguros/auditoria" element={<Auditoria />} />
