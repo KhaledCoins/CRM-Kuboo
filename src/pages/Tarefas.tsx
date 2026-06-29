@@ -20,9 +20,10 @@ const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-
 function TarefaCard({ t, onDelete, onEdit }: { t: Tarefa; onDelete: (id: string) => void; onEdit: (t: Tarefa) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: t.id });
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined;
+  const atrasada = !!t.vencimento && t.status !== "concluido" && new Date(t.vencimento) < new Date(new Date().toDateString());
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}
-      className={`bg-white rounded-xl border border-slate-200 p-3 mb-2.5 cursor-grab active:cursor-grabbing shadow-sm ${isDragging ? "opacity-60 ring-2 ring-brand-300" : ""}`}>
+      className={`bg-white rounded-xl border p-3 mb-2.5 cursor-grab active:cursor-grabbing shadow-sm ${atrasada ? "border-red-300 ring-1 ring-red-200" : "border-slate-200"} ${isDragging ? "opacity-60 ring-2 ring-brand-300" : ""}`}>
       <div className="flex items-start justify-between gap-2 mb-1">
         <p className="font-bold text-ink text-sm leading-snug">{t.titulo}</p>
         <div className="flex items-center gap-1 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
@@ -38,7 +39,7 @@ function TarefaCard({ t, onDelete, onEdit }: { t: Tarefa; onDelete: (id: string)
       {(t.responsavel_nome || t.vencimento) && (
         <div className="flex items-center gap-3 mt-2 text-[11px] text-muted">
           {t.responsavel_nome && <span className="flex items-center gap-1"><User size={11} /> {t.responsavel_nome}</span>}
-          {t.vencimento && <span className="flex items-center gap-1"><Calendar size={11} /> {dateBR(t.vencimento)}</span>}
+          {t.vencimento && <span className={`flex items-center gap-1 ${atrasada ? "text-red-600 font-bold" : ""}`}><Calendar size={11} /> {dateBR(t.vencimento)}{atrasada ? " · atrasada" : ""}</span>}
         </div>
       )}
     </div>
@@ -69,6 +70,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [escopo, setEscopo] = useState<"minhas" | "todas">("todas");
   const [form, setForm] = useState<Partial<Tarefa>>({ status: "a_fazer", prioridade: "media", modulo });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -114,16 +116,32 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
     load();
   }
 
-  const porCol = useMemo(() => (id: string) => tarefas.filter((t) => t.status === id), [tarefas]);
-  const concluidas = tarefas.filter((t) => t.status === "concluido").length;
+  const visiveis = useMemo(
+    () => (escopo === "minhas" && user?.name ? tarefas.filter((t) => t.responsavel_nome === user.name) : tarefas),
+    [tarefas, escopo, user]
+  );
+  const porCol = useMemo(() => (id: string) => visiveis.filter((t) => t.status === id), [visiveis]);
+  const concluidas = visiveis.filter((t) => t.status === "concluido").length;
 
   return (
     <>
       <PageHeader title="Tarefas & Atividades" subtitle="Quadro da equipe — arraste os cartões entre as colunas" icon={KanbanSquare}
-        actions={<Button icon={Plus} onClick={openCreate}>Nova Tarefa</Button>} />
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+              {(["todas", "minhas"] as const).map((e) => (
+                <button key={e} onClick={() => setEscopo(e)}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${escopo === e ? "bg-white shadow text-brand-600" : "text-slate-500"}`}>
+                  {e === "todas" ? "Todas" : "Minhas"}
+                </button>
+              ))}
+            </div>
+            <Button icon={Plus} onClick={openCreate}>Nova Tarefa</Button>
+          </div>
+        } />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <KpiCard label="Total de Tarefas" value={String(tarefas.length)} icon={ListChecks} accent="brand" />
+        <KpiCard label="Total de Tarefas" value={String(visiveis.length)} icon={ListChecks} accent="brand" />
         <KpiCard label="Em andamento" value={String(porCol("fazendo").length)} icon={Loader2} accent="warning" />
         <KpiCard label="Concluídas" value={String(concluidas)} icon={CheckCircle2} accent="success" />
       </div>
