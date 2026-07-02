@@ -44,8 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadProfile(id: string, email: string) {
     if (!supabase) return;
+    const TEAM_ROLES: Role[] = ["admin", "gestor", "vendedor"];
     let name = email.split("@")[0];
-    let role: Role = "admin"; // default seguro até a migração de papéis
+    let role: string | null = null;
     let nivel: string | null = null;
     let aprovado = true;
     try {
@@ -56,14 +57,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       if (data) {
         name = (data as any).name || name;
-        if ((data as any).role) role = (data as any).role as Role;
+        role = (data as any).role ?? null;
         nivel = (data as any).nivel ?? null;
         if (typeof (data as any).aprovado === "boolean") aprovado = (data as any).aprovado;
       }
     } catch {
-      // coluna role pode ainda não existir — mantém defaults
+      role = null; // falha na leitura do perfil = sem acesso (nunca assumir papel)
     }
-    setUser({ id, email, name, role, nivel, aprovado });
+
+    // Segurança: só entra quem é EQUIPE e está APROVADO. Perfil ausente,
+    // role 'cliente' ou falha de leitura => nega acesso (nada de default admin).
+    if (!role || !TEAM_ROLES.includes(role as Role) || !aprovado) {
+      const { toast } = await import("sonner");
+      toast.error(
+        !aprovado && role
+          ? "Sua conta ainda não foi aprovada por um gestor."
+          : "Acesso restrito à equipe Kuboo. Fale com um administrador."
+      );
+      await supabase.auth.signOut();
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    setUser({ id, email, name, role: role as Role, nivel, aprovado });
     setLoading(false);
   }
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle } from "lucide-react";
 import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select } from "../components/ui";
 import { fetchLeads, pegarLead, noBolsao, type Lead } from "../lib/leads";
@@ -45,7 +46,12 @@ export function Bolsao() {
   async function handlePegar(id: string) {
     if (!user) return;
     setClaiming(id);
-    await pegarLead(id, user.id);
+    const ok = await pegarLead(id, user.id);
+    if (ok) {
+      toast.success("Lead é seu! Ele já está no seu Pipeline.");
+    } else {
+      toast.warning("Esse lead acabou de ser pego por outro consultor.");
+    }
     setLeads((prev) => prev.filter((l) => l.id !== id));
     setClaiming(null);
   }

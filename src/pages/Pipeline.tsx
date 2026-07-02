@@ -87,7 +87,7 @@ function Column({ stage, leads, onContato }: { stage: typeof STAGES[number]; lea
   );
 }
 
-export function Pipeline({ modulo = "seguros", renovacoes = false }: { modulo?: Modulo; renovacoes?: boolean }) {
+export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
   const { user, isManager } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,9 +106,15 @@ export function Pipeline({ modulo = "seguros", renovacoes = false }: { modulo?: 
   async function onDragEnd(e: DragEndEvent) {
     const id = String(e.active.id);
     const to = e.over?.id ? String(e.over.id) : null;
-    if (!to) return;
+    const atual = leads.find((l) => l.id === id);
+    if (!to || !atual || (atual.etapa ?? "novos") === to) return; // drop fora ou mesma coluna
+    const anterior = atual.etapa ?? "novos";
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, etapa: to } : l)));
-    await moverEtapa(id, to);
+    try {
+      await moverEtapa(id, to);
+    } catch {
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, etapa: anterior } : l)));
+    }
   }
 
   async function onContato(id: string) {
@@ -122,8 +128,8 @@ export function Pipeline({ modulo = "seguros", renovacoes = false }: { modulo?: 
   return (
     <>
       <PageHeader
-        title={renovacoes ? "Pipeline (Renovações)" : "Pipeline (Novos)"}
-        subtitle={renovacoes ? "Funil de retenção — apólices a vencer" : "Funil de novos leads — arraste entre as etapas"}
+        title="Pipeline"
+        subtitle="Funil de leads — arraste entre as etapas"
         icon={KanbanSquare}
         actions={isManager ? (
           <div className="flex gap-1 bg-slate-100 rounded-xl p-1">

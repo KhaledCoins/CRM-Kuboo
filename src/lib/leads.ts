@@ -45,15 +45,22 @@ export async function fetchLeads(): Promise<Lead[]> {
   return (data as any) ?? [];
 }
 
-export async function pegarLead(id: string, vendedorId: string) {
-  if (!supabase) return;
+// Retorna true se pegou; false se outro vendedor pegou primeiro.
+// Proteção de corrida: o update só aplica se o lead ainda estiver "no bolsão"
+// (sem dono OU com SLA estourado sem primeiro contato) — mesma regra de noBolsao().
+export async function pegarLead(id: string, vendedorId: string): Promise<boolean> {
+  if (!supabase) return false;
+  const now = new Date().toISOString();
   const sla = new Date(Date.now() + SLA_MINUTOS * 60000).toISOString();
-  await supabase.from("leads").update({
+  const { data } = await supabase.from("leads").update({
     vendedor_id: vendedorId,
-    atribuido_em: new Date().toISOString(),
+    atribuido_em: now,
     sla_expira_em: sla,
     primeiro_contato_em: null,
-  }).eq("id", id);
+  }).eq("id", id)
+    .or(`vendedor_id.is.null,and(primeiro_contato_em.is.null,sla_expira_em.lt.${now})`)
+    .select("id");
+  return !!(data && data.length);
 }
 
 export async function registrarContato(id: string) {

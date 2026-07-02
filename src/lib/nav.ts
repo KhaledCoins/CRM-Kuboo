@@ -49,7 +49,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
         { label: "Comissões", to: "/seguros/comissoes", icon: DollarSign },
         { label: "Ranking", to: "/seguros/ranking", icon: Trophy },
         { label: "Pipeline (Novos)", to: "/seguros/pipeline", icon: KanbanSquare },
-        { label: "Pipeline (Renovações)", to: "/seguros/renovacoes", icon: RefreshCcw },
+        { label: "Renovações", to: "/seguros/renovacoes", icon: RefreshCcw },
         { label: "Tarefas & Atividades", to: "/seguros/tarefas", icon: ListChecks },
         { label: "Metas & Performance", to: "/seguros/metas", icon: Target },
         { label: "Sinistros & Assistências", to: "/seguros/sinistros", icon: ShieldAlert },

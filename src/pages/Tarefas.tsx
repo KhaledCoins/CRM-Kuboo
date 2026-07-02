@@ -4,6 +4,7 @@ import { KanbanSquare, Plus, Trash2, Pencil, User, Calendar, Flag, X, ListChecks
 import { toast } from "sonner";
 import { PageHeader, Button, KpiCard, Card } from "../components/ui";
 import { fetchTarefas, criarTarefa, atualizarTarefa, moverTarefa, excluirTarefa, type Tarefa } from "../lib/tarefas";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { dateBR } from "../lib/format";
 import type { Modulo } from "../lib/nav";
@@ -78,9 +79,11 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
     if (!tarefas.length) { toast.info("Nada para sincronizar ainda."); return; }
     setSyncing(true);
     try {
+      const { data: { session } } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
+      if (!session) { toast.error("Sessão expirada — faça login novamente."); setSyncing(false); return; }
       const r = await fetch("/api/trello", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ tarefas: tarefas.map((t) => ({ titulo: t.titulo, descricao: t.descricao, status: t.status })) }),
       });
       const d = await r.json();
