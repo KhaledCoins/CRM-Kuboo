@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { KanbanSquare, Plus, Trash2, Pencil, User, Calendar, Flag, X, ListChecks, Loader2, CheckCircle2 } from "lucide-react";
+import { KanbanSquare, Plus, Trash2, Pencil, User, Calendar, Flag, X, ListChecks, Loader2, CheckCircle2, Trello } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, KpiCard, Card } from "../components/ui";
 import { fetchTarefas, criarTarefa, atualizarTarefa, moverTarefa, excluirTarefa, type Tarefa } from "../lib/tarefas";
@@ -71,7 +71,29 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [escopo, setEscopo] = useState<"minhas" | "todas">("todas");
+  const [syncing, setSyncing] = useState(false);
   const [form, setForm] = useState<Partial<Tarefa>>({ status: "a_fazer", prioridade: "media", modulo });
+
+  async function syncTrello() {
+    if (!tarefas.length) { toast.info("Nada para sincronizar ainda."); return; }
+    setSyncing(true);
+    try {
+      const r = await fetch("/api/trello", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tarefas: tarefas.map((t) => ({ titulo: t.titulo, descricao: t.descricao, status: t.status })) }),
+      });
+      const d = await r.json();
+      if (!r.ok) { toast.error(d.error || "Falha na sincronização"); return; }
+      toast.success(`Trello: ${d.created} card(s) criado(s), ${d.skipped} já existiam.`, {
+        action: d.boardUrl ? { label: "Abrir board", onClick: () => window.open(d.boardUrl, "_blank") } : undefined,
+      });
+    } catch {
+      toast.error("Não foi possível falar com o Trello agora.");
+    } finally {
+      setSyncing(false);
+    }
+  }
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   function openCreate() { setEditId(null); setForm({ status: "a_fazer", prioridade: "media", modulo }); setShowForm(true); }
@@ -136,6 +158,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
                 </button>
               ))}
             </div>
+            <Button variant="outline" icon={Trello} onClick={syncTrello} disabled={syncing}>{syncing ? "Sincronizando…" : "Sincronizar Trello"}</Button>
             <Button icon={Plus} onClick={openCreate}>Nova Tarefa</Button>
           </div>
         } />
