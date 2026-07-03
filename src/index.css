@@ -105,3 +105,58 @@ textarea:focus {
 .kuboo-spin {
   animation: kuboo-spin 0.8s linear infinite;
 }
+
+/* ===================== MODO ESCURO (Kuboo navy) =====================
+   Ativado via classe .dark no <html> (toggle no topbar, persistido).
+   Estratégia: redefine os tokens do tema + sobrescreve as utilities
+   fixas de cor usadas no app (conjunto inventariado e fechado). */
+.dark {
+  --color-ink: #e8eff7;
+  --color-muted: #8fa3ba;
+  --color-brand-50: #12233b;
+  --color-brand-100: #1b3252;
+}
+.dark body { background: #0b1626; color: var(--color-ink); }
+.dark ::selection { background: rgba(91, 196, 245, 0.25); color: #d9edff; }
+
+/* superfícies */
+.dark .bg-white { background-color: #101e33; }
+.dark .bg-slate-50, .dark .bg-slate-50\/60 { background-color: #0e1a2d; }
+.dark .bg-slate-100, .dark .bg-slate-100\/60 { background-color: #16263d; }
+.dark .bg-slate-900\/45 { background-color: rgba(3, 10, 20, 0.6); }
+
+/* bordas */
+.dark .border-slate-200 { border-color: #22344e; }
+.dark .border-slate-100 { border-color: #1b2b42; }
+
+/* textos neutros */
+.dark .text-slate-600 { color: #b7c5d6; }
+.dark .text-slate-500 { color: #8fa3ba; }
+.dark .text-slate-400 { color: #6b7f96; }
+.dark .text-slate-300 { color: #55677d; }
+
+/* tints de status (mais escuras, mesma leitura) */
+.dark .bg-green-50 { background-color: rgba(34, 197, 94, 0.12); }
+.dark .text-green-600 { color: #4ade80; }
+.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.12); }
+.dark .bg-red-100 { background-color: rgba(239, 68, 68, 0.2); }
+.dark .text-red-600 { color: #f87171; }
+.dark .text-red-700 { color: #fca5a5; }
+.dark .ring-red-200 { --tw-ring-color: rgba(239, 68, 68, 0.35); }
+.dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.18); }
+.dark .text-amber-700 { color: #fbbf24; }
+.dark .text-amber-600 { color: #fbbf24; }
+.dark .bg-violet-50 { background-color: rgba(139, 92, 246, 0.14); }
+.dark .text-violet-600 { color: #a78bfa; }
+.dark .bg-brand-50 { background-color: #12233b; }
+.dark .text-brand-700 { color: #7cc4f8; }
+.dark .text-brand-600 { color: #5bb4f0; }
+.dark .text-ink { color: var(--color-ink); }
+.dark .text-muted { color: var(--color-muted); }
+
+/* sombras suaves no escuro */
+.dark .shadow-sm { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
+.dark .shadow, .dark .shadow-md, .dark .shadow-lg, .dark .shadow-xl, .dark .shadow-2xl { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+
+/* inputs nativos */
+.dark input, .dark select, .dark textarea { color-scheme: dark; }

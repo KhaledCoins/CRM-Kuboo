@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck, Moon, Sun } from "lucide-react";
+import { temaAtual, alternarTema } from "../lib/theme";
 import { NAV, type Modulo } from "../lib/nav";
 import { useAuth } from "../context/AuthContext";
 import { initials } from "../lib/format";
@@ -10,6 +11,7 @@ export function Layout() {
   const { user, logout } = useAuth();
   const loc = useLocation();
   const nav = useNavigate();
+  const [tema, setTema] = useState<"light" | "dark">(temaAtual());
   const modulo: Modulo = loc.pathname.startsWith("/consorcios") ? "consorcios" : "seguros";
   const groups = NAV[modulo];
   const role = user?.role ?? "vendedor";
@@ -104,6 +106,13 @@ export function Layout() {
             <p className="text-sm font-bold truncate">{user?.name ?? "Equipe"}</p>
             <p className="text-[11px] text-white/50 capitalize">{user?.role ?? ""}</p>
           </div>
+          <button
+            onClick={() => setTema(alternarTema())}
+            title={tema === "dark" ? "Modo claro" : "Modo escuro"}
+            className="text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
+          >
+            {tema === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
           <button onClick={logout} title="Sair" className="text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10">
             <LogOut size={17} />
           </button>
