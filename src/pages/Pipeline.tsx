@@ -118,6 +118,7 @@ function RegistrarVendaModal({
     if (!supabase || !user) return;
     if (!form.produto.trim() || valorNum <= 0) { toast.error("Preencha produto e valor."); return; }
     setSalvando(true);
+    let vendaId: string | null = null;
     try {
       const dv = new Date(form.data_venda + "T12:00:00");
       const vigFim = new Date(dv); vigFim.setFullYear(vigFim.getFullYear() + 1);
@@ -141,6 +142,7 @@ function RegistrarVendaModal({
         observacoes: `Origem: lead ${lead.nome}${lead.origem ? ` (${lead.origem})` : ""}`,
       }).select("id").single();
       if (e1 || !venda) throw e1 ?? new Error("sem id");
+      vendaId = venda.id;
 
       // 2) Parcelas (última ajusta o arredondamento)
       const base = Math.floor((valorNum / nParc) * 100) / 100;
@@ -163,7 +165,10 @@ function RegistrarVendaModal({
       toast.success(`Venda registrada! ${nParc} parcela(s) e comissão de ${brl(comissaoValor)} geradas automaticamente.`);
       onSaved();
     } catch {
-      toast.error("Não foi possível registrar a venda. Tente novamente.");
+      // Sem transação no PostgREST: se falhou depois de criar a venda, desfaz
+      // pra não deixar venda órfã (parcelas caem por ON DELETE CASCADE).
+      if (vendaId) { try { await supabase.from("vendas").delete().eq("id", vendaId); } catch { /* nada */ } }
+      toast.error("Não foi possível registrar a venda. Nada foi salvo — tente novamente.");
     }
     setSalvando(false);
   }
