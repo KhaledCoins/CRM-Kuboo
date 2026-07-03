@@ -30,6 +30,8 @@ export interface FormField {
   key: string; label: string;
   type?: "text" | "number" | "currency" | "date" | "select" | "textarea";
   options?: { value: string; label: string }[];
+  // opções carregadas do banco na abertura do formulário (ex.: lista de cotas)
+  loadOptions?: () => Promise<{ value: string; label: string }[]>;
   required?: boolean; placeholder?: string;
 }
 
@@ -74,12 +76,26 @@ export function DataTablePage({
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [table, select, orderBy, ascending]);
 
-  function openCreate() { setEditingId(null); setForm({}); setShowForm(true); }
+  const [dynOpts, setDynOpts] = useState<Record<string, { value: string; label: string }[]>>({});
+
+  async function carregarOpcoes() {
+    if (!formFields) return;
+    for (const ff of formFields) {
+      if (ff.loadOptions && !dynOpts[ff.key]) {
+        try {
+          const opts = await ff.loadOptions();
+          setDynOpts((p) => ({ ...p, [ff.key]: opts }));
+        } catch { /* select fica vazio; usuário vê "Selecione…" */ }
+      }
+    }
+  }
+
+  function openCreate() { setEditingId(null); setForm({}); setShowForm(true); carregarOpcoes(); }
   function openEdit(row: any) {
     setEditingId(row.id);
     const f: Record<string, string> = {};
     for (const ff of formFields!) f[ff.key] = row[ff.key] != null ? String(row[ff.key]) : "";
-    setForm(f); setShowForm(true);
+    setForm(f); setShowForm(true); carregarOpcoes();
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -197,8 +213,8 @@ export function DataTablePage({
                   <span className="text-xs font-bold text-muted uppercase tracking-wide block mb-1.5">{f.label}{f.required && " *"}</span>
                   {f.type === "select" ? (
                     <select className={inputCls} required={f.required} value={form[f.key] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}>
-                      <option value="">Selecione…</option>
-                      {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      <option value="">{f.loadOptions && !dynOpts[f.key] ? "Carregando…" : "Selecione…"}</option>
+                      {(f.options ?? dynOpts[f.key] ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   ) : f.type === "textarea" ? (
                     <textarea className={inputCls} rows={3} required={f.required} placeholder={f.placeholder} value={form[f.key] ?? ""} onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))} />

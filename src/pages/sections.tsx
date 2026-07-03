@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { Badge } from "../components/ui";
 import { brl, brlShort, dateBR, pct } from "../lib/format";
+import { supabase } from "../lib/supabase";
 import { DataTablePage, type FormField } from "./DataTablePage";
 
 const sum = (rows: any[], k: string) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
@@ -281,8 +282,14 @@ export const Cotas = () => (
 export const Contemplacoes = () => (
   <DataTablePage
     title="Contemplações" subtitle="Sorteios e lances" icon={Award}
-    table="contemplacoes" orderBy="data" primaryAction="Registrar Contemplação"
+    table="contemplacoes" select="*, cotas(cliente_nome, numero_cota, grupo)" orderBy="data" primaryAction="Registrar Contemplação"
     formFields={[
+      { key: "cota_id", label: "Cota contemplada", type: "select", required: true,
+        loadOptions: async () => {
+          if (!supabase) return [];
+          const { data } = await supabase.from("cotas").select("id, cliente_nome, numero_cota, grupo").order("created_at", { ascending: false }).limit(500);
+          return (data || []).map((c: any) => ({ value: c.id, label: `${c.cliente_nome || "—"} · grupo ${c.grupo || "—"} / cota ${c.numero_cota || "—"}` }));
+        } },
       { key: "data", label: "Data", type: "date", required: true },
       { key: "forma", label: "Forma", type: "select", required: true, options: [
         { value: "sorteio", label: "Sorteio" }, { value: "lance", label: "Lance" },
@@ -291,11 +298,12 @@ export const Contemplacoes = () => (
     ]}
     columns={[
       { header: "Data", render: (r) => dateBR(r.data) },
+      { header: "Cliente / Cota", render: (r) => r.cotas ? `${r.cotas.cliente_nome || "—"} · ${r.cotas.grupo || "—"}/${r.cotas.numero_cota || "—"}` : "—" },
       { header: "Forma", render: (r) => <Badge tone={r.forma === "lance" ? "amber" : "green"}>{r.forma}</Badge> },
       { header: "Valor do lance", right: true, render: (r) => (r.valor_lance != null ? brl(r.valor_lance) : "—") },
     ]}
     emptyIcon={Award} emptyTitle="Nenhuma contemplação registrada"
-    emptyHint="Sorteios e lances contemplados ficam registrados aqui para acompanhamento."
+    emptyHint="Sorteios e lances contemplados ficam registrados aqui, vinculados à cota do cliente."
   />
 );
 
