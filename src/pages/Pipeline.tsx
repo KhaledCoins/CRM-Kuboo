@@ -5,7 +5,9 @@ import {
 import { KanbanSquare, MessageCircle, User, Clock, DollarSign, CheckCircle2, AlertTriangle, Inbox, ListPlus, Trophy, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, KpiCard, Card } from "../components/ui";
-import { fetchLeads, moverEtapa, registrarContato, noBolsao, slaRestanteMin, moduloDe, type Lead } from "../lib/leads";
+import { fetchLeads, moverEtapa, registrarContato, noBolsao, slaRestanteMin, moduloDe, temperaturaLead, type Lead } from "../lib/leads";
+
+const TEMP_DOT: Record<string, string> = { quente: "#ef4444", morno: "#f59e0b", frio: "#5bc4f5" };
 import { criarTarefa } from "../lib/tarefas";
 import { useAuth } from "../context/AuthContext";
 import { brl, brlShort, onlyDigits } from "../lib/format";
@@ -37,7 +39,10 @@ function LeadCard({ lead, onContato }: { lead: Lead; onContato: (id: string) => 
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}
       className={`bg-white rounded-xl border border-slate-200 p-3 mb-2.5 cursor-grab active:cursor-grabbing shadow-sm ${isDragging ? "opacity-60 ring-2 ring-brand-300" : ""}`}>
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <p className="font-bold text-ink text-sm">{lead.nome}</p>
+        <p className="font-bold text-ink text-sm flex items-center gap-1.5">
+          <span title={`Lead ${temperaturaLead(lead)}`} style={{ width: 8, height: 8, borderRadius: 999, background: TEMP_DOT[temperaturaLead(lead)], flexShrink: 0, boxShadow: `0 0 0 2px ${TEMP_DOT[temperaturaLead(lead)]}22` }} />
+          {lead.nome}
+        </p>
         <SlaBadge lead={lead} />
       </div>
       <div className="flex items-center justify-between gap-2 mb-2">

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle } from "lucide-react";
+import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun } from "lucide-react";
 import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select } from "../components/ui";
-import { fetchLeads, pegarLead, noBolsao, type Lead } from "../lib/leads";
+import { fetchLeads, pegarLead, noBolsao, prioridadeLead, temperaturaLead, type Lead, type Temperatura } from "../lib/leads";
 import { useAuth } from "../context/AuthContext";
 import { brl, onlyDigits } from "../lib/format";
 
@@ -19,6 +19,12 @@ function esperaLabel(l: Lead): { txt: string; urgente: boolean } {
 
 const origemTone: Record<string, "blue" | "green" | "violet" | "amber" | "slate"> = {
   chatbot: "blue", formulario: "green", whatsapp: "green", indicacao: "violet", portal: "amber",
+};
+
+const tempMeta: Record<Temperatura, { label: string; tone: "red" | "amber" | "blue"; Icon: typeof Flame }> = {
+  quente: { label: "Quente", tone: "red", Icon: Flame },
+  morno: { label: "Morno", tone: "amber", Icon: ThermometerSun },
+  frio: { label: "Frio", tone: "blue", Icon: Snowflake },
 };
 
 export function Bolsao() {
@@ -38,8 +44,10 @@ export function Bolsao() {
   // Recalcula SLA/espera a cada 10s
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 10000); return () => clearInterval(t); }, []);
 
+  // ordena por PRIORIDADE (score + espera) — o consultor ataca o melhor lead primeiro
   const filtered = useMemo(
-    () => leads.filter((l) => !origem || l.origem === origem),
+    () => leads.filter((l) => !origem || l.origem === origem)
+               .sort((a, b) => prioridadeLead(b) - prioridadeLead(a)),
     [leads, origem]
   );
 
@@ -57,19 +65,21 @@ export function Bolsao() {
   }
 
   const urgentes = leads.filter((l) => esperaLabel(l).urgente).length;
+  const quentes = leads.filter((l) => temperaturaLead(l) === "quente").length;
 
   return (
     <>
       <PageHeader
         title="Bolsão de Leads"
-        subtitle="Leads aguardando atendimento — quem pegar primeiro, atende"
+        subtitle="Ordenado por prioridade — os leads mais quentes e urgentes primeiro"
         icon={Inbox}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KpiCard label="Leads no Bolsão" value={String(leads.length)} icon={Inbox} accent="brand" />
-        <KpiCard label="Aguardando +15 min" value={String(urgentes)} icon={Flame} accent="danger" hint="Prioridade — atenda já" />
-        <KpiCard label="SLA de 1º contato" value="15 min" icon={Clock} accent="sky" hint="Após pegar, contate dentro do prazo" />
+        <KpiCard label="Leads quentes" value={String(quentes)} icon={Flame} accent="danger" hint="Alta chance de fechar — priorize" />
+        <KpiCard label="Aguardando +15 min" value={String(urgentes)} icon={AlertTriangle} accent="warning" hint="Esfriando — atenda já" />
+        <KpiCard label="SLA de 1º contato" value="15 min" icon={Clock} accent="sky" hint="Após pegar, contate no prazo" />
       </div>
 
       <FilterBar>
@@ -91,8 +101,10 @@ export function Bolsao() {
             const espera = esperaLabel(l);
             const wa = l.telefone ? `https://wa.me/55${onlyDigits(l.telefone)}` : null;
             const reciclado = !!l.vendedor_id; // voltou ao bolsão por SLA estourado
+            const temp = temperaturaLead(l);
+            const tm = tempMeta[temp];
             return (
-              <Card key={l.id} className={espera.urgente ? "ring-1 ring-red-200" : ""}>
+              <Card key={l.id} className={temp === "quente" ? "ring-2 ring-red-300" : espera.urgente ? "ring-1 ring-red-200" : ""}>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <p className="font-bold text-ink">{l.nome}</p>
                   <span className={`text-xs font-bold flex items-center gap-1 ${espera.urgente ? "text-red-600" : "text-muted"}`}>
@@ -101,6 +113,7 @@ export function Bolsao() {
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 mb-3">
+                  <Badge tone={tm.tone}><tm.Icon size={11} /> {tm.label}</Badge>
                   {l.produto_interesse && <Badge tone="blue"><Tag size={11} /> {l.produto_interesse}</Badge>}
                   {l.origem && <Badge tone={origemTone[l.origem] ?? "slate"}>{l.origem}</Badge>}
                   {reciclado && <Badge tone="amber">SLA estourado</Badge>}

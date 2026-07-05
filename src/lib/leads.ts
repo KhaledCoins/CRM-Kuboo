@@ -17,10 +17,37 @@ export interface Lead {
   atribuido_em?: string | null;
   sla_expira_em?: string | null;
   primeiro_contato_em?: string | null;
+  score?: number | null;
+  urgencia?: string | null;
   created_at?: string;
 }
 
 export const SLA_MINUTOS = 15;
+
+// ─── Priorização de leads (best practice: score + tempo de espera) ────────────
+export type Temperatura = "quente" | "morno" | "frio";
+
+// Temperatura pela qualificação (score que o site já calcula: cotação 85, contato 60…)
+export function temperaturaLead(l: Lead): Temperatura {
+  const s = l.score ?? 55;
+  return s >= 78 ? "quente" : s >= 50 ? "morno" : "frio";
+}
+
+// Minutos esperando (desde a criação — quanto mais tempo, mais risco de esfriar)
+export function minEsperando(l: Lead): number {
+  const base = l.created_at ? new Date(l.created_at).getTime() : Date.now();
+  return Math.max(0, Math.floor((Date.now() - base) / 60000));
+}
+
+// Prioridade de atendimento: combina qualificação (score) com urgência (espera).
+// Maior = atender primeiro. Lead quente recente supera lead frio antigo, mas
+// leads velhos sobem para não esfriarem/estourarem SLA.
+export function prioridadeLead(l: Lead): number {
+  const score = l.score ?? 55;
+  const espera = Math.min(minEsperando(l), 240); // teto de 4h
+  const bonusUrg = l.urgencia === "urgente" ? 25 : l.urgencia === "hoje" ? 12 : 0;
+  return score + espera * 0.5 + bonusUrg;
+}
 
 /** Lead está no bolsão? (sem dono OU sem 1º contato e SLA estourado) */
 export function noBolsao(l: Lead): boolean {
