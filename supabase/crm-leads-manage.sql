@@ -23,8 +23,8 @@ delete from leads
 where nome in ('AUDIT','Teste pos-fix','Teste Cliente','Cliente Teste','Lead Teste Chatbot','Eduardo')
    or origem = 'audit';
 
--- 4) Newsletter não é lead de vendas — marca como descartado (não some do bolsão à toa)
-update leads set descartado = true, motivo_descarte = 'inscrição newsletter (não é lead de venda)'
-where nome ilike '%newsletter%' or nome ilike '%inscrito%';
+-- 4) Newsletter: NÃO é tratada aqui. A separação definitiva (tabela própria
+--    newsletter_inscritos + backfill + delete dos leads) está em
+--    Site Kuboo/supabase/newsletter.sql. Rode aquele script também.
 
 -- Pronto. Depois disso o CRM consegue descartar/editar leads e o bolsão fica limpo.
