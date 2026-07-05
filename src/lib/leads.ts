@@ -19,6 +19,8 @@ export interface Lead {
   primeiro_contato_em?: string | null;
   score?: number | null;
   urgencia?: string | null;
+  descartado?: boolean | null;
+  motivo_descarte?: string | null;
   created_at?: string;
 }
 
@@ -103,4 +105,14 @@ export async function devolverBolsao(id: string) {
 export async function moverEtapa(id: string, etapa: string) {
   if (!supabase) return;
   await supabase.from("leads").update({ etapa }).eq("id", id);
+}
+
+/** Descarta um lead do bolsão (soft-delete: não some do banco, só sai da fila).
+ *  Requer a migration crm-leads-manage.sql (coluna descartado + policy da equipe). */
+export async function descartarLead(id: string, motivo: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { error } = await supabase.from("leads")
+    .update({ descartado: true, motivo_descarte: motivo || "descartado pela equipe" })
+    .eq("id", id);
+  return !error;
 }

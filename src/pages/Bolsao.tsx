@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun } from "lucide-react";
+import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun, X } from "lucide-react";
 import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select } from "../components/ui";
-import { fetchLeads, pegarLead, noBolsao, prioridadeLead, temperaturaLead, type Lead, type Temperatura } from "../lib/leads";
+import { fetchLeads, pegarLead, descartarLead, noBolsao, prioridadeLead, temperaturaLead, type Lead, type Temperatura } from "../lib/leads";
 import { useAuth } from "../context/AuthContext";
 import { brl, onlyDigits } from "../lib/format";
 
@@ -37,7 +37,7 @@ export function Bolsao() {
 
   async function load() {
     const all = await fetchLeads();
-    setLeads(all.filter(noBolsao));
+    setLeads(all.filter((l) => noBolsao(l) && !l.descartado));
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -62,6 +62,18 @@ export function Bolsao() {
     }
     setLeads((prev) => prev.filter((l) => l.id !== id));
     setClaiming(null);
+  }
+
+  async function handleDescartar(l: Lead) {
+    const motivo = window.prompt(`Descartar "${l.nome}" do bolsão?\nMotivo (spam, duplicado, sem interesse...):`, "");
+    if (motivo === null) return; // cancelou
+    const ok = await descartarLead(l.id, motivo);
+    if (ok) {
+      toast.success("Lead descartado do bolsão.");
+      setLeads((prev) => prev.filter((x) => x.id !== l.id));
+    } else {
+      toast.error("Não foi possível descartar (rode a migration crm-leads-manage.sql).");
+    }
   }
 
   const urgentes = leads.filter((l) => esperaLabel(l).urgente).length;
@@ -132,6 +144,13 @@ export function Bolsao() {
                       <Button size="sm" variant="wa" icon={MessageCircle}>WhatsApp</Button>
                     </a>
                   )}
+                  <button
+                    onClick={() => handleDescartar(l)}
+                    title="Descartar (spam, duplicado, sem interesse)"
+                    className="ml-auto text-muted hover:text-red-600 transition-colors p-1.5 rounded-lg hover:bg-red-50"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
               </Card>
             );
