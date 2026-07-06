@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, ShieldCheck, Moon, Sun, Bell, X } from "lucide-react";
+import { LogOut, Moon, Sun, Bell, X } from "lucide-react";
 import { temaAtual, alternarTema } from "../lib/theme";
 import { NAV, type Modulo } from "../lib/nav";
 import { useAuth } from "../context/AuthContext";
@@ -42,11 +42,9 @@ export function Layout() {
         className="w-[var(--sidebar-w)] shrink-0 text-white flex flex-col fixed inset-y-0 left-0 z-30"
         style={{ background: "linear-gradient(180deg, #0A1628 0%, #0D2A4A 60%, #0D4F8A 100%)" }}
       >
-        {/* Brand */}
+        {/* Brand — símbolo oficial da marca */}
         <div className="px-5 py-4 flex items-center gap-2.5 border-b border-white/10">
-          <span className="w-9 h-9 rounded-xl bg-white/10 grid place-items-center">
-            <ShieldCheck size={20} className="text-brand-300" />
-          </span>
+          <img src="/kuboo-symbol.png" alt="Kuboo" className="h-8 w-auto" draggable={false} />
           <div>
             <p className="font-display text-lg leading-none tracking-wide">KUBOO</p>
             <p className="text-[11px] text-white/55">CRM de Gestão</p>

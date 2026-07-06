@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShieldCheck, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export function Login() {
@@ -30,8 +30,8 @@ export function Login() {
     >
       <div className="w-full max-w-[400px]">
         <div className="text-center mb-6">
-          <span className="w-14 h-14 rounded-2xl bg-white/12 grid place-items-center mx-auto mb-3">
-            <ShieldCheck size={28} className="text-brand-300" />
+          <span className="w-14 h-14 rounded-2xl bg-white grid place-items-center mx-auto mb-3 shadow-lg">
+            <img src="/kuboo-symbol.png" alt="Kuboo" className="h-8 w-auto" draggable={false} />
           </span>
           <h1 className="text-3xl text-white tracking-wide">KUBOO CRM</h1>
           <p className="text-white/60 text-sm mt-1">Sistema de Gestão — Equipe</p>
