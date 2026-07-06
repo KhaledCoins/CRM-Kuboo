@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { X, Pencil, Trash2, Download } from "lucide-react";
+import { X, Pencil, Trash2, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, EmptyState, KpiCard, SearchInput } from "../components/ui";
 import { supabase } from "../lib/supabase";
@@ -57,24 +57,58 @@ export function DataTablePage({
   const [form, setForm] = useState<Record<string, string>>({});
   const [q, setQ] = useState("");
 
+  // Paginação server-side: nada de cortar a base em silêncio quando crescer.
+  const PAGE = 200;
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [exportando, setExportando] = useState(false);
+
   const filtered = useMemo(() => {
     if (!q.trim()) return rows;
     const needle = q.toLowerCase();
     return rows.filter((r) => JSON.stringify(r).toLowerCase().includes(needle));
   }, [rows, q]);
 
-  async function load() {
+  async function load(p = page) {
     if (!supabase) { setLoading(false); return; }
     setLoading(true); setError(false);
-    let query: any = supabase.from(table).select(select).limit(500);
+    let query: any = supabase.from(table).select(select, { count: "exact" }).range(p * PAGE, p * PAGE + PAGE - 1);
     if (orderBy) query = query.order(orderBy, { ascending });
-    const { data, error } = await query;
-    if (error) { setError(true); setRows([]); }
-    else setRows(data || []);
+    const { data, error, count } = await query;
+    if (error) { setError(true); setRows([]); setTotal(0); }
+    else { setRows(data || []); setTotal(count ?? (data?.length || 0)); }
     setLoading(false);
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [table, select, orderBy, ascending]);
+  useEffect(() => { setPage(0); load(0); /* eslint-disable-next-line */ }, [table, select, orderBy, ascending]);
+  useEffect(() => { load(page); /* eslint-disable-next-line */ }, [page]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE));
+  const multiPagina = total > PAGE;
+
+  // Exporta a BASE INTEIRA (não só a página visível), em blocos de 1000.
+  async function exportarTudo() {
+    if (!supabase) return;
+    setExportando(true);
+    try {
+      const CAP = 10_000; // teto de sanidade
+      const all: any[] = [];
+      for (let from = 0; from < CAP; from += 1000) {
+        let qy: any = supabase.from(table).select(select).range(from, from + 999);
+        if (orderBy) qy = qy.order(orderBy, { ascending });
+        const { data, error } = await qy;
+        if (error) throw new Error(error.message);
+        all.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      downloadCsv(table, q.trim() ? all.filter((r) => JSON.stringify(r).toLowerCase().includes(q.toLowerCase())) : all);
+      if (all.length >= CAP) toast.warning(`Exportação limitada a ${CAP.toLocaleString("pt-BR")} linhas.`);
+      else toast.success(`CSV exportado (${all.length.toLocaleString("pt-BR")} linhas).`);
+    } catch {
+      toast.error("Não foi possível exportar agora.");
+    }
+    setExportando(false);
+  }
 
   const [dynOpts, setDynOpts] = useState<Record<string, { value: string; label: string }[]>>({});
 
@@ -125,10 +159,13 @@ export function DataTablePage({
     setRows((prev) => prev.filter((r) => r.id !== row.id));
     const { error } = await supabase.from(table).delete().eq("id", row.id);
     if (error) { toast.error("Não foi possível excluir: " + error.message); load(); return; }
+    setTotal((t) => Math.max(0, t - 1));
     toast.success("Registro excluído");
   }
 
-  const kpis = computeKpis && filtered.length ? computeKpis(filtered) : [];
+  // Com mais de uma página, os KPIs valem só pra página visível — rótulo honesto.
+  const kpis = (computeKpis && filtered.length ? computeKpis(filtered) : [])
+    .map((k) => (multiPagina ? { ...k, label: `${k.label} (página)` } : k));
   const canEdit = !!(formFields && formFields.length);
   const canCreate = !!(primaryAction && canEdit);
 
@@ -157,11 +194,13 @@ export function DataTablePage({
         ) : rows.length > 0 ? (
           <>
             <div className="flex items-center gap-3 p-3 border-b border-slate-100 flex-wrap">
-              <SearchInput value={q} onChange={setQ} placeholder="Buscar nesta lista..." />
-              <span className="text-xs text-muted">{filtered.length} de {rows.length}</span>
-              <button onClick={() => downloadCsv(table, filtered)}
-                className="ml-auto inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-xl transition-colors">
-                <Download size={14} /> Exportar CSV
+              <SearchInput value={q} onChange={setQ} placeholder={multiPagina ? "Buscar nesta página..." : "Buscar nesta lista..."} />
+              <span className="text-xs text-muted">
+                {filtered.length} de {rows.length}{multiPagina ? ` · ${total.toLocaleString("pt-BR")} no total` : ""}
+              </span>
+              <button onClick={exportarTudo} disabled={exportando}
+                className="ml-auto inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 disabled:opacity-50 px-3 py-2 rounded-xl transition-colors">
+                <Download size={14} /> {exportando ? "Exportando..." : "Exportar CSV"}
               </button>
             </div>
             {filtered.length > 0 ? (
@@ -181,6 +220,24 @@ export function DataTablePage({
                     </Tr>
                   ))}
                 </Table>
+                {multiPagina && (
+                  <div className="flex items-center justify-between px-3 py-2.5 border-t border-slate-100">
+                    <p className="text-xs text-muted">
+                      {(page * PAGE + 1).toLocaleString("pt-BR")}–{Math.min((page + 1) * PAGE, total).toLocaleString("pt-BR")} de {total.toLocaleString("pt-BR")}
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg transition-colors">
+                        <ChevronLeft size={14} /> Anterior
+                      </button>
+                      <span className="text-xs text-muted px-1.5 tabular-nums">{page + 1}/{totalPages}</span>
+                      <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg transition-colors">
+                        Próxima <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-center text-sm text-muted py-10">Nenhum resultado para “{q}”.</p>
