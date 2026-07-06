@@ -42,9 +42,9 @@ export function Layout() {
         className="w-[var(--sidebar-w)] shrink-0 text-white flex flex-col fixed inset-y-0 left-0 z-30"
         style={{ background: "linear-gradient(180deg, #0A1628 0%, #0D2A4A 60%, #0D4F8A 100%)" }}
       >
-        {/* Brand — símbolo oficial da marca */}
+        {/* Brand — símbolo oficial da marca (render 3D de alta qualidade) */}
         <div className="px-5 py-4 flex items-center gap-2.5 border-b border-white/10">
-          <img src="/kuboo-symbol.png" alt="Kuboo" className="h-8 w-auto" draggable={false} />
+          <img src="/kuboo-symbol-3d.png" alt="Kuboo" className="h-9 w-auto" draggable={false} />
           <div>
             <p className="font-display text-lg leading-none tracking-wide">KUBOO</p>
             <p className="text-[11px] text-white/55">CRM de Gestão</p>
