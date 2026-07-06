@@ -160,3 +160,12 @@ textarea:focus {
 
 /* inputs nativos */
 .dark input, .dark select, .dark textarea { color-scheme: dark; }
+
+/* ─── Acessibilidade: reduz movimento pra quem pediu no SO ─────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
