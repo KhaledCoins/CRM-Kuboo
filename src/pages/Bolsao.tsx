@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun, X } from "lucide-react";
+import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun, X, Shuffle } from "lucide-react";
 import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select } from "../components/ui";
-import { fetchLeads, pegarLead, descartarLead, noBolsao, prioridadeLead, temperaturaLead, type Lead, type Temperatura } from "../lib/leads";
+import { fetchLeads, pegarLead, descartarLead, distribuirBolsao, noBolsao, prioridadeLead, temperaturaLead, type Lead, type Temperatura } from "../lib/leads";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { brl, onlyDigits } from "../lib/format";
 
@@ -28,11 +29,12 @@ const tempMeta: Record<Temperatura, { label: string; tone: "red" | "amber" | "bl
 };
 
 export function Bolsao() {
-  const { user } = useAuth();
+  const { user, isManager } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [origem, setOrigem] = useState("");
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [distribuindo, setDistribuindo] = useState(false);
   const [, setTick] = useState(0);
 
   async function load() {
@@ -62,6 +64,22 @@ export function Bolsao() {
     }
     setLeads((prev) => prev.filter((l) => l.id !== id));
     setClaiming(null);
+  }
+
+  // Rodízio (gestor/admin): reparte o bolsão entre os vendedores por prioridade.
+  // Complementa o "pegar lead" — não o substitui.
+  async function handleDistribuir() {
+    if (!supabase || !filtered.length) return;
+    const { data: vendedores } = await supabase.from("profiles").select("id,name").in("role", ["vendedor", "gestor", "admin"]).limit(50);
+    const ids = (vendedores || []).map((v) => v.id);
+    if (!ids.length) { toast.error("Nenhum vendedor encontrado pra distribuir."); return; }
+    if (!window.confirm(`Distribuir ${filtered.length} lead(s) em rodízio entre ${ids.length} membro(s) da equipe?`)) return;
+    setDistribuindo(true);
+    const r = await distribuirBolsao(filtered, ids);
+    setDistribuindo(false);
+    if (r.distribuidos) toast.success(`${r.distribuidos} lead(s) distribuído(s)${r.pulados ? ` · ${r.pulados} pulado(s)` : ""}.`);
+    else toast.warning("Nada foi distribuído (leads já pegos ou sem permissão).");
+    load();
   }
 
   async function handleDescartar(l: Lead) {
@@ -99,6 +117,11 @@ export function Bolsao() {
           { value: "chatbot", label: "Kubinho (chatbot)" }, { value: "formulario", label: "Formulário" },
           { value: "whatsapp", label: "WhatsApp" }, { value: "indicacao", label: "Indicação" }, { value: "portal", label: "Portal" },
         ]} />
+        {isManager && filtered.length > 0 && (
+          <Button variant="outline" icon={Shuffle} onClick={handleDistribuir} disabled={distribuindo}>
+            {distribuindo ? "Distribuindo..." : "Distribuir em rodízio"}
+          </Button>
+        )}
       </FilterBar>
 
       {loading ? (

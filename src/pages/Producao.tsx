@@ -1,9 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, DollarSign, ShoppingCart, Percent, Package, Building2, Users, RefreshCw } from "lucide-react";
-import { Card, KpiCard, PageHeader, EmptyState } from "../components/ui";
+import { BarChart3, DollarSign, ShoppingCart, Percent, Package, Building2, Users, RefreshCw, Download } from "lucide-react";
+import { toast } from "sonner";
+import { Card, KpiCard, PageHeader, EmptyState, Button } from "../components/ui";
 import { PeriodoSelect, rangeFor, labelDe, type PeriodoKey } from "../components/Periodo";
 import { brl } from "../lib/format";
 import { supabase } from "../lib/supabase";
+
+// CSV do relatório: linhas de venda do período + rodapé consolidado (contador-friendly)
+function exportarCsv(periodo: string, vendas: Venda[], tot: { prod: number; com: number; n: number }) {
+  const esc = (v: unknown) => { const s = v == null ? "" : String(v); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const num = (v: number | null) => (v == null ? "" : String(v).replace(".", ","));
+  const linhas = [
+    "data_venda;cliente;vendedor;produto;seguradora;tipo;valor;comissao",
+    ...vendas.map((v) => [v.data_venda, (v as any).cliente_nome, v.vendedor_nome, v.produto, v.seguradora, v.tipo, num(v.valor), num(v.comissao_valor)].map(esc).join(";")),
+    "",
+    `TOTAL;;;;;${tot.n} vendas;${num(tot.prod)};${num(tot.com)}`,
+  ];
+  const blob = new Blob(["﻿" + linhas.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `producao-${periodo}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast.success(`Relatório exportado (${vendas.length} vendas).`);
+}
 
 interface Venda { valor: number | null; comissao_valor: number | null; data_venda: string | null; produto: string | null; seguradora: string | null; vendedor_nome: string | null; tipo: string | null; }
 
@@ -40,7 +59,7 @@ export function Producao() {
     (async () => {
       if (!supabase) { setLoading(false); return; }
       const r = rangeFor(periodo);
-      let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,tipo").gte("data_venda", r.gte);
+      let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,tipo,cliente_nome").gte("data_venda", r.gte);
       if (r.lte) qy = qy.lte("data_venda", r.lte);
       const { data } = await qy.limit(5000);
       if (!active) return;
@@ -66,7 +85,14 @@ export function Producao() {
   return (
     <>
       <PageHeader title="Produção" subtitle={`Relatório consolidado — ${labelDe(periodo).toLowerCase()}`} icon={BarChart3}
-        actions={<PeriodoSelect value={periodo} onChange={setPeriodo} />} />
+        actions={
+          <div className="flex items-center gap-2">
+            <PeriodoSelect value={periodo} onChange={setPeriodo} />
+            <Button variant="outline" icon={Download} onClick={() => exportarCsv(periodo, vendas, { prod: m.prod, com: m.com, n: m.n })} disabled={!vendas.length}>
+              Exportar CSV
+            </Button>
+          </div>
+        } />
 
       {loading ? (
         <Card><p className="text-muted text-sm">Carregando relatório…</p></Card>

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, ShieldCheck, Moon, Sun } from "lucide-react";
+import { LogOut, ShieldCheck, Moon, Sun, Bell, X } from "lucide-react";
 import { temaAtual, alternarTema } from "../lib/theme";
 import { NAV, type Modulo } from "../lib/nav";
 import { useAuth } from "../context/AuthContext";
 import { initials } from "../lib/format";
 import { fetchLeads, noBolsao, moduloDe } from "../lib/leads";
+import { fetchAvisos, type Aviso } from "../lib/avisos";
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -16,13 +17,16 @@ export function Layout() {
   const groups = NAV[modulo];
   const role = user?.role ?? "vendedor";
   const [bolsaoCount, setBolsaoCount] = useState(0);
+  const [avisos, setAvisos] = useState<Aviso[]>([]);
+  const [avisosAbertos, setAvisosAbertos] = useState(false);
 
   useEffect(() => {
     let active = true;
     async function load() {
-      const leads = await fetchLeads();
+      const [leads, avs] = await Promise.all([fetchLeads(), fetchAvisos(modulo)]);
       if (!active) return;
       setBolsaoCount(leads.filter((l) => moduloDe(l) === modulo && noBolsao(l)).length);
+      setAvisos(avs);
     }
     load();
     const t = setInterval(load, 60000);
@@ -107,6 +111,16 @@ export function Layout() {
             <p className="text-[11px] text-white/50 capitalize">{user?.role ?? ""}</p>
           </div>
           <button
+            onClick={() => setAvisosAbertos((v) => !v)}
+            title="Avisos da equipe"
+            className="relative text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
+          >
+            <Bell size={17} />
+            {avisos.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-extrabold grid place-items-center">{avisos.length}</span>
+            )}
+          </button>
+          <button
             onClick={() => setTema(alternarTema())}
             title={tema === "dark" ? "Modo claro" : "Modo escuro"}
             className="text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
@@ -118,6 +132,37 @@ export function Layout() {
           </button>
         </div>
       </aside>
+
+      {/* Painel de avisos (SLA + renovações) — computado no cliente, sem cron */}
+      {avisosAbertos && (
+        <div className="fixed left-[calc(var(--sidebar-w)+12px)] bottom-4 z-50 w-[340px] max-w-[calc(100vw-var(--sidebar-w)-24px)] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <p className="font-extrabold text-ink text-sm flex items-center gap-2"><Bell size={15} className="text-brand-500" /> Avisos da equipe</p>
+            <button onClick={() => setAvisosAbertos(false)} aria-label="Fechar avisos" className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+          </div>
+          <div className="max-h-[50vh] overflow-y-auto">
+            {avisos.length === 0 ? (
+              <p className="text-xs text-muted text-center py-8 px-4">Tudo em dia — nenhum SLA estourando nem renovação nesta semana.</p>
+            ) : (
+              avisos.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => { setAvisosAbertos(false); nav(a.to); }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+                >
+                  <span className="flex items-start gap-2">
+                    <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${a.tone === "red" ? "bg-red-500" : a.tone === "amber" ? "bg-amber-500" : "bg-brand-400"}`} />
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-bold text-ink leading-tight">{a.titulo}</span>
+                      <span className="block text-[11px] text-muted mt-0.5">{a.detalhe}</span>
+                    </span>
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <main className="flex-1 ml-[var(--sidebar-w)] min-w-0">

@@ -116,3 +116,18 @@ export async function descartarLead(id: string, motivo: string): Promise<boolean
     .eq("id", id);
   return !error;
 }
+
+/** Distribuição automática (rodízio): gestor/admin reparte os leads do bolsão
+ *  entre os vendedores, na ordem de prioridade. COMPLEMENTA o "pegar lead"
+ *  manual — cada atribuição usa a mesma proteção de corrida do pegarLead,
+ *  então leads pegos no meio do rodízio são simplesmente pulados. */
+export async function distribuirBolsao(leads: Lead[], vendedorIds: string[]): Promise<{ distribuidos: number; pulados: number }> {
+  if (!supabase || !vendedorIds.length) return { distribuidos: 0, pulados: leads.length };
+  const ordenados = [...leads].sort((a, b) => prioridadeLead(b) - prioridadeLead(a));
+  let distribuidos = 0, pulados = 0, i = 0;
+  for (const l of ordenados) {
+    const ok = await pegarLead(l.id, vendedorIds[i % vendedorIds.length]);
+    if (ok) { distribuidos++; i++; } else pulados++;
+  }
+  return { distribuidos, pulados };
+}
