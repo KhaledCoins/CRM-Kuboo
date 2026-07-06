@@ -1,11 +1,13 @@
+import { useState } from "react";
 import {
   FileEdit, Receipt, DollarSign, Target, ShieldAlert, Layers, Award, CalendarDays,
-  Building2, Package,
+  Building2, Package, Upload,
 } from "lucide-react";
-import { Badge } from "../components/ui";
+import { Badge, Button } from "../components/ui";
 import { brl, brlShort, dateBR, pct } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import { DataTablePage, type FormField } from "./DataTablePage";
+import { ImportarCsv, type CampoImport } from "../components/ImportarCsv";
 
 const sum = (rows: any[], k: string) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
 const count = (rows: any[], pred: (r: any) => boolean) => rows.filter(pred).length;
@@ -25,9 +27,36 @@ const optModulo: FormField["options"] = [{ value: "seguros", label: "Seguros" },
 
 /* ───────── SEGUROS ───────── */
 
-export const Vendas = () => (
-  <DataTablePage
-    title="Vendas" subtitle="Apólices e propostas registradas" icon={Receipt}
+const camposImportVendas: CampoImport[] = [
+  { key: "cliente_nome", label: "Cliente", obrigatorio: true, tipo: "texto" },
+  { key: "produto", label: "Produto", tipo: "texto" },
+  { key: "seguradora", label: "Seguradora", tipo: "texto" },
+  { key: "valor", label: "Valor (prêmio)", tipo: "moeda" },
+  { key: "comissao_valor", label: "Comissão (R$)", tipo: "moeda" },
+  { key: "data_venda", label: "Data da venda", tipo: "data" },
+  { key: "vigencia_fim", label: "Fim da vigência", tipo: "data" },
+  { key: "status", label: "Status", tipo: "texto" },
+  { key: "vendedor_nome", label: "Vendedor", tipo: "texto" },
+  { key: "parcelas", label: "Parcelas", tipo: "numero" },
+];
+
+export const Vendas = () => {
+  const [importar, setImportar] = useState(false);
+  return (
+  <>
+    <div className="flex justify-end mb-3">
+      <Button variant="outline" icon={Upload} onClick={() => setImportar(true)}>Importar CSV</Button>
+    </div>
+    <ImportarCsv
+      aberto={importar}
+      onFechar={() => setImportar(false)}
+      tabela="vendas"
+      titulo="Importar vendas do CSV"
+      campos={camposImportVendas}
+      onConcluido={() => window.location.reload()}
+    />
+    <DataTablePage
+      title="Vendas" subtitle="Apólices e propostas registradas" icon={Receipt}
     table="vendas" orderBy="data_venda" primaryAction="Nova Venda"
     formFields={[
       { key: "data_venda", label: "Data da venda", type: "date", required: true },
@@ -56,10 +85,12 @@ export const Vendas = () => (
       { header: "Valor", right: true, render: (r) => brl(r.valor) },
       { header: "Status", render: (r) => <St s={r.status} /> },
     ]}
-    emptyIcon={Receipt} emptyTitle="Nenhuma venda registrada ainda"
-    emptyHint="Cadastre uma venda, importe sua planilha de apólices ou converta um lead do Pipeline."
-  />
-);
+      emptyIcon={Receipt} emptyTitle="Nenhuma venda registrada ainda"
+      emptyHint="Cadastre uma venda, importe sua planilha de apólices ou converta um lead do Pipeline."
+    />
+  </>
+  );
+};
 
 export const Parcelas = () => (
   <DataTablePage
