@@ -20,7 +20,9 @@ create policy leads_team_delete on leads
 
 -- 3) Limpeza dos leads de TESTE atuais (ajuste a lista se quiser manter algum)
 delete from leads
-where nome in ('AUDIT','Teste pos-fix','Teste Cliente','Cliente Teste','Lead Teste Chatbot','Eduardo')
+where nome in ('AUDIT','Teste pos-fix','Teste Cliente','Cliente Teste','Lead Teste Chatbot','Eduardo',
+               'TESTE_PARCIAL Abandono','TESTE_COMPLETO Multicalculo')
+   or nome like 'TESTE_%'
    or origem = 'audit';
 
 -- 4) Newsletter: NÃO é tratada aqui. A separação definitiva (tabela própria
