@@ -108,8 +108,8 @@ export const Th = ({ children, right }: { children: ReactNode; right?: boolean }
 export const Td = ({ children, right }: { children: ReactNode; right?: boolean }) => (
   <td className={`py-3 px-3 ${right ? "text-right" : ""}`}>{children}</td>
 );
-export const Tr = ({ children }: { children: ReactNode }) => (
-  <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">{children}</tr>
+export const Tr = ({ children, className = "", onClick }: { children: ReactNode; className?: string; onClick?: () => void }) => (
+  <tr className={`border-b border-slate-100 hover:bg-slate-50/60 transition-colors ${className}`} onClick={onClick}>{children}</tr>
 );
 
 /* ---------- Empty state ---------- */

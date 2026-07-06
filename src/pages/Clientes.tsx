@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Users, Plus, MapPin, Phone, Mail } from "lucide-react";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, FilterBar, SearchInput, EmptyState, Spinner } from "../components/ui";
+import { TimelineCliente, type ClienteResumo } from "../components/TimelineCliente";
 import { supabase } from "../lib/supabase";
 import { dateBR, initials } from "../lib/format";
 
@@ -13,6 +14,7 @@ export function Clientes() {
   const [rows, setRows] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [aberto, setAberto] = useState<ClienteResumo | null>(null); // timeline 360º
 
   useEffect(() => {
     (async () => {
@@ -45,7 +47,7 @@ export function Clientes() {
           <div className="p-2">
             <Table head={<><Th>Cliente</Th><Th>CPF/CNPJ</Th><Th>Contato</Th><Th>Cidade/UF</Th><Th>Cadastro</Th></>}>
               {filtered.map((c) => (
-                <Tr key={c.id}>
+                <Tr key={c.id} className="cursor-pointer" onClick={() => setAberto(c)}>
                   <Td>
                     <div className="flex items-center gap-2.5">
                       <span className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 grid place-items-center text-xs font-bold">{initials(c.name)}</span>
@@ -68,6 +70,8 @@ export function Clientes() {
           </div>
         )}
       </Card>
+
+      {aberto && <TimelineCliente cliente={aberto} onFechar={() => setAberto(null)} />}
     </>
   );
 }
