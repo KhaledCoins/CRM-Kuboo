@@ -10,6 +10,7 @@ export interface Tarefa {
   cliente_nome?: string | null;
   vencimento?: string | null;
   modulo?: string | null;
+  trello_card_id?: string | null; // vínculo idempotente com o card (crm-tarefas-trello.sql)
   created_at?: string;
 }
 

@@ -83,24 +83,43 @@ export default async function handler(req, res) {
       listId[nome] = l.id;
     }
 
-    // 3) Cards existentes (dedup por título)
+    // 3) Cards existentes — dedup PRIMÁRIO por trello_card_id (idempotente de
+    //    verdade: renomear a tarefa não duplica card). Título fica como
+    //    fallback/backfill pra tarefas antigas sem vínculo.
     const cardsR = await api(`/boards/${board.id}/cards?fields=name`);
-    const existentes = new Set((await cardsR.json()).map((c) => c.name));
+    const cards = await cardsR.json();
+    const idsExistentes = new Set(cards.map((c) => c.id));
+    const tituloParaId = new Map(cards.map((c) => [c.name, c.id]));
 
-    // 4) Cria o que falta
+    // 4) Cria o que falta e devolve o mapeamento tarefa→card pro CRM persistir
     let created = 0, skipped = 0;
+    const mapping = []; // [{ id, trello_card_id }]
     for (const t of tarefas.slice(0, 100)) {
       const titulo = String(t.titulo || "").trim().slice(0, 200);
       if (!titulo) continue;
-      if (existentes.has(titulo)) { skipped++; continue; }
+      const tid = String(t.id || "").slice(0, 64);
+      const cardId = String(t.trello_card_id || "").slice(0, 64);
+
+      if (cardId && idsExistentes.has(cardId)) { skipped++; continue; } // já vinculado
+      if (tituloParaId.has(titulo)) {
+        // card já existe com esse título → backfill do vínculo (não cria de novo)
+        skipped++;
+        if (tid) mapping.push({ id: tid, trello_card_id: tituloParaId.get(titulo) });
+        continue;
+      }
       const lista = listId[LISTAS[t.status] || LISTAS.a_fazer];
       const params = new URLSearchParams({ idList: lista, name: titulo });
       if (t.descricao) params.set("desc", String(t.descricao).slice(0, 2000));
       const r = await api(`/cards?${params.toString()}`, { method: "POST" });
-      if (r.ok) { created++; existentes.add(titulo); }
+      if (r.ok) {
+        const novo = await r.json();
+        created++;
+        tituloParaId.set(titulo, novo.id);
+        if (tid) mapping.push({ id: tid, trello_card_id: novo.id });
+      }
     }
 
-    return res.status(200).json({ created, skipped, boardUrl: board.url });
+    return res.status(200).json({ created, skipped, boardUrl: board.url, mapping });
   } catch (err) {
     console.error(JSON.stringify({ level: "error", fn: "trello", msg: String(err).slice(0, 300) }));
     return res.status(500).json({ error: "Falha ao sincronizar com o Trello" });

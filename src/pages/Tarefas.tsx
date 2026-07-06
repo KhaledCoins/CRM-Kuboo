@@ -84,10 +84,19 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
       const r = await fetch("/api/trello", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ tarefas: tarefas.map((t) => ({ titulo: t.titulo, descricao: t.descricao, status: t.status })) }),
+        body: JSON.stringify({
+          tarefas: tarefas.map((t) => ({ id: t.id, titulo: t.titulo, descricao: t.descricao, status: t.status, trello_card_id: t.trello_card_id ?? null })),
+        }),
       });
       const d = await r.json();
       if (!r.ok) { toast.error(d.error || "Falha na sincronização"); return; }
+      // Persiste o vínculo tarefa→card (dedup por id daqui em diante; título vira fallback)
+      if (Array.isArray(d.mapping) && d.mapping.length && supabase) {
+        await Promise.all(d.mapping.map((m: { id: string; trello_card_id: string }) =>
+          supabase!.from("tarefas").update({ trello_card_id: m.trello_card_id }).eq("id", m.id)
+        ));
+        load(); // recarrega com os vínculos novos
+      }
       toast.success(`Trello: ${d.created} card(s) criado(s), ${d.skipped} já existiam.`, {
         action: d.boardUrl ? { label: "Abrir board", onClick: () => window.open(d.boardUrl, "_blank") } : undefined,
       });
