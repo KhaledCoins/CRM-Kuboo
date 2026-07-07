@@ -76,8 +76,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Dedup: já existe cliente com esse CPF?
-    const { data: existente } = await admin.from("profiles").select("id, name").eq("cpf", cpf).maybeSingle();
+    // Dedup: já existe cliente com esse CPF? O banco pode ter o CPF em DÍGITOS
+    // (novos cadastros) OU FORMATADO (dados legados/importados) — checa as duas
+    // formas pra o anti-duplicata nunca deixar passar duplicata por formatação.
+    const cpfFmt = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    const { data: existentes } = await admin.from("profiles").select("id, name").in("cpf", [cpf, cpfFmt]);
+    const existente = (existentes || [])[0];
     if (existente) {
       return res.status(409).json({ error: `Já existe um cliente com este CPF: ${existente.name}.` });
     }
