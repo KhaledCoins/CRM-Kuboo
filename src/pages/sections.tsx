@@ -7,6 +7,7 @@ import { brl, brlShort, dateBR, pct } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import { DataTablePage, type FormField } from "./DataTablePage";
 import { type CampoImport } from "../components/ImportarCsv";
+import { DocsCell } from "../components/DocumentosModal";
 
 const sum = (rows: any[], k: string) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
 const count = (rows: any[], pred: (r: any) => boolean) => rows.filter(pred).length;
@@ -145,6 +146,7 @@ export const Apolices = () => (
       { header: "Vigência até", render: (r) => dateBR(r.vigencia_fim) },
       { header: "Prêmio/mês", right: true, render: (r) => brl(r.premio_mensal) },
       { header: "Status", render: (r) => <St s={r.status || "ativa"} /> },
+      { header: "Docs", right: true, render: (r) => <DocsCell row={r} tabela="apolices" /> },
     ]}
       emptyIcon={Shield} emptyTitle="Nenhuma apólice cadastrada"
       emptyHint="Cadastre a apólice de um cliente aqui — ela aparece automaticamente na Área do Cliente dele no site."
@@ -209,6 +211,7 @@ export const ConsorciosCliente = () => (
       { header: "Crédito", right: true, render: (r) => brl(r.valor_credito) },
       { header: "Pagas", render: (r) => `${r.parcelas_pagas ?? 0}/${r.total_parcelas ?? "—"}` },
       { header: "Status", render: (r) => <St s={r.status || "ativo"} /> },
+      { header: "Docs", right: true, render: (r) => <DocsCell row={r} tabela="consorcios" /> },
     ]}
       emptyIcon={Layers} emptyTitle="Nenhum consórcio cadastrado"
       emptyHint="Cadastre a carta de consórcio de um cliente aqui — ela aparece automaticamente na Área do Cliente dele no site."
