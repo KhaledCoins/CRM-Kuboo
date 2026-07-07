@@ -30,6 +30,31 @@ GRANT EXECUTE ON FUNCTION public.is_team() TO authenticated;
 DROP POLICY IF EXISTS "profiles_team_read" ON profiles;
 CREATE POLICY "profiles_team_read" ON profiles FOR SELECT USING (public.is_team());
 
+-- ⚠️  TRAVA DE ESCALADA DE PRIVILÉGIO (crítico) — ver supabase/fix-profiles-role-lock.sql.
+-- Agora que role/aprovado/nivel existem na tabela, o cliente NÃO pode escrevê-las.
+-- No Postgres, revoke de UPDATE por COLUNA é no-op se há grant de UPDATE de TABELA
+-- (padrão do Supabase p/ `authenticated`) → tira o UPDATE amplo e reconcede só a
+-- única coluna que o portal escreve: must_change_password (1º login, Site/AuthContext).
+-- Promoção de papel = só via service_role/SQL (api/clientes.js usa service_role).
+REVOKE UPDATE ON profiles FROM anon, authenticated;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'must_change_password')
+  THEN EXECUTE 'GRANT UPDATE (must_change_password) ON public.profiles TO authenticated'; END IF;
+END $$;
+
+-- Policies self com WITH CHECK (substitui um profiles_self FOR ALL antigo, se existir).
+DROP POLICY IF EXISTS "profiles_self"        ON profiles;
+DROP POLICY IF EXISTS "profiles_self_update" ON profiles;
+DROP POLICY IF EXISTS "profiles_self_insert" ON profiles;
+DROP POLICY IF EXISTS "profiles_self_select" ON profiles;
+CREATE POLICY "profiles_self_select" ON profiles
+  FOR SELECT USING ((select auth.uid()) = id);
+CREATE POLICY "profiles_self_update" ON profiles
+  FOR UPDATE USING ((select auth.uid()) = id) WITH CHECK ((select auth.uid()) = id);
+CREATE POLICY "profiles_self_insert" ON profiles
+  FOR INSERT WITH CHECK ((select auth.uid()) = id);
+
 -- ─── 2) LEADS: campos do pipeline ─────────────────────────────
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS etapa TEXT DEFAULT 'novos'
   CHECK (etapa IN ('novos','contato','cotacao','negociacao','ganho','perdido'));

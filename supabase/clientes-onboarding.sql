@@ -16,6 +16,10 @@ create index if not exists idx_profiles_email on profiles(email);
 -- Cliente criado com senha temporária (sem e-mail próprio, ou convite) precisa
 -- trocar a senha no 1º login antes de entrar no Portal de verdade.
 alter table profiles add column if not exists must_change_password boolean not null default false;
+-- O portal (Site/AuthContext) escreve ESTA coluna no 1º login. Como o crm-migration.sql
+-- revoga o UPDATE amplo de profiles do `authenticated` (trava de escalada), reconcedemos
+-- explicitamente só esta coluna aqui — assim a ordem das migrações não deixa o 1º login quebrado.
+grant update (must_change_password) on public.profiles to authenticated;
 
 -- ─── Storage: documentos do cliente (apólice em PDF, carta de consórcio, foto) ─
 -- Bucket privado — nada é público. Acesso via RLS igual às tabelas: dono ou equipe.
