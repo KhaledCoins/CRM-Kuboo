@@ -34,36 +34,57 @@ async function carregarEventos(c: ClienteResumo): Promise<Evento[]> {
   const evs: Evento[] = [];
   const fone = dig(c.phone);
 
-  const [leadsR, vendasR, apolR, consR, atendR, tarR] = await Promise.all([
-    supabase.from("leads").select("created_at,produto_interesse,origem,etapa,score,telefone,nome").or(`nome.eq.${JSON.stringify(c.name)}${fone ? `,telefone.eq.${JSON.stringify(c.phone)}` : ""}`).limit(50),
-    supabase.from("vendas").select("data_venda,created_at,produto,seguradora,valor,tipo,status").or(`cliente_id.eq.${c.id},cliente_nome.eq.${JSON.stringify(c.name)}`).limit(100),
+  // Filtros por .eq() (o supabase-js codifica o valor com segurança). Antes usava
+  // .or() interpolando o nome do cliente → quebrava com nomes que têm vírgula/parênteses
+  // e era vetor de injeção no parser de filtro do PostgREST. allSettled: uma tabela sem
+  // permissão (RLS) não pode zerar a timeline inteira.
+  const SEL_LEADS = "created_at,produto_interesse,origem,etapa,score,telefone,nome";
+  const SEL_VENDAS = "data_venda,created_at,produto,seguradora,valor,tipo,status";
+  const okRows = (r: PromiseSettledResult<any>) => (r.status === "fulfilled" ? (r.value?.data || []) : []);
+  const dedup = (rows: any[]) => {
+    const vistos = new Set<string>();
+    return rows.filter((row) => { const k = JSON.stringify(row); if (vistos.has(k)) return false; vistos.add(k); return true; });
+  };
+
+  const R = await Promise.allSettled([
+    supabase.from("leads").select(SEL_LEADS).eq("nome", c.name).limit(50),
+    fone ? supabase.from("leads").select(SEL_LEADS).eq("telefone", c.phone).limit(50) : Promise.resolve({ data: [] }),
+    supabase.from("vendas").select(SEL_VENDAS).eq("cliente_id", c.id).limit(100),
+    supabase.from("vendas").select(SEL_VENDAS).eq("cliente_nome", c.name).limit(100),
     supabase.from("apolices").select("created_at,tipo,seguradora,vigencia_inicio,vigencia_fim,premio_mensal,status").eq("client_id", c.id).limit(100),
     supabase.from("consorcios").select("created_at,tipo,administradora,valor_credito,data_inicio,data_contemplacao,status").eq("client_id", c.id).limit(100),
     supabase.from("atendimentos").select("data,created_at,tipo,numero_registro,status,descricao").eq("cliente_nome", c.name).limit(50),
     supabase.from("tarefas").select("created_at,titulo,status,prioridade").eq("cliente_nome", c.name).limit(50),
   ]);
 
-  for (const l of leadsR.data || []) evs.push({
+  const leadsData = dedup([...okRows(R[0]), ...okRows(R[1])]);
+  const vendasData = dedup([...okRows(R[2]), ...okRows(R[3])]);
+  const apolData = okRows(R[4]);
+  const consData = okRows(R[5]);
+  const atendData = okRows(R[6]);
+  const tarData = okRows(R[7]);
+
+  for (const l of leadsData) evs.push({
     data: l.created_at, tipo: "Lead", titulo: `Lead — ${l.produto_interesse || "interesse geral"}`,
     detalhe: `origem: ${l.origem || "—"}${l.score ? ` · score ${l.score}` : ""}`,
     Icon: Inbox, cor: "#36ABE2",
     badge: l.etapa === "ganho" ? { txt: "convertido", tone: "green" } : undefined,
   });
-  for (const v of vendasR.data || []) evs.push({
+  for (const v of vendasData) evs.push({
     data: v.data_venda || v.created_at, tipo: "Venda",
     titulo: `Venda — ${v.produto || "produto"}${v.seguradora ? ` (${v.seguradora})` : ""}`,
     detalhe: v.valor != null ? brl(v.valor) : undefined,
     Icon: v.tipo === "renovacao" ? RefreshCcw : ShoppingCart, cor: "#16A34A",
     badge: v.tipo === "renovacao" ? { txt: "renovação", tone: "violet" } : v.status === "cancelada" ? { txt: "cancelada", tone: "red" } : undefined,
   });
-  for (const a of apolR.data || []) evs.push({
+  for (const a of apolData) evs.push({
     data: a.vigencia_inicio || a.created_at, tipo: "Apólice",
     titulo: `Apólice ${a.tipo || ""}${a.seguradora ? ` — ${a.seguradora}` : ""}`,
     detalhe: `${a.premio_mensal != null ? `${brl(a.premio_mensal)}/mês · ` : ""}vigência até ${dateBR(a.vigencia_fim)}`,
     Icon: Shield, cor: "#1873BA",
     badge: a.status && a.status !== "ativa" ? { txt: a.status, tone: a.status === "vencida" ? "red" : "amber" } : undefined,
   });
-  for (const k of consR.data || []) {
+  for (const k of consData) {
     evs.push({
       data: k.data_inicio || k.created_at, tipo: "Consórcio",
       titulo: `Consórcio ${k.tipo || ""}${k.administradora ? ` — ${k.administradora}` : ""}`,
@@ -77,13 +98,13 @@ async function carregarEventos(c: ClienteResumo): Promise<Evento[]> {
       detalhe: k.administradora || undefined, Icon: Award, cor: "#F59E0B",
     });
   }
-  for (const s of atendR.data || []) evs.push({
+  for (const s of atendData) evs.push({
     data: s.data || s.created_at, tipo: s.tipo === "assistencia" ? "Assistência" : "Sinistro",
     titulo: `${s.tipo === "assistencia" ? "Assistência" : "Sinistro"}${s.numero_registro ? ` #${s.numero_registro}` : ""}`,
     detalhe: s.descricao || undefined, Icon: LifeBuoy, cor: "#DC2626",
     badge: s.status ? { txt: s.status, tone: s.status === "aberto" ? "amber" : "slate" } : undefined,
   });
-  for (const t of tarR.data || []) evs.push({
+  for (const t of tarData) evs.push({
     data: t.created_at, tipo: "Tarefa", titulo: t.titulo,
     detalhe: t.prioridade ? `prioridade ${t.prioridade}` : undefined,
     Icon: ListChecks, cor: "#64748B",

@@ -50,7 +50,7 @@ function LeadCard({ lead, onContato }: { lead: Lead; onContato: (id: string) => 
         {lead.valor_potencial ? <span className="text-xs font-bold text-ink">{brl(lead.valor_potencial)}</span> : null}
       </div>
       <div className="flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
-        {wa && <a href={wa} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg"><MessageCircle size={12} /> WhatsApp</a>}
+        {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg"><MessageCircle size={12} /> WhatsApp</a>}
         {!lead.primeiro_contato_em && (
           <button onClick={() => onContato(lead.id)} className="flex items-center gap-1 text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-lg">
             <CheckCircle2 size={12} /> Contato

@@ -163,7 +163,7 @@ export function Bolsao() {
                     {claiming === l.id ? "Pegando..." : "Pegar lead"}
                   </Button>
                   {wa && (
-                    <a href={wa} target="_blank" rel="noreferrer">
+                    <a href={wa} target="_blank" rel="noopener noreferrer">
                       <Button size="sm" variant="wa" icon={MessageCircle}>WhatsApp</Button>
                     </a>
                   )}

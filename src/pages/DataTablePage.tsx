@@ -88,6 +88,7 @@ export function DataTablePage({
     setLoading(true); setError(false);
     let query: any = supabase.from(table).select(select, { count: "exact" }).range(p * PAGE, p * PAGE + PAGE - 1);
     if (orderBy) query = query.order(orderBy, { ascending });
+    query = query.order("id", { ascending: true }); // desempate estável → páginas não repetem/pulam linhas
     const { data, error, count } = await query;
     if (error) { setError(true); setRows([]); setTotal(0); }
     else { setRows(data || []); setTotal(count ?? (data?.length || 0)); }
@@ -110,6 +111,7 @@ export function DataTablePage({
       for (let from = 0; from < CAP; from += 1000) {
         let qy: any = supabase.from(table).select(select).range(from, from + 999);
         if (orderBy) qy = qy.order(orderBy, { ascending });
+        qy = qy.order("id", { ascending: true }); // ordem estável entre os blocos de 1000
         const { data, error } = await qy;
         if (error) throw new Error(error.message);
         all.push(...(data || []));
@@ -154,7 +156,12 @@ export function DataTablePage({
     for (const f of formFields) {
       let v: any = form[f.key];
       if (v === undefined || v === "") { v = null; }
-      else if (f.type === "number" || f.type === "currency") v = Number(String(v).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", ".")) || 0;
+      else if (f.type === "number" || f.type === "currency") {
+        // Preserva null quando o valor não é numérico (antes virava 0 silenciosamente,
+        // gravando um valor falso no lugar de "vazio").
+        const n = Number(String(v).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", "."));
+        v = Number.isFinite(n) ? n : null;
+      }
       payload[f.key] = v;
     }
     const { error } = editingId

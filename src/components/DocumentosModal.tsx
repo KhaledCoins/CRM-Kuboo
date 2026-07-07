@@ -74,6 +74,15 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
     setCarregando(false);
   }
 
+  // Relê os documentos direto do banco na hora de gravar — evita que dois membros
+  // com o mesmo registro aberto sobrescrevam o anexo um do outro (last-write-wins).
+  async function lerDocsAtuais(): Promise<DocumentoRegistro[]> {
+    if (!supabase) return docs;
+    const { data, error } = await supabase.from(tabela).select("documentos").eq("id", registroId).single();
+    if (error) return docs; // na dúvida, usa o estado local (não perde o que está por gravar)
+    return Array.isArray(data?.documentos) ? (data!.documentos as DocumentoRegistro[]) : [];
+  }
+
   function validar(file: File): string | null {
     const tipoOk = TIPOS_OK.includes(file.type) || EXT_OK.test(file.name);
     if (!tipoOk) return `"${file.name}" não é PDF, JPG ou PNG.`;
@@ -117,7 +126,7 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
     }
 
     if (novos.length) {
-      const atualizados = [...docs, ...novos];
+      const atualizados = [...(await lerDocsAtuais()), ...novos];
       const { error: dbErr } = await supabase.from(tabela).update({ documentos: atualizados }).eq("id", registroId);
       if (dbErr) {
         // Rollback do storage: os objetos ficariam órfãos se o jsonb não salvasse.
@@ -170,7 +179,7 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
       toast.error("Não foi possível excluir o arquivo.");
       return;
     }
-    const atualizados = docs.filter((d) => d.path !== doc.path);
+    const atualizados = (await lerDocsAtuais()).filter((d) => d.path !== doc.path);
     const { error: dbErr } = await supabase.from(tabela).update({ documentos: atualizados }).eq("id", registroId);
     setExcluindoPath(null);
     if (dbErr) {

@@ -294,11 +294,18 @@ export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConclu
     if (resolverCpf && supabase) {
       const cpfs = Array.from(new Set(registros.map((r) => soDigitos(r[resolverCpf.origem])).filter(Boolean)));
       const mapa = new Map<string, string>();
-      // Busca perfis em blocos e casa por CPF normalizado (o banco pode guardar formatado).
-      const { data: perfis } = await supabase.from("profiles").select("id, cpf").limit(10000);
-      for (const p of (perfis as any[]) || []) {
-        const d = soDigitos(p.cpf);
-        if (d) mapa.set(d, p.id);
+      // Consulta SÓ os CPFs do arquivo (nas duas formas: dígitos e formatado xxx.xxx.xxx-xx),
+      // em blocos — não baixa a tabela inteira de profiles (não escala) nem estoura a URL.
+      const fmtCpf = (d: string) => (d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : d);
+      const BUSCA = 150;
+      for (let i = 0; i < cpfs.length; i += BUSCA) {
+        const bloco = cpfs.slice(i, i + BUSCA);
+        const variantes = bloco.flatMap((d) => [d, fmtCpf(d)]);
+        const { data: perfis } = await supabase.from("profiles").select("id, cpf").in("cpf", variantes);
+        for (const p of (perfis as any[]) || []) {
+          const d = soDigitos(p.cpf);
+          if (d) mapa.set(d, p.id);
+        }
       }
       const comDono: Record<string, any>[] = [];
       for (const r of registros) {
@@ -310,7 +317,6 @@ export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConclu
       }
       registros.length = 0;
       registros.push(...comDono);
-      void cpfs; // (mantém a leitura clara; cpfs úteis se quisermos logar depois)
     }
 
     if (!registros.length) {
@@ -330,7 +336,11 @@ export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConclu
       const lote = registros.slice(i, i + LOTE);
       const { error } = await supabase.from(tabela).insert(lote);
       if (error) {
-        pulados += lote.length; // lote inteiro conta como pulado, mas segue em frente
+        // Uma linha ruim não pode derrubar as outras 99 do lote: reinsere uma a uma.
+        for (const reg of lote) {
+          const { error: e1 } = await supabase.from(tabela).insert(reg);
+          if (e1) pulados++; else inseridos++;
+        }
       } else {
         inseridos += lote.length;
       }
