@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { X, Pencil, Trash2, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, Pencil, Trash2, Download, Upload, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, EmptyState, KpiCard, SearchInput } from "../components/ui";
+import { ImportarCsv, type CampoImport, type TipoCampo } from "../components/ImportarCsv";
 import { supabase } from "../lib/supabase";
+
+// FormField (tipo do formulário de criar) → CampoImport (colunas do importador).
+// Assim TODA tela que tem formulário de criar ganha "Importar CSV" automaticamente.
+const tipoImport: Record<string, TipoCampo> = { currency: "moeda", date: "data", number: "numero" };
+function camposDeFormFields(fields: FormField[]): CampoImport[] {
+  return fields
+    .filter((f) => !f.loadOptions) // selects relacionais (client_id, cota_id) não vêm de CSV
+    .map((f) => ({ key: f.key, label: f.label, obrigatorio: f.required, tipo: tipoImport[f.type ?? "text"] ?? "texto" }));
+}
 
 function downloadCsv(filename: string, rows: any[]) {
   if (!rows.length) return;
@@ -40,6 +50,7 @@ const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-
 export function DataTablePage({
   title, subtitle, icon, table, select = "*", orderBy, ascending = false,
   columns, computeKpis, emptyIcon, emptyTitle, emptyHint, primaryAction, formFields,
+  importCampos, importResolverCpf, importavel = true,
 }: {
   title: string; subtitle?: string; icon: LucideIcon;
   table: string; select?: string; orderBy?: string; ascending?: boolean;
@@ -47,6 +58,9 @@ export function DataTablePage({
   computeKpis?: (rows: any[]) => Kpi[];
   emptyIcon: LucideIcon; emptyTitle: string; emptyHint?: string;
   primaryAction?: string; formFields?: FormField[];
+  // Import: por padrão deriva as colunas dos formFields; pode sobrescrever
+  // (importCampos) ou vincular por CPF (importResolverCpf, p/ apólices/consórcios).
+  importCampos?: CampoImport[]; importResolverCpf?: { origem: string; destino: string }; importavel?: boolean;
 }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,10 +183,32 @@ export function DataTablePage({
   const canEdit = !!(formFields && formFields.length);
   const canCreate = !!(primaryAction && canEdit);
 
+  // Import disponível em toda tela que cria registro (deriva colunas dos formFields).
+  const camposImport = importCampos ?? (formFields ? camposDeFormFields(formFields) : []);
+  const podeImportar = importavel && camposImport.length > 0;
+  const [importarAberto, setImportarAberto] = useState(false);
+
   return (
     <>
       <PageHeader title={title} subtitle={subtitle} icon={icon}
-        actions={primaryAction ? <Button onClick={canCreate ? openCreate : undefined}>{primaryAction}</Button> : undefined} />
+        actions={(primaryAction || podeImportar) ? (
+          <div className="flex items-center gap-2">
+            {podeImportar && <Button variant="outline" icon={Upload} onClick={() => setImportarAberto(true)}>Importar</Button>}
+            {primaryAction && <Button onClick={canCreate ? openCreate : undefined}>{primaryAction}</Button>}
+          </div>
+        ) : undefined} />
+
+      {podeImportar && (
+        <ImportarCsv
+          aberto={importarAberto}
+          onFechar={() => setImportarAberto(false)}
+          tabela={table}
+          titulo={`Importar ${title.toLowerCase()} do CSV`}
+          campos={camposImport}
+          resolverCpf={importResolverCpf}
+          onConcluido={() => { setPage(0); load(0); }}
+        />
+      )}
 
       {kpis.length > 0 && (
         <div className={`grid grid-cols-1 sm:grid-cols-2 ${kpis.length >= 4 ? "xl:grid-cols-4" : "lg:grid-cols-3"} gap-4 mb-6`}>

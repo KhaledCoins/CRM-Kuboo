@@ -1,13 +1,12 @@
-import { useState } from "react";
 import {
   FileEdit, Receipt, DollarSign, Target, ShieldAlert, Layers, Award, CalendarDays,
-  Building2, Package, Upload, Shield,
+  Building2, Package, Shield,
 } from "lucide-react";
-import { Badge, Button } from "../components/ui";
+import { Badge } from "../components/ui";
 import { brl, brlShort, dateBR, pct } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import { DataTablePage, type FormField } from "./DataTablePage";
-import { ImportarCsv, type CampoImport } from "../components/ImportarCsv";
+import { type CampoImport } from "../components/ImportarCsv";
 
 const sum = (rows: any[], k: string) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
 const count = (rows: any[], pred: (r: any) => boolean) => rows.filter(pred).length;
@@ -47,24 +46,11 @@ const camposImportVendas: CampoImport[] = [
   { key: "parcelas", label: "Parcelas", tipo: "numero" },
 ];
 
-export const Vendas = () => {
-  const [importar, setImportar] = useState(false);
-  return (
-  <>
-    <div className="flex justify-end mb-3">
-      <Button variant="outline" icon={Upload} onClick={() => setImportar(true)}>Importar CSV</Button>
-    </div>
-    <ImportarCsv
-      aberto={importar}
-      onFechar={() => setImportar(false)}
-      tabela="vendas"
-      titulo="Importar vendas do CSV"
-      campos={camposImportVendas}
-      onConcluido={() => window.location.reload()}
-    />
+export const Vendas = () => (
     <DataTablePage
       title="Vendas" subtitle="Apólices e propostas registradas" icon={Receipt}
     table="vendas" orderBy="data_venda" primaryAction="Nova Venda"
+    importCampos={camposImportVendas}
     formFields={[
       { key: "data_venda", label: "Data da venda", type: "date", required: true },
       { key: "cliente_nome", label: "Cliente", required: true },
@@ -95,9 +81,7 @@ export const Vendas = () => {
       emptyIcon={Receipt} emptyTitle="Nenhuma venda registrada ainda"
       emptyHint="Cadastre uma venda, importe sua planilha de apólices ou converta um lead do Pipeline."
     />
-  </>
-  );
-};
+);
 
 const optTipoApolice: FormField["options"] = [
   "Auto", "Vida", "Residencial", "Empresarial", "Condomínio", "Pet", "Viagem", "Saúde", "Outros",
@@ -130,25 +114,12 @@ const camposImportApolices: CampoImport[] = [
 // Apólices — a fonte real que o Portal do Cliente exibe (coberturas, vigência,
 // prêmio, franquia). Diferente de "Vendas" (registro comercial/comissão): aqui
 // é o contrato vigente que o cliente vê logado. client_id vincula ao cliente real.
-export const Apolices = () => {
-  const [importar, setImportar] = useState(false);
-  return (
-  <>
-    <div className="flex justify-end mb-3">
-      <Button variant="outline" icon={Upload} onClick={() => setImportar(true)}>Importar CSV</Button>
-    </div>
-    <ImportarCsv
-      aberto={importar}
-      onFechar={() => setImportar(false)}
-      tabela="apolices"
-      titulo="Importar apólices do CSV"
-      campos={camposImportApolices}
-      resolverCpf={{ origem: "cliente_cpf", destino: "client_id" }}
-      onConcluido={() => window.location.reload()}
-    />
+export const Apolices = () => (
     <DataTablePage
       title="Apólices" subtitle="Contratos vigentes de cada cliente (aparecem no Portal do Cliente)" icon={Shield}
     table="apolices" select="*, profiles(name, cpf)" orderBy="vigencia_fim" ascending primaryAction="Nova Apólice"
+    importCampos={camposImportApolices}
+    importResolverCpf={{ origem: "cliente_cpf", destino: "client_id" }}
     formFields={[
       { key: "client_id", label: "Cliente", type: "select", required: true, loadOptions: carregarClientes },
       { key: "tipo", label: "Tipo", type: "select", required: true, options: optTipoApolice },
@@ -178,9 +149,7 @@ export const Apolices = () => {
       emptyIcon={Shield} emptyTitle="Nenhuma apólice cadastrada"
       emptyHint="Cadastre a apólice de um cliente aqui — ela aparece automaticamente na Área do Cliente dele no site."
     />
-  </>
-  );
-};
+);
 
 const camposImportConsorcios: CampoImport[] = [
   { key: "cliente_cpf", label: "CPF do cliente", obrigatorio: true, tipo: "texto" },
@@ -203,25 +172,12 @@ const camposImportConsorcios: CampoImport[] = [
 // interno do consórcio): aqui o registro é vinculado ao client_id e aparece
 // logado pro cliente. valor_pago/saldo_devedor são opcionais — o portal calcula
 // a partir de parcelas_pagas × parcela_mensal quando ficam em branco.
-export const ConsorciosCliente = () => {
-  const [importar, setImportar] = useState(false);
-  return (
-  <>
-    <div className="flex justify-end mb-3">
-      <Button variant="outline" icon={Upload} onClick={() => setImportar(true)}>Importar CSV</Button>
-    </div>
-    <ImportarCsv
-      aberto={importar}
-      onFechar={() => setImportar(false)}
-      tabela="consorcios"
-      titulo="Importar consórcios do CSV"
-      campos={camposImportConsorcios}
-      resolverCpf={{ origem: "cliente_cpf", destino: "client_id" }}
-      onConcluido={() => window.location.reload()}
-    />
+export const ConsorciosCliente = () => (
     <DataTablePage
       title="Consórcios" subtitle="Cartas de crédito de cada cliente (aparecem no Portal do Cliente)" icon={Layers}
     table="consorcios" select="*, profiles(name, cpf)" orderBy="data_assembleia" ascending primaryAction="Novo Consórcio"
+    importCampos={camposImportConsorcios}
+    importResolverCpf={{ origem: "cliente_cpf", destino: "client_id" }}
     formFields={[
       { key: "client_id", label: "Cliente", type: "select", required: true, loadOptions: carregarClientes },
       { key: "administradora", label: "Administradora", type: "select", options: optAdministradora },
@@ -257,9 +213,7 @@ export const ConsorciosCliente = () => {
       emptyIcon={Layers} emptyTitle="Nenhum consórcio cadastrado"
       emptyHint="Cadastre a carta de consórcio de um cliente aqui — ela aparece automaticamente na Área do Cliente dele no site."
     />
-  </>
-  );
-};
+);
 
 export const Parcelas = () => (
   <DataTablePage
