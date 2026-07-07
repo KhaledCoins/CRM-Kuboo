@@ -19,6 +19,9 @@ interface Props {
   titulo: string;
   campos: CampoImport[];
   onConcluido?: (inseridos: number) => void;
+  // Resolve um CPF do CSV para o client_id real (vincula ao cadastro do cliente).
+  // Sem match, a linha é pulada — apólice/consórcio sem dono não vira registro órfão.
+  resolverCpf?: { origem: string; destino: string };
 }
 
 /* ─────────── Parser CSV feito à mão (zero dependência) ─────────── */
@@ -176,7 +179,9 @@ function melhorHeader(campo: CampoImport, headers: string[]): string {
 
 /* ─────────── Componente ─────────── */
 
-export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConcluido }: Props) {
+const soDigitos = (s: any) => String(s ?? "").replace(/\D/g, "");
+
+export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConcluido, resolverCpf }: Props) {
   const [passo, setPasso] = useState<1 | 2 | 3>(1);
   const [nomeArquivo, setNomeArquivo] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
@@ -284,11 +289,37 @@ export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConclu
       else pulados++;
     }
 
+    // Resolve CPF → client_id (vincula ao cliente cadastrado). Linhas sem match
+    // são descartadas para não criar apólice/consórcio órfão (sem dono no Portal).
+    if (resolverCpf && supabase) {
+      const cpfs = Array.from(new Set(registros.map((r) => soDigitos(r[resolverCpf.origem])).filter(Boolean)));
+      const mapa = new Map<string, string>();
+      // Busca perfis em blocos e casa por CPF normalizado (o banco pode guardar formatado).
+      const { data: perfis } = await supabase.from("profiles").select("id, cpf").limit(10000);
+      for (const p of (perfis as any[]) || []) {
+        const d = soDigitos(p.cpf);
+        if (d) mapa.set(d, p.id);
+      }
+      const comDono: Record<string, any>[] = [];
+      for (const r of registros) {
+        const id = mapa.get(soDigitos(r[resolverCpf.origem]));
+        if (!id) { pulados++; continue; }         // cliente não encontrado → pula
+        r[resolverCpf.destino] = id;
+        delete r[resolverCpf.origem];             // 'cliente_cpf' não é coluna real
+        comDono.push(r);
+      }
+      registros.length = 0;
+      registros.push(...comDono);
+      void cpfs; // (mantém a leitura clara; cpfs úteis se quisermos logar depois)
+    }
+
     if (!registros.length) {
       setResumo({ inseridos: 0, pulados });
       setImportando(false);
       setProgresso(100);
-      toast.error("Nenhuma linha válida para importar (verifique os campos obrigatórios).");
+      toast.error(resolverCpf
+        ? "Nenhuma linha importada. Confira se os CPFs do arquivo já têm cliente cadastrado."
+        : "Nenhuma linha válida para importar (verifique os campos obrigatórios).");
       return;
     }
 

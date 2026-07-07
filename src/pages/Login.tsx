@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Lock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export function Login() {
@@ -30,8 +30,8 @@ export function Login() {
     >
       <div className="w-full max-w-[400px]">
         <div className="text-center mb-6">
-          <span className="w-14 h-14 rounded-2xl bg-white grid place-items-center mx-auto mb-3 shadow-lg">
-            <img src="/kuboo-symbol.png" alt="Kuboo" className="h-8 w-auto" draggable={false} />
+          <span className="w-16 h-16 rounded-2xl bg-white grid place-items-center mx-auto mb-3 shadow-lg">
+            <img src="/kuboo-symbol-3d.png" alt="Kuboo" className="h-11 w-auto" draggable={false} />
           </span>
           <h1 className="text-3xl text-white tracking-wide">KUBOO CRM</h1>
           <p className="text-white/60 text-sm mt-1">Sistema de Gestão — Equipe</p>
@@ -75,8 +75,8 @@ export function Login() {
             {loading ? "Entrando..." : "Entrar na Área da Equipe"}
           </button>
 
-          <p className="text-center text-xs text-slate-400 mt-4">
-            🔒 Acesso restrito a consultores e gestores Kuboo
+          <p className="text-center text-xs text-slate-400 mt-4 flex items-center justify-center gap-1.5">
+            <Lock size={12} /> Acesso restrito a consultores e gestores Kuboo
           </p>
         </form>
       </div>

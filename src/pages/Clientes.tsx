@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Users, Plus, MapPin, Phone, Mail } from "lucide-react";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, FilterBar, SearchInput, EmptyState, Spinner } from "../components/ui";
 import { TimelineCliente, type ClienteResumo } from "../components/TimelineCliente";
+import { NovoClienteModal } from "../components/NovoClienteModal";
 import { supabase } from "../lib/supabase";
 import { dateBR, initials } from "../lib/format";
 
@@ -15,18 +16,22 @@ export function Clientes() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [aberto, setAberto] = useState<ClienteResumo | null>(null); // timeline 360º
+  const [novoAberto, setNovoAberto] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      if (!supabase) { setLoading(false); return; }
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, name, cpf, phone, city, state, created_at")
-        .order("name");
-      setRows((data as any) ?? []);
-      setLoading(false);
-    })();
+  const carregar = useCallback(async () => {
+    if (!supabase) { setLoading(false); return; }
+    // OBS: "email" só existe depois de rodar supabase/clientes-onboarding.sql.
+    // Não selecionamos aqui de propósito — se essa migração ainda não rodou,
+    // a lista de clientes não pode quebrar por causa de uma coluna nova.
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, name, cpf, phone, city, state, created_at")
+      .order("name");
+    setRows((data as any) ?? []);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
 
   const filtered = useMemo(
     () => rows.filter((r) => (r.name || "").toLowerCase().includes(q.toLowerCase()) || (r.cpf || "").includes(q)),
@@ -35,14 +40,15 @@ export function Clientes() {
 
   return (
     <>
-      <PageHeader title="Clientes" subtitle="Base de clientes (PF e PJ)" icon={Users} actions={<Button icon={Plus}>Novo Cliente</Button>} />
+      <PageHeader title="Clientes" subtitle="Base de clientes (PF e PJ)" icon={Users} actions={<Button icon={Plus} onClick={() => setNovoAberto(true)}>Novo Cliente</Button>} />
       <FilterBar><SearchInput value={q} onChange={setQ} placeholder="Buscar por nome ou CPF/CNPJ..." /></FilterBar>
 
       <Card pad={false}>
         {loading ? (
           <Spinner label="Carregando clientes..." />
         ) : filtered.length === 0 ? (
-          <EmptyState icon={Users} title="Nenhum cliente encontrado" hint="Os clientes do portal e os importados aparecem aqui. Use “Novo Cliente” para cadastrar manualmente." />
+          <EmptyState icon={Users} title="Nenhum cliente encontrado" hint="Os clientes do portal e os importados aparecem aqui. Use “Novo Cliente” para cadastrar manualmente."
+            action={<Button icon={Plus} onClick={() => setNovoAberto(true)}>Novo Cliente</Button>} />
         ) : (
           <div className="p-2">
             <Table head={<><Th>Cliente</Th><Th>CPF/CNPJ</Th><Th>Contato</Th><Th>Cidade/UF</Th><Th>Cadastro</Th></>}>
@@ -72,6 +78,7 @@ export function Clientes() {
       </Card>
 
       {aberto && <TimelineCliente cliente={aberto} onFechar={() => setAberto(null)} />}
+      {novoAberto && <NovoClienteModal onFechar={() => setNovoAberto(false)} onCriado={carregar} />}
     </>
   );
 }

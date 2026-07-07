@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   FileEdit, Receipt, DollarSign, Target, ShieldAlert, Layers, Award, CalendarDays,
-  Building2, Package, Upload,
+  Building2, Package, Upload, Shield,
 } from "lucide-react";
 import { Badge, Button } from "../components/ui";
 import { brl, brlShort, dateBR, pct } from "../lib/format";
@@ -24,6 +24,13 @@ const optStatusVenda: FormField["options"] = [
   { value: "cancelada", label: "Cancelada" }, { value: "vencida", label: "Vencida" },
 ];
 const optModulo: FormField["options"] = [{ value: "seguros", label: "Seguros" }, { value: "consorcios", label: "Consórcios" }];
+
+// Picker de cliente reutilizável (Apólices, Consórcios...): carrega da base real de clientes.
+async function carregarClientes(): Promise<{ value: string; label: string }[]> {
+  if (!supabase) return [];
+  const { data } = await supabase.from("profiles").select("id, name, cpf").order("name").limit(1000);
+  return (data || []).map((c: any) => ({ value: c.id, label: c.cpf ? `${c.name} · ${c.cpf}` : c.name }));
+}
 
 /* ───────── SEGUROS ───────── */
 
@@ -87,6 +94,168 @@ export const Vendas = () => {
     ]}
       emptyIcon={Receipt} emptyTitle="Nenhuma venda registrada ainda"
       emptyHint="Cadastre uma venda, importe sua planilha de apólices ou converta um lead do Pipeline."
+    />
+  </>
+  );
+};
+
+const optTipoApolice: FormField["options"] = [
+  "Auto", "Vida", "Residencial", "Empresarial", "Condomínio", "Pet", "Viagem", "Saúde", "Outros",
+].map((v) => ({ value: v, label: v }));
+
+const optStatusApolice: FormField["options"] = [
+  { value: "ativa", label: "Ativa" }, { value: "vencida", label: "Vencida" },
+  { value: "cancelada", label: "Cancelada" }, { value: "em_renovação", label: "Em renovação" }, { value: "pendente", label: "Pendente" },
+];
+
+const optAdministradora: FormField["options"] = ["Âncora", "Porto", "Tradição", "Outros"].map((v) => ({ value: v, label: v }));
+const optTipoConsorcio: FormField["options"] = ["Imóvel", "Veículo", "Empresarial"].map((v) => ({ value: v, label: v }));
+const optStatusConsorcio: FormField["options"] = [
+  { value: "ativo", label: "Ativo" }, { value: "contemplado", label: "Contemplado" },
+  { value: "cancelado", label: "Cancelado" }, { value: "encerrado", label: "Encerrado" }, { value: "inadimplente", label: "Inadimplente" },
+];
+
+const camposImportApolices: CampoImport[] = [
+  { key: "cliente_cpf", label: "CPF do cliente", obrigatorio: true, tipo: "texto" },
+  { key: "tipo", label: "Tipo", obrigatorio: true, tipo: "texto" },
+  { key: "seguradora", label: "Seguradora", tipo: "texto" },
+  { key: "numero_apolice", label: "Nº da apólice", tipo: "texto" },
+  { key: "vigencia_inicio", label: "Início da vigência", tipo: "data" },
+  { key: "vigencia_fim", label: "Fim da vigência", tipo: "data" },
+  { key: "premio_mensal", label: "Prêmio mensal", tipo: "moeda" },
+  { key: "premio_anual", label: "Prêmio anual", tipo: "moeda" },
+  { key: "status", label: "Status", tipo: "texto" },
+];
+
+// Apólices — a fonte real que o Portal do Cliente exibe (coberturas, vigência,
+// prêmio, franquia). Diferente de "Vendas" (registro comercial/comissão): aqui
+// é o contrato vigente que o cliente vê logado. client_id vincula ao cliente real.
+export const Apolices = () => {
+  const [importar, setImportar] = useState(false);
+  return (
+  <>
+    <div className="flex justify-end mb-3">
+      <Button variant="outline" icon={Upload} onClick={() => setImportar(true)}>Importar CSV</Button>
+    </div>
+    <ImportarCsv
+      aberto={importar}
+      onFechar={() => setImportar(false)}
+      tabela="apolices"
+      titulo="Importar apólices do CSV"
+      campos={camposImportApolices}
+      resolverCpf={{ origem: "cliente_cpf", destino: "client_id" }}
+      onConcluido={() => window.location.reload()}
+    />
+    <DataTablePage
+      title="Apólices" subtitle="Contratos vigentes de cada cliente (aparecem no Portal do Cliente)" icon={Shield}
+    table="apolices" select="*, profiles(name, cpf)" orderBy="vigencia_fim" ascending primaryAction="Nova Apólice"
+    formFields={[
+      { key: "client_id", label: "Cliente", type: "select", required: true, loadOptions: carregarClientes },
+      { key: "tipo", label: "Tipo", type: "select", required: true, options: optTipoApolice },
+      { key: "seguradora", label: "Seguradora", placeholder: "Porto, Tokio, Allianz…" },
+      { key: "numero_apolice", label: "Nº da apólice" },
+      { key: "vigencia_inicio", label: "Início da vigência", type: "date" },
+      { key: "vigencia_fim", label: "Fim da vigência", type: "date", required: true },
+      { key: "premio_mensal", label: "Prêmio mensal", type: "currency" },
+      { key: "premio_anual", label: "Prêmio anual", type: "currency" },
+      { key: "status", label: "Status", type: "select", options: optStatusApolice },
+      { key: "observacoes", label: "Observações", type: "textarea" },
+    ]}
+    computeKpis={(r) => [
+      { label: "Apólices", value: String(r.length), icon: Shield, accent: "brand" },
+      { label: "Ativas", value: String(count(r, (x) => x.status === "ativa" || !x.status)), icon: Shield, accent: "success" },
+      { label: "Prêmio mensal total", value: brlShort(sum(r, "premio_mensal")), icon: DollarSign, accent: "sky" },
+      { label: "Vencendo/vencidas", value: String(count(r, (x) => x.status === "vencida" || x.status === "em_renovação")), icon: ShieldAlert, accent: "warning" },
+    ]}
+    columns={[
+      { header: "Cliente", render: (r) => r.profiles?.name || "—" },
+      { header: "Tipo", render: (r) => r.tipo || "—" },
+      { header: "Seguradora", render: (r) => r.seguradora || "—" },
+      { header: "Vigência até", render: (r) => dateBR(r.vigencia_fim) },
+      { header: "Prêmio/mês", right: true, render: (r) => brl(r.premio_mensal) },
+      { header: "Status", render: (r) => <St s={r.status || "ativa"} /> },
+    ]}
+      emptyIcon={Shield} emptyTitle="Nenhuma apólice cadastrada"
+      emptyHint="Cadastre a apólice de um cliente aqui — ela aparece automaticamente na Área do Cliente dele no site."
+    />
+  </>
+  );
+};
+
+const camposImportConsorcios: CampoImport[] = [
+  { key: "cliente_cpf", label: "CPF do cliente", obrigatorio: true, tipo: "texto" },
+  { key: "administradora", label: "Administradora", tipo: "texto" },
+  { key: "tipo", label: "Tipo", obrigatorio: true, tipo: "texto" },
+  { key: "grupo", label: "Grupo", tipo: "texto" },
+  { key: "numero_cota", label: "Cota", tipo: "texto" },
+  { key: "valor_credito", label: "Carta de crédito", tipo: "moeda" },
+  { key: "parcela_mensal", label: "Parcela mensal", tipo: "moeda" },
+  { key: "parcelas_pagas", label: "Parcelas pagas", tipo: "numero" },
+  { key: "total_parcelas", label: "Total de parcelas", tipo: "numero" },
+  { key: "taxa_admin", label: "Taxa de administração (%)", tipo: "numero" },
+  { key: "forma_pagamento", label: "Forma de pagamento", tipo: "texto" },
+  { key: "data_assembleia", label: "Próxima assembleia", tipo: "data" },
+  { key: "status", label: "Status", tipo: "texto" },
+];
+
+// Consórcios do cliente — a fonte real que o Portal do Cliente exibe (carta de
+// crédito, parcelas pagas, assembleia, saldo). Diferente de "Cotas" (controle
+// interno do consórcio): aqui o registro é vinculado ao client_id e aparece
+// logado pro cliente. valor_pago/saldo_devedor são opcionais — o portal calcula
+// a partir de parcelas_pagas × parcela_mensal quando ficam em branco.
+export const ConsorciosCliente = () => {
+  const [importar, setImportar] = useState(false);
+  return (
+  <>
+    <div className="flex justify-end mb-3">
+      <Button variant="outline" icon={Upload} onClick={() => setImportar(true)}>Importar CSV</Button>
+    </div>
+    <ImportarCsv
+      aberto={importar}
+      onFechar={() => setImportar(false)}
+      tabela="consorcios"
+      titulo="Importar consórcios do CSV"
+      campos={camposImportConsorcios}
+      resolverCpf={{ origem: "cliente_cpf", destino: "client_id" }}
+      onConcluido={() => window.location.reload()}
+    />
+    <DataTablePage
+      title="Consórcios" subtitle="Cartas de crédito de cada cliente (aparecem no Portal do Cliente)" icon={Layers}
+    table="consorcios" select="*, profiles(name, cpf)" orderBy="data_assembleia" ascending primaryAction="Novo Consórcio"
+    formFields={[
+      { key: "client_id", label: "Cliente", type: "select", required: true, loadOptions: carregarClientes },
+      { key: "administradora", label: "Administradora", type: "select", options: optAdministradora },
+      { key: "tipo", label: "Tipo", type: "select", required: true, options: optTipoConsorcio },
+      { key: "grupo", label: "Grupo" },
+      { key: "numero_cota", label: "Cota" },
+      { key: "valor_credito", label: "Carta de crédito", type: "currency", required: true },
+      { key: "parcela_mensal", label: "Parcela mensal", type: "currency" },
+      { key: "parcelas_pagas", label: "Parcelas pagas", type: "number" },
+      { key: "total_parcelas", label: "Total de parcelas", type: "number" },
+      { key: "taxa_admin", label: "Taxa de administração (%)", type: "number" },
+      { key: "forma_pagamento", label: "Forma de pagamento", placeholder: "Boleto mensal, débito…" },
+      { key: "data_assembleia", label: "Próxima assembleia", type: "date" },
+      { key: "data_contemplacao", label: "Data de contemplação", type: "date" },
+      { key: "status", label: "Status", type: "select", options: optStatusConsorcio },
+      { key: "observacoes", label: "Observações", type: "textarea" },
+    ]}
+    computeKpis={(r) => [
+      { label: "Consórcios", value: String(r.length), icon: Layers, accent: "brand" },
+      { label: "Crédito total", value: brlShort(sum(r, "valor_credito")), icon: DollarSign, accent: "success" },
+      { label: "Contemplados", value: String(count(r, (x) => x.status === "contemplado")), icon: Award, accent: "sky" },
+      { label: "Inadimplentes", value: String(count(r, (x) => x.status === "inadimplente")), icon: ShieldAlert, accent: "warning" },
+    ]}
+    columns={[
+      { header: "Cliente", render: (r) => r.profiles?.name || "—" },
+      { header: "Tipo", render: (r) => r.tipo || "—" },
+      { header: "Administradora", render: (r) => r.administradora || "—" },
+      { header: "Grupo/Cota", render: (r) => `${r.grupo || "—"}/${r.numero_cota || "—"}` },
+      { header: "Crédito", right: true, render: (r) => brl(r.valor_credito) },
+      { header: "Pagas", render: (r) => `${r.parcelas_pagas ?? 0}/${r.total_parcelas ?? "—"}` },
+      { header: "Status", render: (r) => <St s={r.status || "ativo"} /> },
+    ]}
+      emptyIcon={Layers} emptyTitle="Nenhum consórcio cadastrado"
+      emptyHint="Cadastre a carta de consórcio de um cliente aqui — ela aparece automaticamente na Área do Cliente dele no site."
     />
   </>
   );

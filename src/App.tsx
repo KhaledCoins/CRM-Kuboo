@@ -16,7 +16,7 @@ import { Clientes } from "./pages/Clientes";
 import { Usuarios } from "./pages/admin/Usuarios";
 // Páginas funcionais (leem o Supabase com RLS de equipe)
 import {
-  Vendas, Parcelas, Comissoes, Endossos, Metas, Sinistros, Parceiros, Produtos,
+  Vendas, Apolices, ConsorciosCliente, Parcelas, Comissoes, Endossos, Metas, Sinistros, Parceiros, Produtos,
   Cotas, Contemplacoes, Grupos,
 } from "./pages/sections";
 import { TvSalao } from "./pages/TvSalao";
@@ -54,6 +54,7 @@ function Shell() {
         <Route path="/seguros" element={<DashboardSeguros />} />
         <Route path="/seguros/bolsao" element={<Bolsao />} />
         <Route path="/seguros/vendas" element={<Vendas />} />
+        <Route path="/seguros/apolices" element={<Apolices />} />
         <Route path="/seguros/endossos" element={<Endossos />} />
         <Route path="/seguros/parcelas" element={<Parcelas />} />
         <Route path="/seguros/comissoes" element={<Comissoes />} />
@@ -77,6 +78,7 @@ function Shell() {
         <Route path="/consorcios/bolsao" element={<Bolsao />} />
         <Route path="/consorcios/pipeline" element={<Pipeline modulo="consorcios" />} />
         <Route path="/consorcios/tarefas" element={<Tarefas modulo="consorcios" />} />
+        <Route path="/consorcios/consorcios" element={<ConsorciosCliente />} />
         <Route path="/consorcios/cotas" element={<Cotas />} />
         <Route path="/consorcios/contemplacoes" element={<Contemplacoes />} />
         <Route path="/consorcios/grupos" element={<Grupos />} />

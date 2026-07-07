@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, ShoppingCart, FileEdit, Receipt, DollarSign, Trophy,
   KanbanSquare, RefreshCcw, Target, ShieldAlert, ClipboardCheck, BarChart3,
-  Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox, ListChecks,
+  Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox, ListChecks, Shield,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../context/AuthContext";
@@ -44,6 +44,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
         { label: "Dashboard", to: "/seguros", icon: LayoutDashboard },
         { label: "Bolsão de Leads", to: "/seguros/bolsao", icon: Inbox },
         { label: "Vendas", to: "/seguros/vendas", icon: ShoppingCart },
+        { label: "Apólices", to: "/seguros/apolices", icon: Shield },
         { label: "Endossos", to: "/seguros/endossos", icon: FileEdit },
         { label: "Parcelas", to: "/seguros/parcelas", icon: Receipt },
         { label: "Comissões", to: "/seguros/comissoes", icon: DollarSign },
@@ -68,6 +69,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
         { label: "Bolsão de Leads", to: "/consorcios/bolsao", icon: Inbox },
         { label: "Pipeline", to: "/consorcios/pipeline", icon: KanbanSquare },
         { label: "Tarefas & Atividades", to: "/consorcios/tarefas", icon: ListChecks },
+        { label: "Consórcios (clientes)", to: "/consorcios/consorcios", icon: Shield },
         { label: "Cotas", to: "/consorcios/cotas", icon: Layers },
         { label: "Contemplações", to: "/consorcios/contemplacoes", icon: Award },
         { label: "Grupos & Assembleias", to: "/consorcios/grupos", icon: CalendarDays },
