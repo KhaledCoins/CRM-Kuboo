@@ -1,15 +1,14 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
-import {
-  FileEdit, Receipt, DollarSign, Trophy, Target, ShieldAlert, ClipboardCheck, BarChart3, Tv,
-  Building2, Package, Settings, Layers, Award, CalendarDays, LayoutDashboard, TrendingUp,
-  AlertTriangle, CheckCircle2, Wallet, Users as UsersIcon,
-} from "lucide-react";
+import { ClipboardCheck, Settings, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
 import { SectionPage } from "./pages/SectionPage";
-import { DashboardSeguros } from "./pages/seguros/DashboardSeguros";
+// Dashboards usam recharts (~160KB gz) — lazy p/ não pesar quem não abre gráfico.
+const DashboardSeguros = lazy(() => import("./pages/seguros/DashboardSeguros").then((m) => ({ default: m.DashboardSeguros })));
+const DashboardConsorcios = lazy(() => import("./pages/DashboardConsorcios").then((m) => ({ default: m.DashboardConsorcios })));
 import { Pipeline } from "./pages/Pipeline";
 import { Bolsao } from "./pages/Bolsao";
 import { Clientes } from "./pages/Clientes";
@@ -20,7 +19,6 @@ import {
   Cotas, Contemplacoes, Grupos,
 } from "./pages/sections";
 import { TvSalao } from "./pages/TvSalao";
-import { DashboardConsorcios } from "./pages/DashboardConsorcios";
 import { Tarefas } from "./pages/Tarefas";
 import { Ranking } from "./pages/Ranking";
 import { Producao } from "./pages/Producao";
@@ -48,6 +46,7 @@ function Shell() {
   if (!user) return <Login />;
 
   return (
+    <Suspense fallback={<div className="min-h-screen grid place-items-center text-slate-400 text-sm">Carregando…</div>}>
     <Routes>
       <Route element={<Layout />}>
         {/* Seguros */}
@@ -94,6 +93,7 @@ function Shell() {
       </Route>
       <Route path="*" element={<Navigate to="/seguros" replace />} />
     </Routes>
+    </Suspense>
   );
 }
 

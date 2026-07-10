@@ -14,9 +14,6 @@ importers:
       '@supabase/supabase-js':
         specifier: 2.108.2
         version: 2.108.2
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
       lucide-react:
         specifier: 0.487.0
         version: 0.487.0(react@18.3.1)
