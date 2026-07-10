@@ -126,11 +126,20 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
     const id = String(e.active.id);
     const to = e.over?.id ? String(e.over.id) as Tarefa["status"] : null;
     if (!to) return;
+    const anterior = tarefas.find((t) => t.id === id)?.status;
+    if (anterior === to) return;
     setTarefas((prev) => prev.map((t) => (t.id === id ? { ...t, status: to } : t)));
-    await moverTarefa(id, to);
+    try {
+      await moverTarefa(id, to);
+    } catch {
+      // desfaz o card se a gravação falhar (antes ficava numa coluna que não batia com o banco)
+      setTarefas((prev) => prev.map((t) => (t.id === id ? { ...t, status: anterior ?? t.status } : t)));
+      toast.error("Não foi possível mover a tarefa.");
+    }
   }
 
   async function onDelete(id: string) {
+    if (!window.confirm("Excluir esta tarefa? Esta ação não pode ser desfeita.")) return;
     setTarefas((prev) => prev.filter((t) => t.id !== id));
     await excluirTarefa(id);
     toast.success("Tarefa removida");

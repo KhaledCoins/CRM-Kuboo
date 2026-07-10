@@ -31,7 +31,7 @@ export function Usuarios() {
 
   return (
     <>
-      <PageHeader title="Usuários" subtitle="Equipe de consultores e gestores" icon={UserCog} actions={<Button icon={UserPlus}>Novo Usuário</Button>} />
+      <PageHeader title="Usuários" subtitle="Equipe de consultores e gestores" icon={UserCog} actions={<span title="Novos membros se cadastram pela tela de login e são aprovados pelo administrador"><Button icon={UserPlus} disabled>Novo Usuário</Button></span>} />
       <Card pad={false}>
         {loading ? (
           <Spinner label="Carregando equipe..." />

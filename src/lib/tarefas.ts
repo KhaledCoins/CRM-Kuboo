@@ -28,7 +28,9 @@ export async function criarTarefa(t: Partial<Tarefa>): Promise<{ error: string |
 
 export async function moverTarefa(id: string, status: Tarefa["status"]) {
   if (!supabase) return;
-  await supabase.from("tarefas").update({ status }).eq("id", id);
+  // propaga o erro pra quem chama poder desfazer o card se a gravação falhar
+  const { error } = await supabase.from("tarefas").update({ status }).eq("id", id);
+  if (error) throw error;
 }
 
 export async function atualizarTarefa(id: string, patch: Partial<Tarefa>): Promise<{ error: string | null }> {

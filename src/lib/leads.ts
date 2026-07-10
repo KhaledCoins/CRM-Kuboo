@@ -70,7 +70,8 @@ export function moduloDe(l: Lead): "seguros" | "consorcios" {
 
 export async function fetchLeads(): Promise<Lead[]> {
   if (!supabase) return [];
-  const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(1000);
+  const { data, error } = await supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(1000);
+  if (error) console.error("[leads] fetchLeads:", error.message); // não engole em silêncio
   return (data as any) ?? [];
 }
 
@@ -104,7 +105,9 @@ export async function devolverBolsao(id: string) {
 
 export async function moverEtapa(id: string, etapa: string) {
   if (!supabase) return;
-  await supabase.from("leads").update({ etapa }).eq("id", id);
+  // propaga o erro pra quem chama (Pipeline usa try/catch p/ desfazer o card se falhar)
+  const { error } = await supabase.from("leads").update({ etapa }).eq("id", id);
+  if (error) throw error;
 }
 
 /** Descarta um lead do bolsão (soft-delete: não some do banco, só sai da fila).
