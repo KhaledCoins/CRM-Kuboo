@@ -57,16 +57,22 @@ export function DashboardConsorcios() {
     let active = true;
     (async () => {
       if (!supabase) { setLoading(false); return; }
-      const hoje = new Date().toISOString().slice(0, 10);
-      const [cotasR, gruposR, ls] = await Promise.all([
-        supabase.from("cotas").select("valor_credito,administradora,tipo,status,created_at").limit(3000),
-        supabase.from("grupos").select("id,administradora,numero,tipo,proxima_assembleia,participantes")
-          .not("proxima_assembleia", "is", null).gte("proxima_assembleia", hoje)
-          .order("proxima_assembleia", { ascending: true }).limit(6),
-        fetchLeads(),
-      ]);
-      if (!active) return;
-      setCotas(cotasR.data || []); setGrupos(gruposR.data || []); setLeads(ls); setLoading(false);
+      try {
+        const hoje = new Date().toISOString().slice(0, 10);
+        const [cotasR, gruposR, ls] = await Promise.all([
+          supabase.from("cotas").select("valor_credito,administradora,tipo,status,created_at").limit(3000),
+          supabase.from("grupos").select("id,administradora,numero,tipo,proxima_assembleia,participantes")
+            .not("proxima_assembleia", "is", null).gte("proxima_assembleia", hoje)
+            .order("proxima_assembleia", { ascending: true }).limit(6),
+          fetchLeads(),
+        ]);
+        if (!active) return;
+        setCotas(cotasR.data || []); setGrupos(gruposR.data || []); setLeads(ls);
+      } catch (e) {
+        console.error("[dashboard-consorcios]", e);
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
     return () => { active = false; };
   }, []);

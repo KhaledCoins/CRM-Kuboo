@@ -58,12 +58,18 @@ export function Producao() {
     setLoading(true);
     (async () => {
       if (!supabase) { setLoading(false); return; }
-      const r = rangeFor(periodo);
-      let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,tipo,cliente_nome").gte("data_venda", r.gte);
-      if (r.lte) qy = qy.lte("data_venda", r.lte);
-      const { data } = await qy.limit(5000);
-      if (!active) return;
-      setVendas(data || []); setLoading(false);
+      try {
+        const r = rangeFor(periodo);
+        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,tipo,cliente_nome").gte("data_venda", r.gte);
+        if (r.lte) qy = qy.lte("data_venda", r.lte);
+        const { data } = await qy.limit(5000);
+        if (!active) return;
+        setVendas(data || []);
+      } catch (e) {
+        console.error("[producao]", e);
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
     return () => { active = false; };
   }, [periodo]);

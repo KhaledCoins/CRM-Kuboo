@@ -29,9 +29,10 @@ export function TvSalao() {
     let active = true;
     async function load() {
       if (!supabase) return;
+      try {
       const [{ data: vs }, { data: ms }] = await Promise.all([
         supabase.from("vendas").select("id,valor,data_venda,vendedor_nome,produto,created_at").gte("data_venda", monthPrefix() + "-01").order("created_at", { ascending: false }).limit(2000),
-        supabase.from("metas").select("valor_meta,escopo,mes").eq("escopo", "corretora").gte("mes", monthPrefix() + "-01").limit(10),
+        supabase.from("metas").select("valor_meta,escopo,mes").eq("escopo", "corretora").gte("mes", monthPrefix() + "-01").order("mes", { ascending: false }).limit(10),
       ]);
       if (!active) return;
       const lista = vs || [];
@@ -46,6 +47,9 @@ export function TvSalao() {
         baselineRef.current = maisNova;
         setCelebra(lista[0]);
         setTimeout(() => setCelebra(null), 12000);
+      }
+      } catch (e) {
+        console.error("[tv-salao]", e); // não deixa a promise do poll rejeitar sem tratamento
       }
     }
     load();

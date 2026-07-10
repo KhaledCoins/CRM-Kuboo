@@ -32,6 +32,7 @@ export function Renovacoes() {
     let active = true;
     (async () => {
       if (!supabase) { setLoading(false); return; }
+      try {
       const limite = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
 
       const [vendasR, apolicesR] = await Promise.all([
@@ -55,7 +56,11 @@ export function Renovacoes() {
         valor: a.premio_anual ?? (a.premio_mensal ? a.premio_mensal * 12 : null), vigencia_fim: a.vigencia_fim,
       }));
       setItens([...deVendas, ...deApolices]);
-      setLoading(false);
+      } catch (e) {
+        console.error("[renovacoes]", e);
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
     return () => { active = false; };
   }, []);

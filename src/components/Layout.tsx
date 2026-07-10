@@ -23,15 +23,20 @@ export function Layout() {
   useEffect(() => {
     let active = true;
     async function load() {
-      const [leads, avs] = await Promise.all([fetchLeads(), fetchAvisos(modulo)]);
-      if (!active) return;
-      setBolsaoCount(leads.filter((l) => moduloDe(l) === modulo && noBolsao(l)).length);
-      setAvisos(avs);
+      try {
+        const [leads, avs] = await Promise.all([fetchLeads(), fetchAvisos(modulo)]);
+        if (!active) return;
+        setBolsaoCount(leads.filter((l) => moduloDe(l) === modulo && noBolsao(l)).length);
+        setAvisos(avs);
+      } catch (e) {
+        // falha de rede não pode travar o chrome global (sino/bolsão) — só loga
+        console.error("[layout] avisos/bolsão:", e);
+      }
     }
     load();
-    const t = setInterval(load, 60000);
+    const t = setInterval(load, 60000); // recarrega sozinho; não depende de trocar de rota
     return () => { active = false; clearInterval(t); };
-  }, [modulo, loc.pathname]);
+  }, [modulo]);
 
   const switchModulo = (m: Modulo) => nav(`/${m}`);
 

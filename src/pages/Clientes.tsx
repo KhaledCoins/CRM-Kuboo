@@ -23,12 +23,18 @@ export function Clientes() {
     // OBS: "email" só existe depois de rodar supabase/clientes-onboarding.sql.
     // Não selecionamos aqui de propósito — se essa migração ainda não rodou,
     // a lista de clientes não pode quebrar por causa de uma coluna nova.
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, name, cpf, phone, city, state, created_at")
-      .order("name");
-    setRows((data as any) ?? []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, name, cpf, phone, city, state, created_at")
+        .order("name");
+      if (error) console.error("[clientes] carregar:", error.message);
+      setRows((data as any) ?? []);
+    } catch (e) {
+      console.error("[clientes] carregar:", e);
+    } finally {
+      setLoading(false); // sempre sai do skeleton, mesmo em erro de rede
+    }
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);

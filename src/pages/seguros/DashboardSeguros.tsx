@@ -58,12 +58,18 @@ export function DashboardSeguros() {
     let active = true;
     (async () => {
       if (!supabase) { setLoading(false); return; }
-      const [{ data }, ls] = await Promise.all([
-        supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome").gte("data_venda", monthPrefix() + "-01").limit(3000),
-        fetchLeads(),
-      ]);
-      if (!active) return;
-      setVendas(data || []); setLeads(ls); setLoading(false);
+      try {
+        const [{ data }, ls] = await Promise.all([
+          supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome").gte("data_venda", monthPrefix() + "-01").limit(3000),
+          fetchLeads(),
+        ]);
+        if (!active) return;
+        setVendas(data || []); setLeads(ls);
+      } catch (e) {
+        console.error("[dashboard-seguros]", e);
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
     return () => { active = false; };
   }, []);

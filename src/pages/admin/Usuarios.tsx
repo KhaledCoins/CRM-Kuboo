@@ -18,14 +18,19 @@ export function Usuarios() {
   useEffect(() => {
     (async () => {
       if (!supabase) { setLoading(false); return; }
-      // Equipe = perfis com papel definido (admin/gestor/vendedor)
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, name, phone, role, nivel, aprovado, created_at")
-        .in("role", ["admin", "gestor", "vendedor"])
-        .order("name");
-      setRows((data as any) ?? []);
-      setLoading(false);
+      try {
+        // Equipe = perfis com papel definido (admin/gestor/vendedor)
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, name, phone, role, nivel, aprovado, created_at")
+          .in("role", ["admin", "gestor", "vendedor"])
+          .order("name");
+        setRows((data as any) ?? []);
+      } catch (e) {
+        console.error("[usuarios]", e);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
