@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { X, Pencil, Trash2, Download, Upload, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -83,13 +83,16 @@ export function DataTablePage({
     return rows.filter((r) => JSON.stringify(r).toLowerCase().includes(needle));
   }, [rows, q]);
 
+  const reqRef = useRef(0);
   async function load(p = page) {
     if (!supabase) { setLoading(false); return; }
+    const myReq = ++reqRef.current; // guarda de corrida: troca rápida de tabela/página não sobrescreve com resposta antiga
     setLoading(true); setError(false);
     let query: any = supabase.from(table).select(select, { count: "exact" }).range(p * PAGE, p * PAGE + PAGE - 1);
     if (orderBy) query = query.order(orderBy, { ascending });
     query = query.order("id", { ascending: true }); // desempate estável → páginas não repetem/pulam linhas
     const { data, error, count } = await query;
+    if (myReq !== reqRef.current) return; // resposta obsoleta (mudou tabela/página) → ignora
     if (error) { setError(true); setRows([]); setTotal(0); }
     else { setRows(data || []); setTotal(count ?? (data?.length || 0)); }
     setLoading(false);

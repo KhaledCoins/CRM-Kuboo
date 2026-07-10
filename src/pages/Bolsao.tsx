@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun, X, Shuffle } from "lucide-react";
 import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select } from "../components/ui";
-import { fetchLeads, pegarLead, descartarLead, distribuirBolsao, noBolsao, prioridadeLead, temperaturaLead, type Lead, type Temperatura } from "../lib/leads";
+import { fetchLeads, pegarLead, descartarLead, distribuirBolsao, noBolsao, moduloDe, prioridadeLead, temperaturaLead, type Lead, type Temperatura } from "../lib/leads";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { brl, onlyDigits } from "../lib/format";
@@ -28,42 +28,52 @@ const tempMeta: Record<Temperatura, { label: string; tone: "red" | "amber" | "bl
   frio: { label: "Frio", tone: "blue", Icon: Snowflake },
 };
 
-export function Bolsao() {
+export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
   const { user, isManager } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [origem, setOrigem] = useState("");
   const [claiming, setClaiming] = useState<string | null>(null);
   const [distribuindo, setDistribuindo] = useState(false);
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
 
   async function load() {
-    const all = await fetchLeads();
-    setLeads(all.filter((l) => noBolsao(l) && !l.descartado));
-    setLoading(false);
+    try {
+      const all = await fetchLeads();
+      // só os leads DESTE módulo (antes /seguros/bolsao e /consorcios/bolsao mostravam a mesma lista)
+      setLeads(all.filter((l) => moduloDe(l) === modulo && noBolsao(l) && !l.descartado));
+    } catch (e) {
+      console.error("[bolsao] load:", e);
+    } finally {
+      setLoading(false);
+    }
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [modulo]);
   // Recalcula SLA/espera a cada 10s
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 10000); return () => clearInterval(t); }, []);
 
-  // ordena por PRIORIDADE (score + espera) — o consultor ataca o melhor lead primeiro
+  // ordena por PRIORIDADE (score + espera) — o consultor ataca o melhor lead primeiro.
+  // tick nas deps: reordena a cada 10s p/ um lead que esfria/atrasa subir de posição.
   const filtered = useMemo(
     () => leads.filter((l) => !origem || l.origem === origem)
                .sort((a, b) => prioridadeLead(b) - prioridadeLead(a)),
-    [leads, origem]
+    [leads, origem, tick]
   );
 
   async function handlePegar(id: string) {
     if (!user) return;
     setClaiming(id);
-    const ok = await pegarLead(id, user.id);
-    if (ok) {
-      toast.success("Lead é seu! Ele já está no seu Pipeline.");
-    } else {
-      toast.warning("Esse lead acabou de ser pego por outro consultor.");
+    try {
+      const ok = await pegarLead(id, user.id);
+      if (ok) toast.success("Lead é seu! Ele já está no seu Pipeline.");
+      else toast.warning("Esse lead acabou de ser pego por outro consultor.");
+      setLeads((prev) => prev.filter((l) => l.id !== id)); // sai da fila nos dois casos
+    } catch (e) {
+      console.error("[bolsao] pegar:", e);
+      toast.error("Não foi possível pegar o lead agora. Tente de novo.");
+    } finally {
+      setClaiming(null); // nunca deixa o botão preso em loading
     }
-    setLeads((prev) => prev.filter((l) => l.id !== id));
-    setClaiming(null);
   }
 
   // Rodízio (gestor/admin): reparte o bolsão entre os vendedores por prioridade.

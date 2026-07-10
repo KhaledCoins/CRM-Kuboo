@@ -52,7 +52,7 @@ function Shell() {
       <Route element={<Layout />}>
         {/* Seguros */}
         <Route path="/seguros" element={<DashboardSeguros />} />
-        <Route path="/seguros/bolsao" element={<Bolsao />} />
+        <Route path="/seguros/bolsao" element={<Bolsao modulo="seguros" />} />
         <Route path="/seguros/vendas" element={<Vendas />} />
         <Route path="/seguros/apolices" element={<Apolices />} />
         <Route path="/seguros/endossos" element={<Endossos />} />
@@ -75,7 +75,7 @@ function Shell() {
 
         {/* Consórcios */}
         <Route path="/consorcios" element={<DashboardConsorcios />} />
-        <Route path="/consorcios/bolsao" element={<Bolsao />} />
+        <Route path="/consorcios/bolsao" element={<Bolsao modulo="consorcios" />} />
         <Route path="/consorcios/pipeline" element={<Pipeline modulo="consorcios" />} />
         <Route path="/consorcios/tarefas" element={<Tarefas modulo="consorcios" />} />
         <Route path="/consorcios/consorcios" element={<ConsorciosCliente />} />
