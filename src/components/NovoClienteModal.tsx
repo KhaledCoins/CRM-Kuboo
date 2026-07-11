@@ -64,7 +64,7 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
             <span className="w-9 h-9 rounded-xl bg-brand-50 text-brand-500 grid place-items-center shrink-0"><UserPlus size={18} /></span>
             <h3 className="font-extrabold text-ink text-lg">Novo Cliente</h3>
           </div>
-          <button onClick={onFechar} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+          <button onClick={onFechar} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
         </div>
 
         {resultado ? (

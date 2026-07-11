@@ -208,7 +208,7 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
               <p className="text-xs text-muted">{titulo}</p>
             </div>
           </div>
-          <button type="button" onClick={onFechar} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+          <button type="button" onClick={onFechar} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
         </div>
 
         <div className="p-6">

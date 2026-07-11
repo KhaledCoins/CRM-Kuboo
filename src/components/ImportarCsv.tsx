@@ -360,7 +360,7 @@ export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConclu
               </p>
             </div>
           </div>
-          <button type="button" onClick={fechar} disabled={importando} className="text-slate-400 hover:text-slate-600 disabled:opacity-40">
+          <button type="button" onClick={fechar} disabled={importando} aria-label="Fechar" className="text-slate-500 hover:text-slate-700 disabled:opacity-40">
             <X size={20} />
           </button>
         </div>

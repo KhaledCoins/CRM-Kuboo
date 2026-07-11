@@ -89,8 +89,8 @@ export function Ranking() {
           )}
 
           <Card pad={false}>
-            <div className="p-2">
-              <table className="w-full text-sm">
+            <div className="p-2 overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead><tr className="text-left text-muted border-b border-slate-200">
                   <th className="font-bold text-xs uppercase tracking-wide py-3 px-3">#</th>
                   <th className="font-bold text-xs uppercase tracking-wide py-3 px-3">Vendedor</th>

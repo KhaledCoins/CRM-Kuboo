@@ -38,8 +38,9 @@ export function Login() {
         </div>
 
         <form onSubmit={submit} className="bg-white rounded-2xl p-7 shadow-2xl">
-          <label className="block text-xs font-bold text-slate-600 mb-1.5">E-mail</label>
+          <label htmlFor="crm-email" className="block text-xs font-bold text-slate-600 mb-1.5">E-mail</label>
           <input
+            id="crm-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -48,9 +49,10 @@ export function Login() {
             required
           />
 
-          <label className="block text-xs font-bold text-slate-600 mb-1.5">Senha</label>
+          <label htmlFor="crm-senha" className="block text-xs font-bold text-slate-600 mb-1.5">Senha</label>
           <div className="relative mb-4">
             <input
+              id="crm-senha"
               type={show ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -58,7 +60,7 @@ export function Login() {
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 pr-11 text-sm outline-none"
               required
             />
-            <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <button type="button" onClick={() => setShow((s) => !s)} aria-label={show ? "Ocultar senha" : "Mostrar senha"} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
               {show ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>

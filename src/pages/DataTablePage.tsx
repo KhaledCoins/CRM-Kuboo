@@ -309,7 +309,7 @@ export function DataTablePage({
             className="bg-white rounded-2xl shadow-2xl w-[min(480px,94vw)] max-h-[88vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
               <h3 className="font-extrabold text-ink text-lg">{editingId ? "Editar registro" : primaryAction}</h3>
-              <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              <button type="button" onClick={() => setShowForm(false)} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
             </div>
             <div className="p-6 grid grid-cols-1 gap-4">
               {formFields!.map((f) => (

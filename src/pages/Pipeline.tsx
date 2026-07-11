@@ -193,7 +193,7 @@ function RegistrarVendaModal({
               <p className="text-xs text-muted">{lead.nome} · parcelas e comissão são geradas sozinhas</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-slate-500 hover:text-slate-700 p-1"><X size={18} /></button>
         </div>
         <form onSubmit={salvar} className="px-5 pb-5 grid gap-3">
           <div>

@@ -211,7 +211,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
           <form onClick={(e) => e.stopPropagation()} onSubmit={salvar} className="bg-white rounded-2xl shadow-2xl w-[min(460px,94vw)]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="font-extrabold text-ink text-lg">{editId ? "Editar Tarefa" : "Nova Tarefa"}</h3>
-              <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              <button type="button" onClick={() => setShowForm(false)} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
             </div>
             <div className="p-6 grid gap-4">
               <label className="block"><span className="text-xs font-bold text-muted uppercase tracking-wide block mb-1.5">Título *</span>
