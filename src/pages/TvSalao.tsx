@@ -17,6 +17,7 @@ export function TvSalao() {
   // Celebração: venda nova detectada desde o último poll
   const [celebra, setCelebra] = useState<Venda | null>(null);
   const baselineRef = useRef<string | null>(null); // created_at mais recente conhecido
+  const jaCarregouRef = useRef(false); // separa "1ª carga" de "sem vendas" (ambos davam null)
 
   // Relógio ao vivo
   useEffect(() => {
@@ -41,9 +42,11 @@ export function TvSalao() {
 
       // 🏆 detecção de venda NOVA → celebração em tela cheia
       const maisNova = lista[0]?.created_at ?? null;
-      if (baselineRef.current === null) {
+      if (!jaCarregouRef.current) {
+        jaCarregouRef.current = true;
         baselineRef.current = maisNova; // primeira carga: só estabelece a linha de base
-      } else if (maisNova && maisNova > baselineRef.current) {
+      } else if (maisNova && (baselineRef.current === null || maisNova > baselineRef.current)) {
+        // celebra a 1ª venda mesmo quando o período começou zerado (baseline era null)
         baselineRef.current = maisNova;
         setCelebra(lista[0]);
         setTimeout(() => setCelebra(null), 12000);

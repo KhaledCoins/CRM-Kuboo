@@ -39,7 +39,8 @@ export async function atualizarTarefa(id: string, patch: Partial<Tarefa>): Promi
   return { error: error ? error.message : null };
 }
 
-export async function excluirTarefa(id: string) {
-  if (!supabase) return;
-  await supabase.from("tarefas").delete().eq("id", id);
+export async function excluirTarefa(id: string): Promise<{ error: string | null }> {
+  if (!supabase) return { error: "Supabase não configurado" };
+  const { error } = await supabase.from("tarefas").delete().eq("id", id);
+  return { error: error ? error.message : null };
 }

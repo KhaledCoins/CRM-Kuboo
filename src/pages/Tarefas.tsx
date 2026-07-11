@@ -28,8 +28,8 @@ function TarefaCard({ t, onDelete, onEdit }: { t: Tarefa; onDelete: (id: string)
       <div className="flex items-start justify-between gap-2 mb-1">
         <p className="font-bold text-ink text-sm leading-snug">{t.titulo}</p>
         <div className="flex items-center gap-1 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
-          <button onClick={() => onEdit(t)} className="text-slate-300 hover:text-brand-500"><Pencil size={13} /></button>
-          <button onClick={() => onDelete(t.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+          <button onClick={() => onEdit(t)} title="Editar tarefa" aria-label="Editar tarefa" className="text-slate-500 hover:text-brand-500"><Pencil size={13} /></button>
+          <button onClick={() => onDelete(t.id)} title="Excluir tarefa" aria-label="Excluir tarefa" className="text-slate-500 hover:text-red-500"><Trash2 size={14} /></button>
         </div>
       </div>
       {t.descricao && <p className="text-xs text-muted mb-2 leading-snug">{t.descricao}</p>}
@@ -98,7 +98,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
         load(); // recarrega com os vínculos novos
       }
       toast.success(`Trello: ${d.created} card(s) criado(s), ${d.skipped} já existiam.`, {
-        action: d.boardUrl ? { label: "Abrir board", onClick: () => window.open(d.boardUrl, "_blank") } : undefined,
+        action: d.boardUrl ? { label: "Abrir board", onClick: () => window.open(d.boardUrl, "_blank", "noopener,noreferrer") } : undefined,
       });
     } catch {
       toast.error("Não foi possível falar com o Trello agora.");
@@ -140,8 +140,9 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
 
   async function onDelete(id: string) {
     if (!window.confirm("Excluir esta tarefa? Esta ação não pode ser desfeita.")) return;
-    setTarefas((prev) => prev.filter((t) => t.id !== id));
-    await excluirTarefa(id);
+    setTarefas((prev) => prev.filter((t) => t.id !== id)); // otimista
+    const { error } = await excluirTarefa(id);
+    if (error) { load(); toast.error("Não foi possível excluir a tarefa."); return; } // rollback via reload
     toast.success("Tarefa removida");
   }
 

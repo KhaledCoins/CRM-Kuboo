@@ -32,6 +32,13 @@ const Auditoria = () => <SectionPage title="Auditoria & Cobrança" subtitle="Pó
 const Configuracoes = () => <SectionPage title="Configurações" subtitle="Preferências do sistema" icon={Settings}
   emptyIcon={Settings} emptyTitle="Configurações" emptyHint="Dados da corretora, metas padrão, integrações (site/Kubinho) e permissões." />;
 
+// Guarda de rota por papel: vendedor não acessa telas administrativas nem digitando a URL
+// (o menu já esconde, mas a rota precisa barrar de verdade — defesa no client + RLS no banco).
+function RequireManager({ children }: { children: React.ReactNode }) {
+  const { isManager } = useAuth();
+  return isManager ? <>{children}</> : <Navigate to="/seguros" replace />;
+}
+
 function Shell() {
   const { user, loading } = useAuth();
   if (loading)
@@ -69,7 +76,7 @@ function Shell() {
         <Route path="/seguros/clientes" element={<Clientes />} />
         <Route path="/seguros/parceiros" element={<Parceiros />} />
         <Route path="/seguros/produtos" element={<Produtos />} />
-        <Route path="/seguros/usuarios" element={<Usuarios />} />
+        <Route path="/seguros/usuarios" element={<RequireManager><Usuarios /></RequireManager>} />
         <Route path="/seguros/configuracoes" element={<Configuracoes />} />
 
         {/* Consórcios */}
@@ -88,7 +95,7 @@ function Shell() {
         <Route path="/consorcios/clientes" element={<Clientes />} />
         <Route path="/consorcios/parceiros" element={<Parceiros />} />
         <Route path="/consorcios/produtos" element={<Produtos />} />
-        <Route path="/consorcios/usuarios" element={<Usuarios />} />
+        <Route path="/consorcios/usuarios" element={<RequireManager><Usuarios /></RequireManager>} />
         <Route path="/consorcios/configuracoes" element={<Configuracoes />} />
       </Route>
       <Route path="*" element={<Navigate to="/seguros" replace />} />
