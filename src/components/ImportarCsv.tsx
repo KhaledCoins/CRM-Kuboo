@@ -3,6 +3,7 @@ import { X, Upload, FileSpreadsheet, ArrowRight, Check, ArrowLeft } from "lucide
 import { toast } from "sonner";
 import { Button } from "./ui";
 import { supabase } from "../lib/supabase";
+import { paraNumero } from "../lib/num";
 
 export type TipoCampo = "texto" | "moeda" | "data" | "numero";
 export interface CampoImport {
@@ -94,27 +95,8 @@ export function parseCsv(textoBruto: string): { headers: string[]; linhas: strin
 
 /* ─────────── Conversões pt-BR ─────────── */
 
-// "R$ 1.234,56" / "1.234,56" / "1234.56" → 1234.56
-export function paraNumero(bruto: string): number | null {
-  if (bruto == null) return null;
-  let s = String(bruto).trim();
-  if (!s) return null;
-  s = s.replace(/R\$/gi, "").replace(/\s/g, "");
-  // Remove tudo que não for dígito, sinal, ponto ou vírgula.
-  s = s.replace(/[^\d.,-]/g, "");
-  if (!s) return null;
-  const temVirgula = s.includes(",");
-  const temPonto = s.includes(".");
-  if (temVirgula && temPonto) {
-    // pt-BR: ponto = milhar, vírgula = decimal.
-    s = s.replace(/\./g, "").replace(",", ".");
-  } else if (temVirgula) {
-    s = s.replace(",", ".");
-  }
-  // (só ponto → assume decimal ISO)
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
-}
+// paraNumero (parser pt-BR) agora vive em ../lib/num — fonte única reusada por
+// Pipeline e DataTablePage (que antes reinventavam e corrompiam valor com milhar).
 
 // "DD/MM/YYYY", "DD/MM/YY" ou ISO "YYYY-MM-DD" → "YYYY-MM-DD"
 export function paraData(bruto: string): string | null {

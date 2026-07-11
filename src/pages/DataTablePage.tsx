@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, EmptyState, KpiCard, SearchInput } from "../components/ui";
 import { ImportarCsv, type CampoImport, type TipoCampo } from "../components/ImportarCsv";
 import { supabase } from "../lib/supabase";
+import { paraNumero } from "../lib/num";
 
 // FormField (tipo do formulário de criar) → CampoImport (colunas do importador).
 // Assim TODA tela que tem formulário de criar ganha "Importar CSV" automaticamente.
@@ -160,10 +161,10 @@ export function DataTablePage({
       let v: any = form[f.key];
       if (v === undefined || v === "") { v = null; }
       else if (f.type === "number" || f.type === "currency") {
-        // Preserva null quando o valor não é numérico (antes virava 0 silenciosamente,
-        // gravando um valor falso no lugar de "vazio").
-        const n = Number(String(v).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", "."));
-        v = Number.isFinite(n) ? n : null;
+        // Parser pt-BR (ponto só é milhar quando há vírgula). Antes tirava TODO ponto
+        // → "1234.56" virava 123456 (100×) só de abrir Editar e salvar. Preserva null
+        // quando não-numérico (não grava 0 falso).
+        v = paraNumero(v);
       }
       payload[f.key] = v;
     }

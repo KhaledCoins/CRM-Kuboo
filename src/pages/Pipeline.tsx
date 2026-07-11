@@ -9,6 +9,7 @@ import { fetchLeads, moverEtapa, registrarContato, noBolsao, slaRestanteMin, mod
 
 const TEMP_DOT: Record<string, string> = { quente: "#ef4444", morno: "#f59e0b", frio: "#5bc4f5" };
 import { criarTarefa } from "../lib/tarefas";
+import { paraNumero } from "../lib/num";
 import { useAuth } from "../context/AuthContext";
 import { brl, brlShort, onlyDigits } from "../lib/format";
 import { supabase } from "../lib/supabase";
@@ -113,9 +114,9 @@ function RegistrarVendaModal({
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
-  const valorNum = parseFloat(form.valor.replace(",", ".")) || 0;
+  const valorNum = paraNumero(form.valor) ?? 0; // parser pt-BR: "2.400,00" → 2400 (não 2.4)
   const nParc = Math.max(1, parseInt(form.parcelas) || 1);
-  const pct = parseFloat(form.comissao_pct.replace(",", ".")) || 0;
+  const pct = paraNumero(form.comissao_pct) ?? 0;
   const comissaoValor = Math.round(valorNum * pct) / 100;
 
   async function salvar(e: React.FormEvent) {
