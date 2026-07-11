@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, Moon, Sun, Bell, X } from "lucide-react";
+import { LogOut, Moon, Sun, Bell, X, Menu } from "lucide-react";
 import { temaAtual, alternarTema } from "../lib/theme";
 import { NAV, type Modulo } from "../lib/nav";
 import { useAuth } from "../context/AuthContext";
@@ -19,6 +19,16 @@ export function Layout() {
   const [bolsaoCount, setBolsaoCount] = useState(0);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [avisosAbertos, setAvisosAbertos] = useState(false);
+  const [menuAberto, setMenuAberto] = useState(false); // drawer da sidebar no mobile
+
+  // Fecha o drawer ao navegar (mobile) e no Esc.
+  useEffect(() => { setMenuAberto(false); }, [loc.pathname]);
+  useEffect(() => {
+    if (!menuAberto) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuAberto(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuAberto]);
 
   useEffect(() => {
     let active = true;
@@ -42,9 +52,22 @@ export function Layout() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Sidebar */}
+      {/* Top bar — SÓ mobile (a sidebar vira drawer) */}
+      <div className="md:hidden fixed top-0 inset-x-0 h-14 z-30 flex items-center gap-3 px-4 text-white shadow-lg"
+        style={{ background: "linear-gradient(90deg, #0A1628, #0D4F8A)" }}>
+        <button onClick={() => setMenuAberto(true)} aria-label="Abrir menu" aria-expanded={menuAberto} className="p-1.5 -ml-1.5 rounded-lg hover:bg-white/10">
+          <Menu size={22} />
+        </button>
+        <img src="/kuboo-symbol-3d.png" alt="" className="h-7 w-auto" draggable={false} />
+        <span className="font-display text-base tracking-wide">KUBOO</span>
+      </div>
+
+      {/* Backdrop do drawer (mobile) */}
+      {menuAberto && <div className="md:hidden fixed inset-0 bg-slate-900/50 z-30" onClick={() => setMenuAberto(false)} />}
+
+      {/* Sidebar (drawer no mobile, fixa no desktop) */}
       <aside
-        className="w-[var(--sidebar-w)] shrink-0 text-white flex flex-col fixed inset-y-0 left-0 z-30"
+        className={`w-[var(--sidebar-w)] shrink-0 text-white flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-300 md:translate-x-0 ${menuAberto ? "translate-x-0" : "-translate-x-full"}`}
         style={{ background: "linear-gradient(180deg, #0A1628 0%, #0D2A4A 60%, #0D4F8A 100%)" }}
       >
         {/* Brand — símbolo oficial da marca (render 3D de alta qualidade) */}
@@ -54,6 +77,9 @@ export function Layout() {
             <p className="font-display text-lg leading-none tracking-wide">KUBOO</p>
             <p className="text-[11px] text-white/55">CRM de Gestão</p>
           </div>
+          <button onClick={() => setMenuAberto(false)} aria-label="Fechar menu" className="md:hidden ml-auto text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10">
+            <X size={20} />
+          </button>
         </div>
 
         {/* Module toggle */}
@@ -138,7 +164,7 @@ export function Layout() {
 
       {/* Painel de avisos (SLA + renovações) — computado no cliente, sem cron */}
       {avisosAbertos && (
-        <div className="fixed left-[calc(var(--sidebar-w)+12px)] bottom-4 z-50 w-[340px] max-w-[calc(100vw-var(--sidebar-w)-24px)] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="fixed left-2 right-2 md:left-[calc(var(--sidebar-w)+12px)] md:right-auto bottom-4 z-50 md:w-[340px] md:max-w-[calc(100vw-var(--sidebar-w)-24px)] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <p className="font-extrabold text-ink text-sm flex items-center gap-2"><Bell size={15} className="text-brand-500" /> Avisos da equipe</p>
             <button onClick={() => setAvisosAbertos(false)} aria-label="Fechar avisos" className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
@@ -168,8 +194,8 @@ export function Layout() {
       )}
 
       {/* Content */}
-      <main className="flex-1 ml-[var(--sidebar-w)] min-w-0">
-        <div className="max-w-[1400px] mx-auto px-6 py-6 kuboo-fade" key={loc.pathname}>
+      <main className="flex-1 ml-0 md:ml-[var(--sidebar-w)] min-w-0 pt-14 md:pt-0">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 kuboo-fade" key={loc.pathname}>
           <Outlet />
         </div>
       </main>
