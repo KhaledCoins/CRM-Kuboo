@@ -67,7 +67,7 @@ export function Layout() {
 
       {/* Sidebar (drawer no mobile, fixa no desktop) */}
       <aside
-        className={`w-[var(--sidebar-w)] shrink-0 text-white flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-300 md:translate-x-0 ${menuAberto ? "translate-x-0" : "-translate-x-full"}`}
+        className={`crm-drawer w-[var(--sidebar-w)] shrink-0 text-white flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-300 ${menuAberto ? "is-open" : ""}`}
         style={{ background: "linear-gradient(180deg, #0A1628 0%, #0D2A4A 60%, #0D4F8A 100%)" }}
       >
         {/* Brand — símbolo oficial da marca (render 3D de alta qualidade) */}

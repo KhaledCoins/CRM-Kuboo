@@ -161,6 +161,14 @@ textarea:focus {
 /* inputs nativos */
 .dark input, .dark select, .dark textarea { color-scheme: dark; }
 
+/* ─── Sidebar drawer (mobile) ──────────────────────────────────────────────
+   CSS puro em vez das utilidades translate-x do Tailwind v4: aqui elas caíam na
+   propriedade `translate` e o toggle não pegava (drawer não abria). Com `transform`
+   o slide é confiável e continua transicionando via `transition-transform`. */
+.crm-drawer { transform: translateX(-100%); }
+.crm-drawer.is-open { transform: translateX(0); }
+@media (min-width: 768px) { .crm-drawer { transform: translateX(0) !important; } }
+
 /* ─── Acessibilidade: reduz movimento pra quem pediu no SO ─────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
