@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Inbox, ShoppingCart, Shield, Layers, LifeBuoy, ListChecks, Phone, MapPin, RefreshCcw, Award, Loader2, CircleUser } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "./ui";
+import { ModalShell } from "./ModalShell";
 import { supabase } from "../lib/supabase";
 import { brl, dateBR, initials } from "../lib/format";
 
@@ -126,9 +127,12 @@ export function TimelineCliente({ cliente, onFechar }: { cliente: ClienteResumo;
   }, [cliente]);
 
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-label={`Timeline de ${cliente.name}`}>
-      <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" onClick={onFechar} />
-      <aside className="absolute inset-y-0 right-0 w-[min(460px,94vw)] bg-white shadow-2xl flex flex-col animate-[slideIn_.25s_ease-out]">
+    <ModalShell
+      onClose={onFechar}
+      label={`Timeline de ${cliente.name}`}
+      backdropClassName="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm"
+      className="absolute inset-y-0 right-0 w-[min(460px,94vw)] bg-white shadow-2xl flex flex-col animate-[slideIn_.25s_ease-out]"
+    >
         <style>{`@keyframes slideIn { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
 
         {/* Cabeçalho do cliente */}
@@ -177,7 +181,6 @@ export function TimelineCliente({ cliente, onFechar }: { cliente: ClienteResumo;
         <div className="px-5 py-3 border-t border-slate-100">
           <p className="text-[11px] text-muted">{eventos.length} evento{eventos.length === 1 ? "" : "s"} · cliente desde {dateBR(cliente.created_at)}</p>
         </div>
-      </aside>
-    </div>
+    </ModalShell>
   );
 }

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent,
+  DndContext, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
 import { KanbanSquare, MessageCircle, User, Clock, DollarSign, CheckCircle2, AlertTriangle, Inbox, ListPlus, Trophy, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, KpiCard, Card, Spinner } from "../components/ui";
+import { ModalShell } from "../components/ModalShell";
+import { criarColumnKeyboardCoordinateGetter } from "../lib/dndKeyboard";
 import { fetchLeads, moverEtapa, registrarContato, noBolsao, slaRestanteMin, moduloDe, temperaturaLead, type Lead } from "../lib/leads";
 
 const TEMP_DOT: Record<string, string> = { quente: "#ef4444", morno: "#f59e0b", frio: "#5bc4f5" };
@@ -23,6 +25,9 @@ const STAGES = [
   { id: "ganho", label: "Fechado", color: "#16A34A" },
   { id: "perdido", label: "Perdido", color: "#94A3B8" },
 ];
+// Coordenadas de teclado do funil: seta esquerda/direita pula de coluna
+// (ordem fixa, definida uma vez fora do componente).
+const stageKeyboardCoordinateGetter = criarColumnKeyboardCoordinateGetter(STAGES.map((s) => s.id));
 
 function SlaBadge({ lead }: { lead: Lead }) {
   if (lead.primeiro_contato_em) return <span className="text-[10px] font-bold text-green-600 flex items-center gap-0.5"><CheckCircle2 size={11} /> contatado</span>;
@@ -183,8 +188,12 @@ function RegistrarVendaModal({
   const lblCls = "block text-xs font-bold text-slate-600 mb-1.5";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <ModalShell
+      onClose={onClose}
+      label="Registrar venda"
+      backdropClassName="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+    >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-3">
             <span className="w-10 h-10 rounded-xl bg-green-50 text-green-600 grid place-items-center"><Trophy size={20} /></span>
@@ -234,8 +243,7 @@ function RegistrarVendaModal({
             <Button type="submit" disabled={salvando}>{salvando ? "Registrando…" : "Registrar venda"}</Button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -245,7 +253,10 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
   const [loading, setLoading] = useState(true);
   const [escopo, setEscopo] = useState<"meus" | "todos">("meus");
   const [vendaLead, setVendaLead] = useState<Lead | null>(null); // lead recém-fechado → modal de venda
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: stageKeyboardCoordinateGetter }),
+  );
 
   useEffect(() => { (async () => { setLeads(await fetchLeads()); setLoading(false); })(); }, []);
 

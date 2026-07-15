@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, UserPlus, Check, Copy, Mail, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui";
+import { ModalShell } from "./ModalShell";
 import { supabase } from "../lib/supabase";
 import { onlyDigits } from "../lib/format";
 
@@ -57,8 +58,7 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
   }
 
   return (
-    <div onClick={onFechar} className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
-      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-2xl w-[min(560px,94vw)] max-h-[90vh] overflow-y-auto">
+    <ModalShell onClose={onFechar} label="Novo Cliente" className="bg-white rounded-2xl shadow-2xl w-[min(560px,94vw)] max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2.5">
             <span className="w-9 h-9 rounded-xl bg-brand-50 text-brand-500 grid place-items-center shrink-0"><UserPlus size={18} /></span>
@@ -158,7 +158,6 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
             </div>
           </form>
         )}
-      </div>
-    </div>
+    </ModalShell>
   );
 }

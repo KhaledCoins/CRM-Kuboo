@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { X, Upload, FileSpreadsheet, ArrowRight, Check, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui";
+import { ModalShell } from "./ModalShell";
 import { supabase } from "../lib/supabase";
 import { paraNumero } from "../lib/num";
 
@@ -343,8 +344,7 @@ export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConclu
   const selectCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none text-ink focus:border-brand-400 transition-colors";
 
   return (
-    <div onClick={fechar} className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
-      <div onClick={(e) => e.stopPropagation()} className={cardCls}>
+    <ModalShell onClose={fechar} label={titulo} className={cardCls}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2.5">
@@ -498,7 +498,6 @@ export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConclu
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

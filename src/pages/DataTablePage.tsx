@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { X, Pencil, Trash2, Download, Upload, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, EmptyState, KpiCard, SearchInput } from "../components/ui";
+import { ModalShell } from "../components/ModalShell";
 import { ImportarCsv, type CampoImport, type TipoCampo } from "../components/ImportarCsv";
 import { supabase } from "../lib/supabase";
 import { paraNumero } from "../lib/num";
@@ -303,10 +304,12 @@ export function DataTablePage({
       </Card>
 
       {showForm && canEdit && (
-        <div onClick={() => setShowForm(false)}
-          className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
-          <form onClick={(e) => e.stopPropagation()} onSubmit={handleSave}
-            className="bg-white rounded-2xl shadow-2xl w-[min(480px,94vw)] max-h-[88vh] overflow-y-auto">
+        <ModalShell
+          onClose={() => setShowForm(false)}
+          label={editingId ? "Editar registro" : primaryAction}
+          className="bg-white rounded-2xl shadow-2xl w-[min(480px,94vw)] max-h-[88vh] overflow-y-auto"
+        >
+          <form onSubmit={handleSave}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
               <h3 className="font-extrabold text-ink text-lg">{editingId ? "Editar registro" : primaryAction}</h3>
               <button type="button" onClick={() => setShowForm(false)} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
@@ -337,7 +340,7 @@ export function DataTablePage({
               <Button type="submit" disabled={saving}>{saving ? "Salvando…" : editingId ? "Salvar alterações" : "Salvar"}</Button>
             </div>
           </form>
-        </div>
+        </ModalShell>
       )}
     </>
   );

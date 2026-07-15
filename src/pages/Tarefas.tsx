@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { KanbanSquare, Plus, Trash2, Pencil, User, Calendar, Flag, X, ListChecks, Loader2, CheckCircle2, Trello } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, KpiCard, Card, Spinner } from "../components/ui";
+import { ModalShell } from "../components/ModalShell";
+import { criarColumnKeyboardCoordinateGetter } from "../lib/dndKeyboard";
 import { fetchTarefas, criarTarefa, atualizarTarefa, moverTarefa, excluirTarefa, type Tarefa } from "../lib/tarefas";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
@@ -14,6 +16,9 @@ const COLS = [
   { id: "fazendo", label: "Fazendo", color: "#F59E0B" },
   { id: "concluido", label: "Concluído", color: "#16A34A" },
 ] as const;
+// Coordenadas de teclado do quadro: seta esquerda/direita pula de coluna
+// (ordem fixa, definida uma vez fora do componente).
+const colKeyboardCoordinateGetter = criarColumnKeyboardCoordinateGetter(COLS.map((c) => c.id));
 
 const prioTone: Record<string, string> = { alta: "bg-red-100 text-red-700", media: "bg-amber-100 text-amber-700", baixa: "bg-slate-100 text-slate-600" };
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none text-ink focus:border-brand-400";
@@ -106,7 +111,10 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
       setSyncing(false);
     }
   }
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: colKeyboardCoordinateGetter }),
+  );
 
   function openCreate() { setEditId(null); setForm({ status: "a_fazer", prioridade: "media", modulo }); setShowForm(true); }
   function openEdit(t: Tarefa) {
@@ -212,8 +220,12 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
       )}
 
       {showForm && (
-        <div onClick={() => setShowForm(false)} className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
-          <form onClick={(e) => e.stopPropagation()} onSubmit={salvar} className="bg-white rounded-2xl shadow-2xl w-[min(460px,94vw)] max-h-[90vh] overflow-y-auto">
+        <ModalShell
+          onClose={() => setShowForm(false)}
+          label={editId ? "Editar Tarefa" : "Nova Tarefa"}
+          className="bg-white rounded-2xl shadow-2xl w-[min(460px,94vw)] max-h-[90vh] overflow-y-auto"
+        >
+          <form onSubmit={salvar}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="font-extrabold text-ink text-lg">{editId ? "Editar Tarefa" : "Nova Tarefa"}</h3>
               <button type="button" onClick={() => setShowForm(false)} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
@@ -245,7 +257,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
               <Button type="submit" disabled={saving}>{saving ? "Salvando…" : editId ? "Salvar alterações" : "Criar tarefa"}</Button>
             </div>
           </form>
-        </div>
+        </ModalShell>
       )}
     </>
   );

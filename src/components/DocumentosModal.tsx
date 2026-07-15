@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Paperclip, FileText, Trash2, Download, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui";
+import { ModalShell } from "./ModalShell";
 import { supabase } from "../lib/supabase";
 
 // Documento guardado na coluna `documentos jsonb` de apolices/consorcios.
@@ -195,8 +196,7 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
   if (!aberto) return null;
 
   return (
-    <div onClick={onFechar} className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
-      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-2xl w-[min(560px,94vw)] max-h-[88vh] overflow-y-auto">
+    <ModalShell onClose={onFechar} label={`Documentos — ${titulo}`} className="bg-white rounded-2xl shadow-2xl w-[min(560px,94vw)] max-h-[88vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2.5">
@@ -298,8 +298,7 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
           <Button variant="outline" onClick={onFechar}>Fechar</Button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
