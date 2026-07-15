@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { KanbanSquare, Plus, Trash2, Pencil, User, Calendar, Flag, X, ListChecks, Loader2, CheckCircle2, Trello } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, Button, KpiCard, Card } from "../components/ui";
+import { PageHeader, Button, KpiCard, Card, Spinner } from "../components/ui";
 import { fetchTarefas, criarTarefa, atualizarTarefa, moverTarefa, excluirTarefa, type Tarefa } from "../lib/tarefas";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
@@ -115,9 +115,14 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
     setShowForm(true);
   }
 
+  // guarda de corrida: mesma razão do Bolsão — rota gêmea troca só a prop `modulo`,
+  // e uma resposta atrasada não pode sobrescrever o quadro do módulo atual.
+  const loadReq = useRef(0);
   async function load() {
+    const req = ++loadReq.current;
     setLoading(true);
     const { data, error } = await fetchTarefas();
+    if (req !== loadReq.current) return;
     setTarefas(data.filter((t) => !t.modulo || t.modulo === modulo)); setErro(error); setLoading(false);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [modulo]);
@@ -197,7 +202,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
           <p className="text-sm text-muted">Rode a migração <code className="bg-slate-100 px-1 rounded">supabase/crm-tarefas.sql</code> no Supabase para ativar o quadro. Depois é só recarregar.</p>
         </Card>
       ) : loading ? (
-        <Card><p className="text-muted text-sm">Carregando quadro…</p></Card>
+        <Spinner label="Carregando quadro..." />
       ) : (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
@@ -208,7 +213,7 @@ export function Tarefas({ modulo = "seguros" }: { modulo?: Modulo }) {
 
       {showForm && (
         <div onClick={() => setShowForm(false)} className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm grid place-items-center z-50 p-4">
-          <form onClick={(e) => e.stopPropagation()} onSubmit={salvar} className="bg-white rounded-2xl shadow-2xl w-[min(460px,94vw)]">
+          <form onClick={(e) => e.stopPropagation()} onSubmit={salvar} className="bg-white rounded-2xl shadow-2xl w-[min(460px,94vw)] max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="font-extrabold text-ink text-lg">{editId ? "Editar Tarefa" : "Nova Tarefa"}</h3>
               <button type="button" onClick={() => setShowForm(false)} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>

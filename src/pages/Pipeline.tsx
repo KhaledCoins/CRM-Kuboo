@@ -4,7 +4,7 @@ import {
 } from "@dnd-kit/core";
 import { KanbanSquare, MessageCircle, User, Clock, DollarSign, CheckCircle2, AlertTriangle, Inbox, ListPlus, Trophy, X } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, Button, KpiCard, Card } from "../components/ui";
+import { PageHeader, Button, KpiCard, Card, Spinner } from "../components/ui";
 import { fetchLeads, moverEtapa, registrarContato, noBolsao, slaRestanteMin, moduloDe, temperaturaLead, type Lead } from "../lib/leads";
 
 const TEMP_DOT: Record<string, string> = { quente: "#ef4444", morno: "#f59e0b", frio: "#5bc4f5" };
@@ -305,7 +305,7 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
       </div>
 
       {loading ? (
-        <Card><p className="text-muted text-sm">Carregando funil...</p></Card>
+        <Spinner label="Carregando funil..." />
       ) : ativos.length === 0 ? (
         <Card pad={false}>
           <div className="text-center py-14 px-6">

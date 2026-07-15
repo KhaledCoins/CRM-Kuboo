@@ -49,15 +49,17 @@ export function TvSalao() {
         // celebra a 1ª venda mesmo quando o período começou zerado (baseline era null)
         baselineRef.current = maisNova;
         setCelebra(lista[0]);
-        setTimeout(() => setCelebra(null), 12000);
+        clearTimeout(celebraTimer); // celebração nova reinicia o relógio da anterior
+        celebraTimer = setTimeout(() => { if (active) setCelebra(null); }, 12000);
       }
       } catch (e) {
         console.error("[tv-salao]", e); // não deixa a promise do poll rejeitar sem tratamento
       }
     }
+    let celebraTimer: ReturnType<typeof setTimeout> | undefined;
     load();
     const t = setInterval(load, 20000);
-    return () => { active = false; clearInterval(t); };
+    return () => { active = false; clearInterval(t); clearTimeout(celebraTimer); };
   }, []);
 
   const { prodDia, prodMes, nDia, nMes, ranking } = useMemo(() => {
@@ -102,7 +104,7 @@ export function TvSalao() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button onClick={() => navigate(-1)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.8)", width: 40, height: 40, borderRadius: 12, cursor: "pointer", display: "grid", placeItems: "center" }}>
+          <button onClick={() => navigate(-1)} title="Voltar" aria-label="Voltar" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.8)", width: 40, height: 40, borderRadius: 12, cursor: "pointer", display: "grid", placeItems: "center" }}>
             <ArrowLeft size={20} />
           </button>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg, #2DD4A7, #1AA37E)", display: "grid", placeItems: "center", boxShadow: "0 10px 30px rgba(45,212,167,0.35)" }}>
@@ -132,7 +134,7 @@ export function TvSalao() {
         </TvCard>
 
         <TvCard icon={<Target size={22} color="#F5B53D" />} iconBg="rgba(245,181,61,0.18)" label="Meta Mensal"
-          action={<button onClick={() => navigate("/seguros/metas")} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.35)", cursor: "pointer" }}><Settings size={18} /></button>}>
+          action={<button onClick={() => navigate("/seguros/metas")} title="Editar meta" aria-label="Editar meta" style={{ background: "none", border: "none", color: "rgba(255,255,255,0.35)", cursor: "pointer" }}><Settings size={18} /></button>}>
           {falta > 0 ? (
             <p style={{ color: "#F5B53D", fontSize: 38, fontWeight: 800, margin: 0, lineHeight: 1 }}>Falta: {brl(falta)}</p>
           ) : (

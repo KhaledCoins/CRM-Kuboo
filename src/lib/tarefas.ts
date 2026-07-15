@@ -26,6 +26,23 @@ export async function criarTarefa(t: Partial<Tarefa>): Promise<{ error: string |
   return { error: error ? error.message : null };
 }
 
+export async function criarTarefasLote(ts: Partial<Tarefa>[]): Promise<{ error: string | null }> {
+  if (!supabase) return { error: "Supabase não configurado" };
+  if (!ts.length) return { error: null };
+  // PostgREST exige as MESMAS chaves em todos os objetos do array (PGRST102) —
+  // normaliza os opcionais pra null em vez de deixar a chave ausente.
+  const uniformes = ts.map((t) => ({
+    titulo: t.titulo ?? "",
+    descricao: t.descricao ?? null,
+    status: t.status ?? "a_fazer",
+    prioridade: t.prioridade ?? null,
+    cliente_nome: t.cliente_nome ?? null,
+    modulo: t.modulo ?? null,
+  }));
+  const { error } = await supabase.from("tarefas").insert(uniformes);
+  return { error: error ? error.message : null };
+}
+
 export async function moverTarefa(id: string, status: Tarefa["status"]) {
   if (!supabase) return;
   // propaga o erro pra quem chama poder desfazer o card se a gravação falhar

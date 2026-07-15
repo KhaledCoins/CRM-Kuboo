@@ -142,6 +142,8 @@ export function Layout() {
           <button
             onClick={() => setAvisosAbertos((v) => !v)}
             title="Avisos da equipe"
+            aria-label={`Avisos da equipe${avisos.length > 0 ? ` (${avisos.length})` : ""}`}
+            aria-expanded={avisosAbertos}
             className="relative text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
           >
             <Bell size={17} />
@@ -152,11 +154,12 @@ export function Layout() {
           <button
             onClick={() => setTema(alternarTema())}
             title={tema === "dark" ? "Modo claro" : "Modo escuro"}
+            aria-label={tema === "dark" ? "Ativar modo claro" : "Ativar modo escuro"}
             className="text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
           >
             {tema === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
-          <button onClick={logout} title="Sair" className="text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10">
+          <button onClick={logout} title="Sair" aria-label="Sair" className="text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10">
             <LogOut size={17} />
           </button>
         </div>

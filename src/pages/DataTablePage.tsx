@@ -259,8 +259,8 @@ export function DataTablePage({
                       {canEdit && (
                         <Td right>
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => openEdit(row)} title="Editar" className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Pencil size={15} /></button>
-                            <button onClick={() => handleDelete(row)} title="Excluir" className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>
+                            <button onClick={() => openEdit(row)} title="Editar" aria-label="Editar registro" className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Pencil size={15} /></button>
+                            <button onClick={() => handleDelete(row)} title="Excluir" aria-label="Excluir registro" className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>
                           </div>
                         </Td>
                       )}

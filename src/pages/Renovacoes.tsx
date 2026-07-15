@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw, AlertTriangle, Clock, CheckCircle2, ListPlus, Layers } from "lucide-react";
 import { toast } from "sonner";
-import { Card, KpiCard, PageHeader, Table, Th, Td, Tr, EmptyState, Badge } from "../components/ui";
+import { Card, KpiCard, PageHeader, Table, Th, Td, Tr, EmptyState, Badge, Spinner } from "../components/ui";
 import { brl, dateBR } from "../lib/format";
 import { supabase } from "../lib/supabase";
-import { criarTarefa } from "../lib/tarefas";
+import { criarTarefa, criarTarefasLote } from "../lib/tarefas";
 
 // Radar de renovações: une DUAS fontes —
 //  · vendas (registradas no CRM, vigencia_fim)
@@ -96,16 +96,25 @@ export function Renovacoes() {
     else toast.error("Não foi possível criar a tarefa.");
   }
 
-  // Retenção em lote: cria tarefas pra tudo que vence em ≤30 dias (ou já venceu)
+  // Retenção em lote: cria tarefas pra tudo que vence em ≤30 dias (ou já venceu).
+  // UM insert em lote (não 1 requisição por apólice — carteira grande levava dezenas de segundos).
   async function gerarLote() {
     const alvo = lista.filter((v) => v.dias <= 30 && !feitas[v.id]);
     if (!alvo.length) { toast.info("Nada pendente vencendo em 30 dias."); return; }
     setGerandoLote(true);
-    let ok = 0;
-    for (const v of alvo) { if (await gerarTarefa(v)) ok++; }
+    const { error } = await criarTarefasLote(alvo.map((v) => ({
+      titulo: `Renovar apólice — ${v.cliente} (${v.produto})`,
+      descricao: `Vence em ${dateBR(v.vigencia_fim)}. Seguradora: ${v.seguradora}.`,
+      cliente_nome: v.cliente !== "—" ? v.cliente : undefined,
+      status: "a_fazer" as const,
+      prioridade: (v.dias < 0 || v.dias <= 15 ? "alta" : "media") as "alta" | "media",
+      modulo: "seguros",
+    })));
     setGerandoLote(false);
-    if (ok) toast.success(`${ok} tarefa${ok > 1 ? "s" : ""} de renovação criada${ok > 1 ? "s" : ""} no quadro!`);
-    else toast.error("Não foi possível criar as tarefas.");
+    if (!error) {
+      setFeitas((p) => ({ ...p, ...Object.fromEntries(alvo.map((v) => [v.id, true])) }));
+      toast.success(`${alvo.length} tarefa${alvo.length > 1 ? "s" : ""} de renovação criada${alvo.length > 1 ? "s" : ""} no quadro!`);
+    } else toast.error("Não foi possível criar as tarefas.");
   }
 
   function DiasBadge({ d }: { d: number }) {
@@ -129,7 +138,7 @@ export function Renovacoes() {
 
       <Card pad={false}>
         {loading ? (
-          <div className="p-12 text-center text-muted text-sm">Carregando…</div>
+          <Spinner label="Carregando..." />
         ) : lista.length === 0 ? (
           <EmptyState icon={CheckCircle2} title="Nenhuma renovação no radar" hint="Apólices com vigência cadastrada (vendas do CRM ou base de clientes) que vencem nos próximos 90 dias aparecem aqui, com um clique para criar a tarefa de follow-up." />
         ) : (

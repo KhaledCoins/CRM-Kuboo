@@ -264,6 +264,7 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
                         onClick={() => baixar(doc)}
                         disabled={baixandoPath === doc.path}
                         title="Baixar"
+                        aria-label={`Baixar ${doc.nome}`}
                         className="p-2 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 disabled:opacity-50"
                       >
                         {baixandoPath === doc.path ? <Loader2 size={16} className="kuboo-spin" /> : <Download size={16} />}
@@ -272,6 +273,7 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
                         onClick={() => excluir(doc)}
                         disabled={excluindoPath === doc.path}
                         title="Excluir"
+                        aria-label={`Excluir ${doc.nome}`}
                         className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
                       >
                         {excluindoPath === doc.path ? <Loader2 size={16} className="kuboo-spin" /> : <Trash2 size={16} />}
@@ -321,6 +323,7 @@ export function DocsCell({ row, tabela }: { row: any; tabela: "apolices" | "cons
       <button
         onClick={() => setAberto(true)}
         title="Documentos"
+        aria-label={`Documentos — ${titulo}`}
         className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors"
       >
         <Paperclip size={14} />

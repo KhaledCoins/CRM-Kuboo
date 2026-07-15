@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun, X, Shuffle } from "lucide-react";
 import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select } from "../components/ui";
@@ -37,15 +37,21 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
   const [distribuindo, setDistribuindo] = useState(false);
   const [tick, setTick] = useState(0);
 
+  // guarda de corrida: /seguros/bolsao ↔ /consorcios/bolsao é o MESMO componente
+  // (só muda a prop) — sem o token, uma resposta atrasada do módulo anterior
+  // sobrescreveria a lista do módulo atual.
+  const loadReq = useRef(0);
   async function load() {
+    const req = ++loadReq.current;
     try {
       const all = await fetchLeads();
+      if (req !== loadReq.current) return;
       // só os leads DESTE módulo (antes /seguros/bolsao e /consorcios/bolsao mostravam a mesma lista)
       setLeads(all.filter((l) => moduloDe(l) === modulo && noBolsao(l) && !l.descartado));
     } catch (e) {
       console.error("[bolsao] load:", e);
     } finally {
-      setLoading(false);
+      if (req === loadReq.current) setLoading(false);
     }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [modulo]);
@@ -138,7 +144,7 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
         <Spinner label="Carregando o bolsão..." />
       ) : filtered.length === 0 ? (
         <Card pad={false}>
-          <EmptyState icon={Inbox} title="Bolsão vazio 🎉" hint="Nenhum lead aguardando. Assim que entrar um lead novo (site, Kubinho, WhatsApp) ou um SLA estourar, ele aparece aqui pra equipe pegar." />
+          <EmptyState icon={Inbox} title="Bolsão vazio" hint="Nenhum lead aguardando. Assim que entrar um lead novo (site, Kubinho, WhatsApp) ou um SLA estourar, ele aparece aqui pra equipe pegar." />
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -180,6 +186,7 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
                   <button
                     onClick={() => handleDescartar(l)}
                     title="Descartar (spam, duplicado, sem interesse)"
+                    aria-label={`Descartar lead ${l.nome}`}
                     className="ml-auto text-muted hover:text-red-600 transition-colors p-1.5 rounded-lg hover:bg-red-50"
                   >
                     <X size={16} />

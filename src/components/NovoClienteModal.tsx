@@ -85,7 +85,7 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
                   <Mail size={15} className="text-brand-500 shrink-0" />
                   <span className="font-mono truncate">{resultado.loginEmail}</span>
                 </div>
-                <button type="button" onClick={() => copiar(resultado.loginEmail)} className="text-slate-400 hover:text-brand-600 shrink-0"><Copy size={14} /></button>
+                <button type="button" onClick={() => copiar(resultado.loginEmail)} title="Copiar e-mail" aria-label="Copiar e-mail" className="text-slate-400 hover:text-brand-600 shrink-0"><Copy size={14} /></button>
               </div>
               {resultado.tempPassword && (
                 <div className="flex items-center justify-between gap-2">
@@ -93,7 +93,7 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
                     <KeyRound size={15} className="text-brand-500 shrink-0" />
                     <span className="font-mono truncate">{resultado.tempPassword}</span>
                   </div>
-                  <button type="button" onClick={() => copiar(resultado.tempPassword!)} className="text-slate-400 hover:text-brand-600 shrink-0"><Copy size={14} /></button>
+                  <button type="button" onClick={() => copiar(resultado.tempPassword!)} title="Copiar senha" aria-label="Copiar senha" className="text-slate-400 hover:text-brand-600 shrink-0"><Copy size={14} /></button>
                 </div>
               )}
             </div>

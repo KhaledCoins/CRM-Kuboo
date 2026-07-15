@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, DollarSign, ShoppingCart, Percent, Package, Building2, Users, RefreshCw, Download } from "lucide-react";
 import { toast } from "sonner";
-import { Card, KpiCard, PageHeader, EmptyState, Button } from "../components/ui";
+import { Card, KpiCard, PageHeader, EmptyState, Button, Spinner } from "../components/ui";
 import { PeriodoSelect, rangeFor, labelDe, type PeriodoKey } from "../components/Periodo";
 import { brl } from "../lib/format";
 import { supabase } from "../lib/supabase";
@@ -101,7 +101,7 @@ export function Producao() {
         } />
 
       {loading ? (
-        <Card><p className="text-muted text-sm">Carregando relatório…</p></Card>
+        <Spinner label="Carregando relatório..." />
       ) : vendas.length === 0 ? (
         <Card pad={false}><EmptyState icon={BarChart3} title="Sem produção no período" hint="O consolidado por consultor, seguradora e produto aparece aqui assim que houver vendas no mês." /></Card>
       ) : (

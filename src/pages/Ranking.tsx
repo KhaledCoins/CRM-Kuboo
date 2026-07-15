@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trophy, DollarSign, TrendingUp, Medal } from "lucide-react";
-import { Card, KpiCard, PageHeader, EmptyState } from "../components/ui";
+import { Card, KpiCard, PageHeader, EmptyState, Spinner } from "../components/ui";
 import { PeriodoSelect, rangeFor, labelDe, type PeriodoKey } from "../components/Periodo";
 import { brl, brlShort } from "../lib/format";
 import { supabase } from "../lib/supabase";
@@ -61,7 +61,7 @@ export function Ranking() {
       </div>
 
       {loading ? (
-        <Card><p className="text-muted text-sm">Carregando ranking…</p></Card>
+        <Spinner label="Carregando ranking..." />
       ) : rank.length === 0 ? (
         <Card pad={false}><EmptyState icon={Trophy} title="Sem vendas no período" hint="O ranking por produção e comissão aparece aqui assim que houver vendas registradas." /></Card>
       ) : (
