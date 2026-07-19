@@ -89,44 +89,32 @@ export default async function handler(req, res) {
     const temEmailReal = emailInformado.includes("@");
     const emailParaLogin = temEmailReal ? emailInformado : `${cpf}@sememail.kuboo.com.br`;
 
-    let userId;
-    let tempPassword = null;
-    let convidado = false;
-
-    if (temEmailReal) {
-      // Convite por e-mail: o próprio cliente define a senha (mais seguro, sem senha em trânsito).
-      const { data, error } = await admin.auth.admin.inviteUserByEmail(emailParaLogin, {
-        data: { name },
-      });
-      if (error) throw new Error(`Convite por e-mail falhou: ${error.message}`);
-      userId = data.user.id;
-      convidado = true;
-    } else {
-      // Sem e-mail: cria com senha temporária que a equipe repassa por WhatsApp/telefone.
-      tempPassword = senhaTemporaria();
-      const { data, error } = await admin.auth.admin.createUser({
-        email: emailParaLogin,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: { name },
-      });
-      if (error) throw new Error(`Criação de usuário falhou: ${error.message}`);
-      userId = data.user.id;
-    }
+    // SEMPRE senha temporária + troca obrigatória no 1º login (o portal força).
+    // Com e-mail real, a UI chama /api/enviar-credenciais na sequência — o
+    // cliente recebe o e-mail bonito da Kuboo (não o convite genérico do Supabase).
+    const tempPassword = senhaTemporaria();
+    const { data, error } = await admin.auth.admin.createUser({
+      email: emailParaLogin,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { name },
+    });
+    if (error) throw new Error(`Criação de usuário falhou: ${error.message}`);
+    const userId = data.user.id;
 
     // O trigger handle_new_user já criou um profile mínimo — atualiza com os dados reais.
     const { error: upErr } = await admin.from("profiles").update({
       name, cpf, phone: phone || null, birth_date, address, city, state, cep,
       email: temEmailReal ? emailParaLogin : null,
-      must_change_password: !temEmailReal,
+      must_change_password: true,
     }).eq("id", userId);
     if (upErr) throw new Error(`Perfil criado mas falhou ao salvar dados: ${upErr.message}`);
 
     return res.status(200).json({
       id: userId,
-      convidado,
-      tempPassword, // só existe quando !temEmailReal — mostrar 1x na UI e nunca mais
-      loginEmail: temEmailReal ? emailParaLogin : emailParaLogin,
+      temEmail: temEmailReal,
+      tempPassword, // mostrar 1x na UI (e enviar por e-mail quando temEmail)
+      loginEmail: emailParaLogin,
     });
   } catch (err) {
     console.error(JSON.stringify({ level: "error", fn: "clientes", msg: String(err).slice(0, 300) }));

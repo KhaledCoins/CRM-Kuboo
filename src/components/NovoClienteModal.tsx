@@ -11,12 +11,40 @@ const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","P
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none text-ink focus:border-brand-400 transition-colors";
 const labelCls = "text-xs font-bold text-muted uppercase tracking-wide block mb-1.5";
 
-interface Resultado { loginEmail: string; tempPassword: string | null; convidado: boolean }
+interface Resultado { id: string; loginEmail: string; tempPassword: string | null; temEmail: boolean }
 
 export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void; onCriado: () => void }) {
   const [form, setForm] = useState({ name: "", cpf: "", email: "", phone: "", birth_date: "", address: "", city: "São José dos Campos", state: "SP", cep: "" });
   const [salvando, setSalvando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
+
+  // Dispara o e-mail bonito com as credenciais (gera senha temporária NOVA no
+  // servidor — a exibida na tela é substituída pela que foi enviada).
+  async function enviarEmail(clientId: string) {
+    if (!supabase) return;
+    setEnviandoEmail(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("Sessão expirada — faça login novamente.");
+      const r = await fetch("/api/enviar-credenciais", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ clientId }),
+      });
+      const json = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(json?.error || "Falha ao enviar o e-mail.");
+      setEmailEnviado(json.sentTo);
+      setResultado((p) => (p ? { ...p, tempPassword: json.tempPassword } : p));
+      toast.success(`Credenciais enviadas para ${json.sentTo}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar o e-mail.", { duration: 9000 });
+    } finally {
+      setEnviandoEmail(false);
+    }
+  }
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -73,11 +101,21 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
               <span className="w-14 h-14 rounded-2xl bg-green-50 text-green-600 grid place-items-center mx-auto mb-4"><Check size={26} /></span>
               <p className="font-extrabold text-ink text-lg">Cliente cadastrado</p>
               <p className="text-sm text-muted mt-1">
-                {resultado.convidado
-                  ? "Enviamos um e-mail de convite — o cliente define a própria senha."
+                {resultado.temEmail
+                  ? emailEnviado
+                    ? `E-mail com as credenciais enviado para ${emailEnviado}. No 1º login o portal pede pra criar a própria senha.`
+                    : "Envie as credenciais por e-mail (bonito e explicativo) ou repasse por WhatsApp. No 1º login o portal força a troca da senha."
                   : "Sem e-mail próprio: repasse este acesso por WhatsApp/telefone. Ele(a) vai trocar a senha no 1º login."}
               </p>
             </div>
+
+            {resultado.temEmail && !emailEnviado && (
+              <div className="flex justify-center mb-2">
+                <Button onClick={() => enviarEmail(resultado.id)} disabled={enviandoEmail}>
+                  <Mail size={15} /> {enviandoEmail ? "Enviando..." : "Enviar credenciais por e-mail"}
+                </Button>
+              </div>
+            )}
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 mt-2">
               <div className="flex items-center justify-between gap-2">
@@ -149,7 +187,7 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
             </label>
 
             <p className="sm:col-span-2 text-xs text-muted bg-slate-50 rounded-xl px-3 py-2">
-              O cliente sempre recebe um acesso ao Portal: com e-mail, vai um convite pra ele criar a própria senha; sem e-mail, geramos uma senha temporária pra equipe repassar.
+              O cliente sempre recebe um acesso ao Portal com senha temporária e troca obrigatória no 1º login. Com e-mail cadastrado, dá pra enviar as credenciais num e-mail explicativo da Kuboo; sem e-mail, a equipe repassa por WhatsApp/telefone.
             </p>
 
             <div className="sm:col-span-2 flex justify-end gap-3 pt-2">
