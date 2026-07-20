@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, ShoppingCart, FileEdit, Receipt, DollarSign, Trophy,
   KanbanSquare, RefreshCcw, Target, ShieldAlert, ClipboardCheck, BarChart3,
-  Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox, ListChecks, Shield,
+  Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox, ListChecks, Shield, Shuffle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../context/AuthContext";
@@ -32,6 +32,7 @@ const adminGroup = (modulo: Modulo): NavGroup => ({
     },
     { label: "Produtos", to: `/${modulo}/produtos`, icon: Package },
     { label: "Usuários", to: `/${modulo}/usuarios`, icon: UserCog, roles: ["admin", "gestor"] },
+    { label: "Distribuição de Leads", to: `/${modulo}/filas`, icon: Shuffle, roles: ["admin", "gestor"] },
     { label: "Configurações", to: `/${modulo}/configuracoes`, icon: Settings, roles: ["admin", "gestor"] },
   ],
 });

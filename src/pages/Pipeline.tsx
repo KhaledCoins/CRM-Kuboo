@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   DndContext, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -37,7 +38,7 @@ function SlaBadge({ lead }: { lead: Lead }) {
   return <span className="text-[10px] font-bold text-amber-600 flex items-center gap-0.5"><Clock size={11} /> {min} min</span>;
 }
 
-function LeadCard({ lead, onContato }: { lead: Lead; onContato: (id: string) => void }) {
+function LeadCard({ lead, onContato, onAbrir }: { lead: Lead; onContato: (id: string) => void; onAbrir: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id });
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined;
   const wa = lead.telefone ? `https://wa.me/55${onlyDigits(lead.telefone)}` : null;
@@ -45,10 +46,15 @@ function LeadCard({ lead, onContato }: { lead: Lead; onContato: (id: string) => 
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}
       className={`bg-white rounded-xl border border-slate-200 p-3 mb-2.5 cursor-grab active:cursor-grabbing shadow-sm ${isDragging ? "opacity-60 ring-2 ring-brand-300" : ""}`}>
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <p className="font-bold text-ink text-sm flex items-center gap-1.5">
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => onAbrir(lead.id)}
+          title="Abrir detalhe do lead"
+          className="font-bold text-ink text-sm flex items-center gap-1.5 text-left hover:text-brand-600 hover:underline underline-offset-2"
+        >
           <span title={`Lead ${temperaturaLead(lead)}`} style={{ width: 8, height: 8, borderRadius: 999, background: TEMP_DOT[temperaturaLead(lead)], flexShrink: 0, boxShadow: `0 0 0 2px ${TEMP_DOT[temperaturaLead(lead)]}22` }} />
           {lead.nome}
-        </p>
+        </button>
         <SlaBadge lead={lead} />
       </div>
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -79,7 +85,7 @@ function LeadCard({ lead, onContato }: { lead: Lead; onContato: (id: string) => 
   );
 }
 
-function Column({ stage, leads, onContato }: { stage: typeof STAGES[number]; leads: Lead[]; onContato: (id: string) => void }) {
+function Column({ stage, leads, onContato, onAbrir }: { stage: typeof STAGES[number]; leads: Lead[]; onContato: (id: string) => void; onAbrir: (id: string) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = leads.reduce((s, l) => s + (l.valor_potencial ?? 0), 0);
   return (
@@ -93,7 +99,7 @@ function Column({ stage, leads, onContato }: { stage: typeof STAGES[number]; lea
       </div>
       <div className="text-[11px] text-muted px-1 mb-2">{brlShort(total)}</div>
       <div ref={setNodeRef} className={`min-h-[140px] rounded-xl p-2 transition-colors ${isOver ? "bg-brand-50" : "bg-slate-100/60"}`}>
-        {leads.map((l) => <LeadCard key={l.id} lead={l} onContato={onContato} />)}
+        {leads.map((l) => <LeadCard key={l.id} lead={l} onContato={onContato} onAbrir={onAbrir} />)}
       </div>
     </div>
   );
@@ -248,6 +254,7 @@ function RegistrarVendaModal({
 }
 
 export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
+  const navigate = useNavigate();
   const { user, isManager } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -286,6 +293,10 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
   async function onContato(id: string) {
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, primeiro_contato_em: new Date().toISOString() } : l)));
     await registrarContato(id);
+  }
+
+  function onAbrir(id: string) {
+    navigate(`/${modulo}/leads/${id}`);
   }
 
   const potencial = visiveis.reduce((s, l) => s + (l.valor_potencial ?? 0), 0);
@@ -329,7 +340,7 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
             {STAGES.map((s) => (
-              <Column key={s.id} stage={s} leads={visiveis.filter((l) => (l.etapa ?? "novos") === s.id)} onContato={onContato} />
+              <Column key={s.id} stage={s} leads={visiveis.filter((l) => (l.etapa ?? "novos") === s.id)} onContato={onContato} onAbrir={onAbrir} />
             ))}
           </div>
         </DndContext>

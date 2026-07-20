@@ -23,14 +23,16 @@ import { Tarefas } from "./pages/Tarefas";
 import { Ranking } from "./pages/Ranking";
 import { Producao } from "./pages/Producao";
 import { Renovacoes } from "./pages/Renovacoes";
+// Paridade C2S (docs/C2S-SCAN.md): distribuição por filas, hub de config e lead 360º
+import { Filas } from "./pages/config/Filas";
+import { ConfigHub } from "./pages/config/ConfigHub";
+import { LeadDetalhe } from "./pages/LeadDetalhe";
 
 /* ---- Seções bespoke que ainda são placeholders (relatórios/configurações) ---- */
 const Auditoria = () => <SectionPage title="Auditoria & Cobrança" subtitle="Pós-venda — gestão por exceção" icon={ClipboardCheck}
   kpis={[{ label: "A Conferir", icon: ClipboardCheck, accent: "warning" }, { label: "Aprovadas", icon: CheckCircle2, accent: "success" }, { label: "Cobrança em Atraso", icon: AlertTriangle, accent: "danger" }]}
   emptyIcon={ClipboardCheck} emptyTitle="Nada para auditar ainda" emptyHint="Cada venda passa por conferência e controle de cobrança." />;
 
-const Configuracoes = () => <SectionPage title="Configurações" subtitle="Preferências do sistema" icon={Settings}
-  emptyIcon={Settings} emptyTitle="Configurações" emptyHint="Dados da corretora, metas padrão, integrações (site/Kubinho) e permissões." />;
 
 // Guarda de rota por papel: vendedor não acessa telas administrativas nem digitando a URL
 // (o menu já esconde, mas a rota precisa barrar de verdade — defesa no client + RLS no banco).
@@ -77,7 +79,9 @@ function Shell() {
         <Route path="/seguros/parceiros" element={<Parceiros />} />
         <Route path="/seguros/produtos" element={<Produtos />} />
         <Route path="/seguros/usuarios" element={<RequireManager><Usuarios /></RequireManager>} />
-        <Route path="/seguros/configuracoes" element={<Configuracoes />} />
+        <Route path="/seguros/filas" element={<RequireManager><Filas /></RequireManager>} />
+        <Route path="/seguros/configuracoes" element={<RequireManager><ConfigHub /></RequireManager>} />
+        <Route path="/seguros/leads/:id" element={<LeadDetalhe />} />
 
         {/* Consórcios */}
         <Route path="/consorcios" element={<DashboardConsorcios />} />
@@ -96,7 +100,9 @@ function Shell() {
         <Route path="/consorcios/parceiros" element={<Parceiros />} />
         <Route path="/consorcios/produtos" element={<Produtos />} />
         <Route path="/consorcios/usuarios" element={<RequireManager><Usuarios /></RequireManager>} />
-        <Route path="/consorcios/configuracoes" element={<Configuracoes />} />
+        <Route path="/consorcios/filas" element={<RequireManager><Filas /></RequireManager>} />
+        <Route path="/consorcios/configuracoes" element={<RequireManager><ConfigHub /></RequireManager>} />
+        <Route path="/consorcios/leads/:id" element={<LeadDetalhe />} />
       </Route>
       <Route path="*" element={<Navigate to="/seguros" replace />} />
     </Routes>

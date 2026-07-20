@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun, X, Shuffle } from "lucide-react";
+import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun, X, Shuffle, ExternalLink } from "lucide-react";
 import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select } from "../components/ui";
 import { fetchLeads, pegarLead, descartarLead, distribuirBolsao, noBolsao, moduloDe, prioridadeLead, temperaturaLead, type Lead, type Temperatura } from "../lib/leads";
 import { supabase } from "../lib/supabase";
@@ -29,6 +30,7 @@ const tempMeta: Record<Temperatura, { label: string; tone: "red" | "amber" | "bl
 };
 
 export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
+  const navigate = useNavigate();
   const { user, isManager } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,8 +159,14 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
             return (
               <Card key={l.id} className={temp === "quente" ? "ring-2 ring-red-300" : espera.urgente ? "ring-1 ring-red-200" : ""}>
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <p className="font-bold text-ink">{l.nome}</p>
-                  <span className={`text-xs font-bold flex items-center gap-1 ${espera.urgente ? "text-red-600" : "text-muted"}`}>
+                  <button
+                    onClick={() => navigate(`/${modulo}/leads/${l.id}`)}
+                    title="Abrir detalhe do lead"
+                    className="font-bold text-ink text-left hover:text-brand-600 hover:underline underline-offset-2"
+                  >
+                    {l.nome}
+                  </button>
+                  <span className={`text-xs font-bold flex items-center gap-1 shrink-0 ${espera.urgente ? "text-red-600" : "text-muted"}`}>
                     {espera.urgente && <AlertTriangle size={12} />}<Clock size={12} /> {espera.txt}
                   </span>
                 </div>
@@ -184,10 +192,18 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
                     </a>
                   )}
                   <button
+                    onClick={() => navigate(`/${modulo}/leads/${l.id}`)}
+                    title="Abrir detalhe do lead"
+                    aria-label={`Abrir detalhe de ${l.nome}`}
+                    className="ml-auto text-muted hover:text-brand-600 transition-colors p-1.5 rounded-lg hover:bg-brand-50"
+                  >
+                    <ExternalLink size={16} />
+                  </button>
+                  <button
                     onClick={() => handleDescartar(l)}
                     title="Descartar (spam, duplicado, sem interesse)"
                     aria-label={`Descartar lead ${l.nome}`}
-                    className="ml-auto text-muted hover:text-red-600 transition-colors p-1.5 rounded-lg hover:bg-red-50"
+                    className="text-muted hover:text-red-600 transition-colors p-1.5 rounded-lg hover:bg-red-50"
                   >
                     <X size={16} />
                   </button>
