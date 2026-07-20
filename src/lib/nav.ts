@@ -2,6 +2,7 @@ import {
   LayoutDashboard, ShoppingCart, FileEdit, Receipt, DollarSign, Trophy,
   KanbanSquare, RefreshCcw, Target, ShieldAlert, ClipboardCheck, BarChart3,
   Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox, ListChecks, Shield, Shuffle,
+  MessageCircle, Gauge, UserCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../context/AuthContext";
@@ -32,8 +33,10 @@ const adminGroup = (modulo: Modulo): NavGroup => ({
     },
     { label: "Produtos", to: `/${modulo}/produtos`, icon: Package },
     { label: "Usuários", to: `/${modulo}/usuarios`, icon: UserCog, roles: ["admin", "gestor"] },
+    { label: "Desempenho da Equipe", to: `/${modulo}/desempenho`, icon: Gauge, roles: ["admin", "gestor"] },
     { label: "Distribuição de Leads", to: `/${modulo}/filas`, icon: Shuffle, roles: ["admin", "gestor"] },
     { label: "Configurações", to: `/${modulo}/configuracoes`, icon: Settings, roles: ["admin", "gestor"] },
+    { label: "Meu Perfil", to: `/${modulo}/perfil`, icon: UserCircle },
   ],
 });
 
@@ -43,6 +46,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
       title: "Menu Principal",
       items: [
         { label: "Dashboard", to: "/seguros", icon: LayoutDashboard },
+        { label: "Meus Leads", to: "/seguros/leads", icon: MessageCircle },
         { label: "Bolsão de Leads", to: "/seguros/bolsao", icon: Inbox },
         { label: "Vendas", to: "/seguros/vendas", icon: ShoppingCart },
         { label: "Apólices", to: "/seguros/apolices", icon: Shield },
@@ -67,6 +71,7 @@ export const NAV: Record<Modulo, NavGroup[]> = {
       title: "Menu Principal",
       items: [
         { label: "Dashboard", to: "/consorcios", icon: LayoutDashboard },
+        { label: "Meus Leads", to: "/consorcios/leads", icon: MessageCircle },
         { label: "Bolsão de Leads", to: "/consorcios/bolsao", icon: Inbox },
         { label: "Pipeline", to: "/consorcios/pipeline", icon: KanbanSquare },
         { label: "Tarefas & Atividades", to: "/consorcios/tarefas", icon: ListChecks },

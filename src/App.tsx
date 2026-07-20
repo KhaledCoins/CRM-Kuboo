@@ -27,6 +27,9 @@ import { Renovacoes } from "./pages/Renovacoes";
 import { Filas } from "./pages/config/Filas";
 import { ConfigHub } from "./pages/config/ConfigHub";
 import { LeadDetalhe } from "./pages/LeadDetalhe";
+import { MeusLeads } from "./pages/MeusLeads";
+import { Desempenho } from "./pages/Desempenho";
+import { Perfil } from "./pages/Perfil";
 
 /* ---- Seções bespoke que ainda são placeholders (relatórios/configurações) ---- */
 const Auditoria = () => <SectionPage title="Auditoria & Cobrança" subtitle="Pós-venda — gestão por exceção" icon={ClipboardCheck}
@@ -81,7 +84,10 @@ function Shell() {
         <Route path="/seguros/usuarios" element={<RequireManager><Usuarios /></RequireManager>} />
         <Route path="/seguros/filas" element={<RequireManager><Filas /></RequireManager>} />
         <Route path="/seguros/configuracoes" element={<RequireManager><ConfigHub /></RequireManager>} />
+        <Route path="/seguros/leads" element={<MeusLeads modulo="seguros" />} />
         <Route path="/seguros/leads/:id" element={<LeadDetalhe />} />
+        <Route path="/seguros/desempenho" element={<RequireManager><Desempenho /></RequireManager>} />
+        <Route path="/seguros/perfil" element={<Perfil />} />
 
         {/* Consórcios */}
         <Route path="/consorcios" element={<DashboardConsorcios />} />
@@ -102,7 +108,10 @@ function Shell() {
         <Route path="/consorcios/usuarios" element={<RequireManager><Usuarios /></RequireManager>} />
         <Route path="/consorcios/filas" element={<RequireManager><Filas /></RequireManager>} />
         <Route path="/consorcios/configuracoes" element={<RequireManager><ConfigHub /></RequireManager>} />
+        <Route path="/consorcios/leads" element={<MeusLeads modulo="consorcios" />} />
         <Route path="/consorcios/leads/:id" element={<LeadDetalhe />} />
+        <Route path="/consorcios/desempenho" element={<RequireManager><Desempenho /></RequireManager>} />
+        <Route path="/consorcios/perfil" element={<Perfil />} />
       </Route>
       <Route path="*" element={<Navigate to="/seguros" replace />} />
     </Routes>

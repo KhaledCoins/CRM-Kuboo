@@ -15,6 +15,9 @@ alter table public.leads add column if not exists interagido_em timestamptz; -- 
 -- ─── 2. Permissões granulares + assinatura no perfil ────────────────────────
 alter table public.profiles add column if not exists permissoes jsonb not null default '{}'::jsonb;
 alter table public.profiles add column if not exists assinatura text;
+-- o usuário pode editar a PRÓPRIA assinatura (grant por coluna — o resto do
+-- profile continua travado pelo fix de escalada de privilégio)
+grant update (assinatura) on public.profiles to authenticated;
 -- chaves de permissoes (default: gestor/admin = tudo true; vendedor = tudo false):
 -- editar_usuarios, editar_filas, editar_bolsao, editar_etiquetas,
 -- acessar_config, acessar_financeiro, extrair_relatorios, visivel_relatorios(bool, default true)

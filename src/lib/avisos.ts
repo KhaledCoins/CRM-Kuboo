@@ -1,8 +1,10 @@
 import { supabase } from "./supabase";
 import { slaRestanteMin, type Lead } from "./leads";
+import { minutosLabel, type AlertaConfig } from "./c2s";
 
 // Central de avisos da equipe — computada no cliente a partir dos dados
-// (sem cron/tabela nova): SLA estourando, renovações da semana.
+// (sem cron/tabela nova): SLA estourando, renovações da semana, escada de
+// sem-atendimento do C2S (alertas_config — docs/C2S-SCAN.md §Alertas).
 export interface Aviso {
   id: string;
   tone: "red" | "amber" | "blue";
@@ -10,6 +12,9 @@ export interface Aviso {
   detalhe: string;
   to: string; // rota pra resolver
 }
+
+// Máx. de avisos que a escada de sem-atendimento injeta (não pode lotar o sino).
+const LIMITE_ESCADA = 15;
 
 export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Aviso[]> {
   if (!supabase) return [];
@@ -47,6 +52,54 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
     }
     for (const a of (apolR.data || []) as any[]) {
       avisos.push({ id: `ra-${a.id}`, tone: "blue", titulo: `Apólice ${a.tipo || ""} vence esta semana`, detalhe: `${a.profiles?.name || "Cliente"} · ${new Date(a.vigencia_fim + "T12:00:00").toLocaleDateString("pt-BR")}`, to: `/${modulo}/renovacoes` });
+    }
+
+    // Escada de sem-atendimento do C2S (supabase/c2s-parity.sql §9 alertas_config).
+    // Tabela nova/opcional — se a migration ainda não rodou, segue em silêncio.
+    try {
+      const { data: alertasData } = await supabase.from("alertas_config").select("*").eq("ativo", true);
+      const alertas = (alertasData as AlertaConfig[]) ?? [];
+      if (alertas.length) {
+        const { data: userData } = await supabase.auth.getUser();
+        const uid = userData?.user?.id;
+        if (uid) {
+          const { data: perfil } = await supabase.from("profiles").select("role").eq("id", uid).maybeSingle();
+          const isManager = ["gestor", "admin"].includes((perfil as any)?.role ?? "");
+          const maxDegrau = Math.max(0, ...alertas.map((a) => a.minutos));
+
+          let semAtQ = supabase.from("leads")
+            .select("id,nome,vendedor_id,created_at,modulo,profiles(name)")
+            .not("vendedor_id", "is", null).is("primeiro_contato_em", null).is("interagido_em", null)
+            .eq("descartado", false).limit(300);
+          semAtQ = seguros ? semAtQ.or("modulo.eq.seguros,modulo.is.null") : semAtQ.eq("modulo", "consorcios");
+          const { data: semAtendimento } = await semAtQ;
+
+          for (const l of (semAtendimento as any[]) ?? []) {
+            const minSemAt = Math.floor((Date.now() - new Date(l.created_at).getTime()) / 60000);
+            // Dedup: só o degrau mais alto estourado que se aplica a ESTE usuário
+            // (regra de destinatário igual ao C2S: 'usuario' só se dono do lead;
+            // 'gestores' só se o usuário logado é gestor/admin).
+            let melhor: AlertaConfig | null = null;
+            for (const al of alertas) {
+              if (minSemAt < al.minutos) continue;
+              if (al.notificar === "usuario" && l.vendedor_id !== uid) continue;
+              if (al.notificar === "gestores" && !isManager) continue;
+              if (!melhor || al.minutos > melhor.minutos) melhor = al;
+            }
+            if (!melhor) continue;
+            avisos.push({
+              id: `semat-${l.id}`,
+              tone: melhor.minutos >= maxDegrau ? "red" : "amber",
+              titulo: `Lead ${l.nome} sem atendimento há ${minutosLabel(minSemAt)}`,
+              detalhe: `alerta de ${minutosLabel(melhor.minutos)} — responsável ${l.profiles?.name || "sem vendedor"}`,
+              to: `/${modulo}/leads/${l.id}`,
+            });
+            if (avisos.filter((a) => a.id.startsWith("semat-")).length >= LIMITE_ESCADA) break;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[avisos] escada sem-atendimento:", e);
     }
 
     return avisos.slice(0, 20);
