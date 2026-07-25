@@ -34,6 +34,7 @@ const adminGroup = (modulo: Modulo): NavGroup => ({
     { label: "Produtos", to: `/${modulo}/produtos`, icon: Package },
     { label: "Usuários", to: `/${modulo}/usuarios`, icon: UserCog, roles: ["admin", "gestor"] },
     { label: "Desempenho da Equipe", to: `/${modulo}/desempenho`, icon: Gauge, roles: ["admin", "gestor"] },
+    { label: "Dashboards", to: `/${modulo}/dashboards`, icon: BarChart3, roles: ["admin", "gestor"] },
     { label: "Distribuição de Leads", to: `/${modulo}/filas`, icon: Shuffle, roles: ["admin", "gestor"] },
     { label: "Configurações", to: `/${modulo}/configuracoes`, icon: Settings, roles: ["admin", "gestor"] },
     { label: "Meu Perfil", to: `/${modulo}/perfil`, icon: UserCircle },

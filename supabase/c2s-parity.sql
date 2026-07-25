@@ -18,6 +18,9 @@ alter table public.profiles add column if not exists assinatura text;
 -- o usuário pode editar a PRÓPRIA assinatura (grant por coluna — o resto do
 -- profile continua travado pelo fix de escalada de privilégio)
 grant update (assinatura) on public.profiles to authenticated;
+-- CHECK-IN de plantão (C2S): consultor indisponível não recebe lead do rodízio
+alter table public.profiles add column if not exists disponivel boolean not null default true;
+grant update (disponivel) on public.profiles to authenticated;
 -- chaves de permissoes (default: gestor/admin = tudo true; vendedor = tudo false):
 -- editar_usuarios, editar_filas, editar_bolsao, editar_etiquetas,
 -- acessar_config, acessar_financeiro, extrair_relatorios, visivel_relatorios(bool, default true)
@@ -229,6 +232,7 @@ returns uuid language sql stable as $$
   join public.profiles p on p.id = fu.user_id
   where fu.fila_id = p_fila.id and fu.ativo
     and coalesce(p.aprovado, true)
+    and coalesce(p.disponivel, true)  -- check-in: ausente não entra no rodízio
     and (p_fila.limite_abertos is null or (
       select count(*) from public.leads l
       where l.vendedor_id = fu.user_id and public.lead_aberto(l)

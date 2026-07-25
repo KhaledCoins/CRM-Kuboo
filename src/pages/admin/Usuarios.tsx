@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   UserCog, UserPlus, Mail, Phone, X, Check, Copy, KeyRound, Pencil,
-  Power, AlertTriangle, ShieldAlert, Info,
+  Power, AlertTriangle, ShieldAlert, Info, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, Badge, EmptyState, Spinner, Select } from "../../components/ui";
@@ -9,6 +9,7 @@ import { ModalShell } from "../../components/ModalShell";
 import { supabase } from "../../lib/supabase";
 import { useAuth, type Role } from "../../context/AuthContext";
 import { dateBR, initials } from "../../lib/format";
+import { exportarCsv } from "../../lib/csv";
 
 // Tela "Usuários" — paridade com o C2S (docs/C2S-SCAN.md §Usuários): criar
 // usuário de equipe, editar papel/assinatura/permissões granulares e
@@ -118,6 +119,28 @@ export function Usuarios() {
 
   useEffect(() => { carregar(); }, []);
 
+  function exportar() {
+    if (!rows.length) return;
+    const dados = rows.map((u) => ({
+      nome: u.name,
+      email: u.email || "",
+      telefone: u.phone || "",
+      papel: roleLabel(u.role),
+      status: u.aprovado === false ? "Desativado" : "Ativo",
+    }));
+    exportarCsv(
+      `usuarios-${new Date().toISOString().slice(0, 10)}`,
+      [
+        { chave: "nome", rotulo: "Nome" },
+        { chave: "email", rotulo: "E-mail" },
+        { chave: "telefone", rotulo: "Telefone" },
+        { chave: "papel", rotulo: "Papel" },
+        { chave: "status", rotulo: "Status" },
+      ],
+      dados
+    );
+  }
+
   async function reativar(u: TeamRow) {
     try {
       const token = await tokenSessao();
@@ -141,7 +164,12 @@ export function Usuarios() {
         title="Usuários"
         subtitle="Equipe de consultores e gestores"
         icon={UserCog}
-        actions={<Button icon={UserPlus} onClick={() => setNovoAberto(true)}>Novo Usuário</Button>}
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" icon={Download} onClick={exportar} disabled={!rows.length}>Exportar CSV</Button>
+            <Button icon={UserPlus} onClick={() => setNovoAberto(true)}>Novo Usuário</Button>
+          </div>
+        }
       />
 
       {colunasFaltando && <div className="mb-5"><AvisoMigracao /></div>}

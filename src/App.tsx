@@ -30,6 +30,8 @@ import { LeadDetalhe } from "./pages/LeadDetalhe";
 import { MeusLeads } from "./pages/MeusLeads";
 import { Desempenho } from "./pages/Desempenho";
 import { Perfil } from "./pages/Perfil";
+// Dashboards usa recharts — lazy igual aos dashboards de módulo
+const Dashboards = lazy(() => import("./pages/Dashboards").then((m) => ({ default: m.Dashboards })));
 
 /* ---- Seções bespoke que ainda são placeholders (relatórios/configurações) ---- */
 const Auditoria = () => <SectionPage title="Auditoria & Cobrança" subtitle="Pós-venda — gestão por exceção" icon={ClipboardCheck}
@@ -87,6 +89,7 @@ function Shell() {
         <Route path="/seguros/leads" element={<MeusLeads modulo="seguros" />} />
         <Route path="/seguros/leads/:id" element={<LeadDetalhe />} />
         <Route path="/seguros/desempenho" element={<RequireManager><Desempenho /></RequireManager>} />
+        <Route path="/seguros/dashboards" element={<RequireManager><Dashboards /></RequireManager>} />
         <Route path="/seguros/perfil" element={<Perfil />} />
 
         {/* Consórcios */}
@@ -111,6 +114,7 @@ function Shell() {
         <Route path="/consorcios/leads" element={<MeusLeads modulo="consorcios" />} />
         <Route path="/consorcios/leads/:id" element={<LeadDetalhe />} />
         <Route path="/consorcios/desempenho" element={<RequireManager><Desempenho /></RequireManager>} />
+        <Route path="/consorcios/dashboards" element={<RequireManager><Dashboards /></RequireManager>} />
         <Route path="/consorcios/perfil" element={<Perfil />} />
       </Route>
       <Route path="*" element={<Navigate to="/seguros" replace />} />

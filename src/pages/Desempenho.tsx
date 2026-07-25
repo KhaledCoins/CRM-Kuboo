@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Gauge, Users, CheckCircle2, Clock, AlertTriangle, Zap } from "lucide-react";
-import { PageHeader, Card, KpiCard, Spinner, EmptyState, Select, Badge } from "../components/ui";
+import { Gauge, Users, CheckCircle2, Clock, AlertTriangle, Zap, Download } from "lucide-react";
+import { PageHeader, Card, KpiCard, Spinner, EmptyState, Select, Badge, Button } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import { listarEquipe } from "../lib/c2s";
 import { pct } from "../lib/format";
+import { exportarCsv } from "../lib/csv";
 
 // Métricas de desempenho por consultor — clone do relatório "Métricas de
 // desempenho" do C2S (docs/C2S-SCAN.md §Relatórios), calculado no cliente a
@@ -134,6 +135,39 @@ export function Desempenho() {
 
   const melhorId = linhas.find((l) => l.tempoMedioMin != null)?.id ?? null;
 
+  function exportar() {
+    const linhasComDados = linhas.filter((l) => l.recebidos > 0);
+    if (!linhasComDados.length) return;
+    const dados = linhasComDados.map((l) => ({
+      nome: l.nome,
+      papel: l.role === "admin" ? "Administrador" : l.role === "gestor" ? "Gestor" : "Vendedor",
+      recebidos: l.recebidos,
+      atendidos: l.atendidos,
+      pctAtendido: pct(l.pctAtendido, 0),
+      tempoMedio: l.tempoMedioMin != null ? formatarTempo(l.tempoMedioMin) : "—",
+      maisRapido: l.maisRapidoMin != null ? formatarTempo(l.maisRapidoMin) : "—",
+      maisLento: l.maisLentoMin != null ? formatarTempo(l.maisLentoMin) : "—",
+      fechados: l.fechados,
+      arquivados: l.arquivados,
+    }));
+    exportarCsv(
+      `desempenho-${periodo}d-${new Date().toISOString().slice(0, 10)}`,
+      [
+        { chave: "nome", rotulo: "Consultor" },
+        { chave: "papel", rotulo: "Papel" },
+        { chave: "recebidos", rotulo: "Recebidos" },
+        { chave: "atendidos", rotulo: "Atendidos" },
+        { chave: "pctAtendido", rotulo: "% Atendido" },
+        { chave: "tempoMedio", rotulo: "Tempo Médio" },
+        { chave: "maisRapido", rotulo: "Mais Rápido" },
+        { chave: "maisLento", rotulo: "Mais Lento" },
+        { chave: "fechados", rotulo: "Fechados" },
+        { chave: "arquivados", rotulo: "Arquivados" },
+      ],
+      dados
+    );
+  }
+
   const kpis = useMemo(() => {
     const total = leadsFiltrados.length;
     const atendidos = leadsFiltrados.filter((l) => l.primeiro_contato_em).length;
@@ -171,6 +205,9 @@ export function Desempenho() {
                 </button>
               ))}
             </div>
+            <Button variant="outline" icon={Download} onClick={exportar} disabled={!linhas.some((l) => l.recebidos > 0)}>
+              Exportar CSV
+            </Button>
           </div>
         }
       />
