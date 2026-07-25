@@ -24,6 +24,33 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
     const em7d = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const hoje = new Date().toISOString().slice(0, 10);
 
+    // Sinistros triados pelo Kubinho — prioridade MÁXIMA, sempre no TOPO da
+    // lista (na frente de SLA/renovações). Só existe no módulo seguros.
+    // Tabela nova/opcional (supabase/sinistros-triagem.sql) — se ainda não
+    // rodou, segue em silêncio (igual à escada de sem-atendimento).
+    if (seguros) {
+      try {
+        const { data: sinistrosData } = await supabase
+          .from("sinistros_chamados")
+          .select("id,nome,tipo,resumo,created_at")
+          .eq("status", "novo")
+          .order("created_at", { ascending: false })
+          .limit(10);
+        for (const s of (sinistrosData as { id: string; nome: string; tipo: string | null; resumo: string | null; created_at: string }[]) ?? []) {
+          const min = Math.max(0, Math.floor((Date.now() - new Date(s.created_at).getTime()) / 60000));
+          avisos.push({
+            id: `sinistro-${s.id}`,
+            tone: "red",
+            titulo: `SINISTRO: ${s.nome} — ${s.tipo || "sem tipo"}`,
+            detalhe: `${s.resumo || "Sem resumo"} · recebido há ${minutosLabel(min)}`,
+            to: "/seguros/sinistros",
+          });
+        }
+      } catch (e) {
+        console.error("[avisos] sinistros:", e);
+      }
+    }
+
     // Leads DO módulo atual (seguros inclui os legados com modulo nulo). `modulo` é
     // literal ('seguros'|'consorcios'), não entrada do usuário → .or() seguro.
     let leadsQ = supabase.from("leads")

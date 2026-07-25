@@ -28,6 +28,7 @@ import { Filas } from "./pages/config/Filas";
 import { ConfigHub } from "./pages/config/ConfigHub";
 import { LeadDetalhe } from "./pages/LeadDetalhe";
 import { MeusLeads } from "./pages/MeusLeads";
+import { SinistrosChamados } from "./pages/SinistrosChamados";
 import { Desempenho } from "./pages/Desempenho";
 import { Perfil } from "./pages/Perfil";
 // Dashboards usa recharts — lazy igual aos dashboards de módulo
@@ -76,7 +77,7 @@ function Shell() {
         <Route path="/seguros/tarefas" element={<Tarefas modulo="seguros" />} />
         <Route path="/seguros/renovacoes" element={<Renovacoes />} />
         <Route path="/seguros/metas" element={<Metas />} />
-        <Route path="/seguros/sinistros" element={<Sinistros />} />
+        <Route path="/seguros/sinistros" element={<SinistrosChamados />} />
         <Route path="/seguros/auditoria" element={<Auditoria />} />
         <Route path="/seguros/producao" element={<Producao />} />
         <Route path="/seguros/tv" element={<TvSalao />} />
