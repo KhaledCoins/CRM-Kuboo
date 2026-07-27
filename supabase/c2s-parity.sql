@@ -361,3 +361,14 @@ select f.id, p.id from public.filas f
 join public.profiles p on p.role = 'admin' and coalesce(p.aprovado, true)
 where f.is_seguranca
 on conflict do nothing;
+
+-- ─── 15. Hardening (advisor do Supabase) ────────────────────────────────────
+-- search_path fixo nas funções do motor + SECURITY DEFINER fora do PostgREST
+-- (o trigger roda como definer, então revogar EXECUTE não afeta a distribuição
+-- — validado ao vivo: insert anon em leads continua distribuindo normalmente).
+alter function public.lead_aberto(public.leads) set search_path = public;
+alter function public.fila_regras_match(public.leads, jsonb) set search_path = public;
+alter function public.fila_no_horario(jsonb) set search_path = public;
+alter function public.fila_proximo_usuario(public.filas) set search_path = public;
+revoke execute on function public.distribuir_lead(uuid) from anon, authenticated;
+revoke execute on function public.trg_distribuir_lead() from anon, authenticated;

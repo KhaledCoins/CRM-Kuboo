@@ -31,9 +31,16 @@ create index if not exists sinistros_chamados_status_idx on public.sinistros_cha
 alter table public.sinistros_chamados enable row level security;
 
 -- INSERT público (igual leads): o chamado nasce do chat sem login.
+-- Policy RESTRITA: só estado inicial, sem responsável e com origem do chatbot —
+-- anon não consegue criar chamado "concluído" nem forjar origem.
 drop policy if exists sinistros_public_insert on public.sinistros_chamados;
 create policy sinistros_public_insert on public.sinistros_chamados
-  for insert to anon, authenticated with check (true);
+  for insert to anon, authenticated
+  with check (
+    status = 'novo'
+    and responsavel_id is null
+    and origem in ('kubinho', 'kubinho_portal')
+  );
 
 -- Leitura/gestão: só equipe.
 drop policy if exists sinistros_team_select on public.sinistros_chamados;
