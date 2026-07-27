@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Download, Radio, Megaphone, Workflow, CalendarDays, ArchiveX, Percent as PercentIcon, BookmarkPlus, Trash2 } from "lucide-react";
+import { BarChart3, Download, Radio, Megaphone, Workflow, CalendarDays, ArchiveX, Percent as PercentIcon, BookmarkPlus, Trash2, Timer, Trophy, Package } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
-  AreaChart, Area,
+  AreaChart, Area, Line, LineChart,
 } from "recharts";
 import { toast } from "sonner";
 import { Card, PageHeader, EmptyState, Select, Button, Spinner } from "../components/ui";
@@ -37,6 +37,7 @@ interface LeadRow {
   etapa: string | null;
   descartado: boolean | null;
   motivo_descarte: string | null;
+  produto_interesse: string | null;
   score: number | null;
   created_at: string;
   primeiro_contato_em: string | null;
@@ -132,6 +133,45 @@ function pctSemanalData(leads: LeadRow[], dias: number): { label: string; pct: n
     if (l.primeiro_contato_em) semanas[idx].atendidos += 1;
   }
   return semanas.map((s) => ({ label: s.label, total: s.total, pct: s.total ? (s.atendidos / s.total) * 100 : 0 }));
+}
+
+// Formato humano de duração em minutos (ex.: 90 -> "1h 30min"; 45 -> "45min").
+function fmtMinutos(min: number): string {
+  const total = Math.max(0, Math.round(min));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+}
+
+// Tempo médio de 1ª resposta por dia (minutos entre created_at e
+// primeiro_contato_em) — só considera leads com os dois carimbos e diferença
+// não-negativa; dias sem nenhum lead atendido ficam com minutos: null (o
+// gráfico abre um vão e o tooltip mostra "—", igual pediu o requisito).
+function tempoRespostaPorDiaData(leads: LeadRow[], dias: number): { dia: string; minutos: number | null }[] {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const map = new Map<string, { soma: number; n: number }>();
+  for (let i = dias - 1; i >= 0; i--) {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - i);
+    map.set(d.toISOString().slice(0, 10), { soma: 0, n: 0 });
+  }
+  for (const l of leads) {
+    if (!l.primeiro_contato_em) continue;
+    const key = (l.created_at || "").slice(0, 10);
+    const entry = map.get(key);
+    if (!entry) continue;
+    const diffMin = (new Date(l.primeiro_contato_em).getTime() - new Date(l.created_at).getTime()) / 60000;
+    if (!isFinite(diffMin) || diffMin < 0) continue;
+    entry.soma += diffMin;
+    entry.n += 1;
+  }
+  return Array.from(map.entries()).map(([key, { soma, n }]) => {
+    const [, m, d] = key.split("-");
+    return { dia: `${d}/${m}`, minutos: n > 0 ? soma / n : null };
+  });
 }
 
 // Análise salva = snapshot dos filtros do dashboard (paridade com os
@@ -237,7 +277,7 @@ export function Dashboards() {
   // então caímos pras colunas base e mostramos o aviso (os gráficos por
   // fonte/campanha/motivo ficam com fallback "Sem ...", o resto funciona).
   const COLS_BASE = "id,nome,origem,modulo,etapa,descartado,score,created_at,primeiro_contato_em";
-  const COLS_FULL = "id,nome,origem,fonte,canal,campanha,modulo,etapa,descartado,motivo_descarte,score,created_at,primeiro_contato_em";
+  const COLS_FULL = "id,nome,origem,fonte,canal,campanha,modulo,etapa,descartado,motivo_descarte,produto_interesse,score,created_at,primeiro_contato_em";
 
   // guarda de corrida: trocar o período rápido não pode deixar uma resposta
   // antiga sobrescrever a mais recente (mesmo padrão do Desempenho.tsx).
@@ -268,7 +308,7 @@ export function Dashboards() {
       if (erro) console.error("[dashboards]", erro);
       // as colunas novas podem faltar no fallback — normaliza pra LeadRow completo
       setLeads((data ?? []).map((r) => ({
-        fonte: null, canal: null, campanha: null, motivo_descarte: null, ...r,
+        fonte: null, canal: null, campanha: null, motivo_descarte: null, produto_interesse: null, ...r,
       })) as LeadRow[]);
       setAvisoParity(parity);
       if (active && req === loadReq.current) setLoading(false);
@@ -292,6 +332,18 @@ export function Dashboards() {
   const arquivados = useMemo(() => leadsFiltrados.filter((l) => l.descartado), [leadsFiltrados]);
   const porMotivo = useMemo(() => groupTopN(arquivados.map((l) => l.motivo_descarte), "Sem motivo"), [arquivados]);
   const porSemana = useMemo(() => pctSemanalData(leadsFiltrados, periodo), [leadsFiltrados, periodo]);
+  const porTempoResposta = useMemo(() => tempoRespostaPorDiaData(leadsFiltrados, periodo), [leadsFiltrados, periodo]);
+  const respostas = useMemo(
+    () => leadsFiltrados.filter((l) => {
+      if (!l.primeiro_contato_em) return false;
+      const diff = new Date(l.primeiro_contato_em).getTime() - new Date(l.created_at).getTime();
+      return isFinite(diff) && diff >= 0;
+    }),
+    [leadsFiltrados]
+  );
+  const ganhos = useMemo(() => leadsFiltrados.filter((l) => l.etapa === "ganho"), [leadsFiltrados]);
+  const ganhosPorFonte = useMemo(() => groupTopN(ganhos.map((l) => l.fonte || l.origem), "Sem fonte"), [ganhos]);
+  const ganhosPorProduto = useMemo(() => groupTopN(ganhos.map((l) => l.produto_interesse), "Sem produto"), [ganhos]);
 
   function exportar() {
     if (!leadsFiltrados.length) return;
@@ -476,6 +528,42 @@ export function Dashboards() {
                 <YAxis tick={axisTick} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} width={40} />
                 <Tooltip formatter={(v: number) => pct(v, 0)} />
                 <Bar dataKey="pct" fill="#22C55E" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard icon={Timer} titulo="Tempo médio de 1ª resposta" total={respostas.length} vazio={respostas.length === 0} hintVazio="Nenhum lead com 1º contato registrado neste período.">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={porTempoResposta} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
+                <XAxis dataKey="dia" tick={axisTick} axisLine={false} tickLine={false} interval={periodo > 30 ? Math.ceil(periodo / 15) : 0} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} width={30} tickFormatter={(v) => `${v}min`} />
+                <Tooltip formatter={(v) => (v == null ? "—" : fmtMinutos(Number(v)))} labelFormatter={(l) => `Dia ${l}`} />
+                <Line type="monotone" dataKey="minutos" stroke={BRAND} strokeWidth={2.5} dot={{ r: 2 }} connectNulls={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard icon={Trophy} titulo="Negócios Ganhos por Fonte" total={ganhos.length} vazio={ganhosPorFonte.length === 0} hintVazio="Nenhum negócio ganho neste período.">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ganhosPorFonte} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
+                <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" tick={axisTick} axisLine={false} tickLine={false} width={140} />
+                <Tooltip />
+                <Bar dataKey="total" fill="#22C55E" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard icon={Package} titulo="Negócios Ganhos por Produto" total={ganhos.length} vazio={ganhosPorProduto.length === 0} hintVazio="Nenhum negócio ganho neste período.">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ganhosPorProduto} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
+                <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" tick={axisTick} axisLine={false} tickLine={false} width={140} />
+                <Tooltip />
+                <Bar dataKey="total" fill="#22C55E" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
