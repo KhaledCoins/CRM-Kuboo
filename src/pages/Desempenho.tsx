@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Gauge, Users, CheckCircle2, Clock, AlertTriangle, Zap, Download } from "lucide-react";
 import { PageHeader, Card, KpiCard, Spinner, EmptyState, Select, Badge, Button } from "../components/ui";
 import { supabase } from "../lib/supabase";
-import { listarEquipe } from "../lib/c2s";
+import { useAuth, type Role, type TeamUser } from "../context/AuthContext";
+import { can } from "../lib/permissoes";
 import { pct } from "../lib/format";
 import { exportarCsv } from "../lib/csv";
 
@@ -27,7 +28,10 @@ interface LeadRow {
   created_at: string;
   primeiro_contato_em: string | null;
 }
-interface Equipe { id: string; name: string; role: string | null }
+interface Equipe { id: string; name: string; role: string | null; permissoes?: Record<string, boolean> | null }
+
+// visível como TeamUser só o suficiente pra can() avaliar visivel_relatorios
+const comoTeamUser = (u: Equipe): TeamUser => ({ id: u.id, email: "", name: u.name, role: (u.role as Role) ?? "vendedor", permissoes: u.permissoes });
 
 interface LinhaConsultor {
   id: string;
@@ -56,6 +60,8 @@ function formatarTempo(min: number): string {
 const moduloDeLead = (l: LeadRow): "seguros" | "consorcios" => (l.modulo === "consorcios" ? "consorcios" : "seguros");
 
 export function Desempenho() {
+  const { user } = useAuth();
+  const podeExtrair = can(user, "extrair_relatorios");
   const [periodo, setPeriodo] = useState<PeriodoDias>(30);
   const [moduloFiltro, setModuloFiltro] = useState<"" | "seguros" | "consorcios">("");
   const [leads, setLeads] = useState<LeadRow[]>([]);
@@ -78,11 +84,15 @@ export function Desempenho() {
             .select("id,nome,vendedor_id,modulo,etapa,descartado,created_at,primeiro_contato_em")
             .gte("created_at", desde)
             .limit(5000),
-          listarEquipe(),
+          supabase.from("profiles").select("id,name,role,permissoes")
+            .in("role", ["vendedor", "gestor", "admin"]).order("name"),
         ]);
         if (!active || req !== loadReq.current) return;
         setLeads((leadsR.data as LeadRow[]) ?? []);
-        setEquipe(equipeR);
+        // "Visível nos relatórios" (paridade C2S): consultor com a permissão
+        // desligada some das linhas do relatório, mesmo que tenha leads.
+        const todaEquipe = (equipeR.data as Equipe[]) ?? [];
+        setEquipe(todaEquipe.filter((u) => can(comoTeamUser(u), "visivel_relatorios")));
       } catch (e) {
         console.error("[desempenho]", e);
       } finally {
@@ -136,6 +146,7 @@ export function Desempenho() {
   const melhorId = linhas.find((l) => l.tempoMedioMin != null)?.id ?? null;
 
   function exportar() {
+    if (!podeExtrair) return;
     const linhasComDados = linhas.filter((l) => l.recebidos > 0);
     if (!linhasComDados.length) return;
     const dados = linhasComDados.map((l) => ({
@@ -205,9 +216,11 @@ export function Desempenho() {
                 </button>
               ))}
             </div>
-            <Button variant="outline" icon={Download} onClick={exportar} disabled={!linhas.some((l) => l.recebidos > 0)}>
-              Exportar CSV
-            </Button>
+            {podeExtrair && (
+              <Button variant="outline" icon={Download} onClick={exportar} disabled={!linhas.some((l) => l.recebidos > 0)}>
+                Exportar CSV
+              </Button>
+            )}
           </div>
         }
       />

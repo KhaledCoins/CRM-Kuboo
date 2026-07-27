@@ -36,7 +36,7 @@ export function Layout() {
       try {
         const [leads, avs] = await Promise.all([fetchLeads(), fetchAvisos(modulo)]);
         if (!active) return;
-        setBolsaoCount(leads.filter((l) => moduloDe(l) === modulo && noBolsao(l)).length);
+        setBolsaoCount(leads.filter((l) => moduloDe(l) === modulo && noBolsao(l) && !l.descartado).length);
         setAvisos(avs);
       } catch (e) {
         // falha de rede não pode travar o chrome global (sino/bolsão) — só loga

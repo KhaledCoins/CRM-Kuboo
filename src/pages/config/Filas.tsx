@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Shuffle, Plus, Pencil, Trash2, ChevronUp, ChevronDown, ShieldCheck, Users, Clock, X, Info, AlertTriangle, Power } from "lucide-react";
+import { Shuffle, Plus, Pencil, Trash2, ChevronUp, ChevronDown, ShieldCheck, Users, Clock, X, Info, AlertTriangle, Power, Shield, History, Lock } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, Card, Button, Badge, EmptyState, Spinner } from "../../components/ui";
+import { PageHeader, Card, Button, Badge, EmptyState, Spinner, Table, Th, Td, Tr, Select } from "../../components/ui";
 import { ModalShell } from "../../components/ModalShell";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../context/AuthContext";
+import { can } from "../../lib/permissoes";
 import {
   atualizar, excluir, listarFilas, listarEquipe, listarTodosFilaUsuarios, salvarFila, sincronizarFilaUsuarios, trocarOrdemFilas,
   regrasResumoFila, horarioResumo, horaVazia, horarioPadrao, CAMPO_OPCOES, OP_ROTULOS, opsPermitidas, DIAS_SEMANA,
-  type Fila, type FilaUsuario, type RegraFila, type HorarioSemana, type HorarioDia,
+  type Fila, type FilaUsuario, type RegraFila, type HorarioSemana, type HorarioDia, type DistribuicaoLog,
 } from "../../lib/c2s";
 
 // Clone do C2S /distribution_lines (ver docs/C2S-SCAN.md §Distribuição).
@@ -25,6 +28,15 @@ function AvisoMigracao() {
   );
 }
 
+function AvisoSomenteLeitura() {
+  return (
+    <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-muted flex items-start gap-2">
+      <Lock size={16} className="mt-0.5 shrink-0" />
+      <span>Você não tem permissão para editar filas — modo somente leitura. Fale com um gestor ou administrador.</span>
+    </div>
+  );
+}
+
 function ToggleRow({ label, checked, onChange, hint }: { label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
   return (
     <label className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 cursor-pointer">
@@ -38,6 +50,8 @@ function ToggleRow({ label, checked, onChange, hint }: { label: string; checked:
 }
 
 export function Filas() {
+  const { user, isManager } = useAuth();
+  const podeEditar = can(user, "editar_filas");
   const [filas, setFilas] = useState<Fila[]>([]);
   const [equipe, setEquipe] = useState<EquipeMembro[]>([]);
   const [filaUsuarios, setFilaUsuarios] = useState<FilaUsuario[]>([]);
@@ -45,6 +59,8 @@ export function Filas() {
   const [erroMigracao, setErroMigracao] = useState(false);
   const [editando, setEditando] = useState<Fila | "novo" | null>(null);
   const [movendo, setMovendo] = useState<string | null>(null);
+  const [redistribuindo, setRedistribuindo] = useState(false);
+  const [mostrarAuditoria, setMostrarAuditoria] = useState(false);
 
   async function carregar() {
     setLoading(true);
@@ -83,10 +99,22 @@ export function Filas() {
   }
 
   async function excluirFila(fila: Fila) {
+    if (!podeEditar) return;
     if (!window.confirm(`Excluir a fila "${fila.nome}"? Esta ação não pode ser desfeita.`)) return;
     const ok = await excluir("filas", fila.id);
     if (ok) { toast.success("Fila excluída."); setFilas((p) => p.filter((f) => f.id !== fila.id)); }
     else toast.error("Não foi possível excluir a fila.");
+  }
+
+  async function redistribuirBolsao() {
+    if (!supabase) return;
+    if (!window.confirm("Redistribuir o bolsão agora? Todos os leads sem dono passarão pelo motor de filas nesse instante, pela ordem de prioridade acima.")) return;
+    setRedistribuindo(true);
+    const { data, error } = await supabase.rpc("redistribuir_bolsao");
+    setRedistribuindo(false);
+    if (error) { toast.error("Não foi possível redistribuir o bolsão."); return; }
+    const n = typeof data === "number" ? data : Number(data) || 0;
+    toast.success(n > 0 ? `${n} lead${n !== 1 ? "s" : ""} redistribuído${n !== 1 ? "s" : ""}.` : "Nenhum lead sem dono para redistribuir.");
   }
 
   return (
@@ -95,10 +123,21 @@ export function Filas() {
         title="Distribuição de Leads"
         subtitle="Filas ordenadas por prioridade — regras, memória, rodízio e fila de segurança"
         icon={Shuffle}
-        actions={<Button icon={Plus} onClick={() => setEditando("novo")} disabled={erroMigracao}>Adicionar fila</Button>}
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" icon={History} onClick={() => setMostrarAuditoria(true)}>Auditoria</Button>
+            {isManager && (
+              <Button variant="outline" icon={Shield} onClick={redistribuirBolsao} disabled={redistribuindo}>
+                {redistribuindo ? "Redistribuindo..." : "Redistribuir bolsão"}
+              </Button>
+            )}
+            {podeEditar && <Button icon={Plus} onClick={() => setEditando("novo")} disabled={erroMigracao}>Adicionar fila</Button>}
+          </div>
+        }
       />
 
       {erroMigracao && <AvisoMigracao />}
+      {!erroMigracao && !podeEditar && <AvisoSomenteLeitura />}
 
       {!erroMigracao && (
         loading ? (
@@ -106,7 +145,7 @@ export function Filas() {
         ) : ordenadas.length === 0 ? (
           <Card>
             <EmptyState icon={Shuffle} title="Nenhuma fila cadastrada" hint="Crie a primeira fila de distribuição para começar a rotear leads automaticamente."
-              action={<Button icon={Plus} onClick={() => setEditando("novo")}>Adicionar fila</Button>} />
+              action={podeEditar ? <Button icon={Plus} onClick={() => setEditando("novo")}>Adicionar fila</Button> : undefined} />
           </Card>
         ) : (
           <div className="space-y-3">
@@ -116,17 +155,22 @@ export function Filas() {
                 <Card key={f.id} className={!f.ativa ? "opacity-60" : ""}>
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
-                        <button disabled={i === 0 || movendo === f.id} onClick={() => mover(f, -1)} title="Subir prioridade" aria-label={`Subir prioridade de ${f.nome}`}
-                          className="p-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 disabled:opacity-30 disabled:cursor-not-allowed">
-                          <ChevronUp size={16} />
-                        </button>
-                        <span className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 grid place-items-center text-xs font-extrabold">{i + 1}</span>
-                        <button disabled={i === ordenadas.length - 1 || movendo === f.id} onClick={() => mover(f, 1)} title="Descer prioridade" aria-label={`Descer prioridade de ${f.nome}`}
-                          className="p-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 disabled:opacity-30 disabled:cursor-not-allowed">
-                          <ChevronDown size={16} />
-                        </button>
-                      </div>
+                      {podeEditar && (
+                        <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
+                          <button disabled={i === 0 || movendo === f.id} onClick={() => mover(f, -1)} title="Subir prioridade" aria-label={`Subir prioridade de ${f.nome}`}
+                            className="p-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                            <ChevronUp size={16} />
+                          </button>
+                          <span className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 grid place-items-center text-xs font-extrabold">{i + 1}</span>
+                          <button disabled={i === ordenadas.length - 1 || movendo === f.id} onClick={() => mover(f, 1)} title="Descer prioridade" aria-label={`Descer prioridade de ${f.nome}`}
+                            className="p-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                            <ChevronDown size={16} />
+                          </button>
+                        </div>
+                      )}
+                      {!podeEditar && (
+                        <span className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 grid place-items-center text-xs font-extrabold shrink-0 mt-0.5">{i + 1}</span>
+                      )}
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-extrabold text-ink">{f.nome}</p>
@@ -143,11 +187,13 @@ export function Filas() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={() => setEditando(f)} title="Editar" aria-label={`Editar ${f.nome}`} className="p-2 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Pencil size={16} /></button>
-                      <button onClick={() => alternarAtiva(f)} title={f.ativa ? "Desativar" : "Ativar"} aria-label={f.ativa ? `Desativar ${f.nome}` : `Ativar ${f.nome}`} className="p-2 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Power size={16} /></button>
-                      <button onClick={() => excluirFila(f)} title="Excluir" aria-label={`Excluir ${f.nome}`} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>
-                    </div>
+                    {podeEditar && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => setEditando(f)} title="Editar" aria-label={`Editar ${f.nome}`} className="p-2 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Pencil size={16} /></button>
+                        <button onClick={() => alternarAtiva(f)} title={f.ativa ? "Desativar" : "Ativar"} aria-label={f.ativa ? `Desativar ${f.nome}` : `Ativar ${f.nome}`} className="p-2 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"><Power size={16} /></button>
+                        <button onClick={() => excluirFila(f)} title="Excluir" aria-label={`Excluir ${f.nome}`} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>
+                      </div>
+                    )}
                   </div>
                 </Card>
               );
@@ -177,7 +223,95 @@ export function Filas() {
           onSaved={() => { setEditando(null); carregar(); }}
         />
       )}
+
+      {mostrarAuditoria && (
+        <ModalAuditoria filas={filas} onClose={() => setMostrarAuditoria(false)} />
+      )}
     </>
+  );
+}
+
+// ─── Auditoria da distribuição ("distribuicao_log") ─────────────────────────
+interface LogEnriquecido extends DistribuicaoLog { leadNome: string; userNome: string; filaNome: string }
+
+function ModalAuditoria({ filas, onClose }: { filas: Fila[]; onClose: () => void }) {
+  const [logs, setLogs] = useState<LogEnriquecido[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [filtroFila, setFiltroFila] = useState("");
+
+  async function carregar(filaId: string) {
+    if (!supabase) { setCarregando(false); return; }
+    setCarregando(true);
+    let query = supabase.from("distribuicao_log").select("*").order("created_at", { ascending: false }).limit(50);
+    if (filaId) query = query.eq("fila_id", filaId);
+    const { data, error } = await query;
+    if (error || !data) { setLogs([]); setCarregando(false); return; }
+    const linhas = data as DistribuicaoLog[];
+
+    const leadIds = Array.from(new Set(linhas.map((l) => l.lead_id).filter(Boolean)));
+    const userIds = Array.from(new Set(linhas.map((l) => l.user_id).filter(Boolean))) as string[];
+    const [leadsR, perfisR] = await Promise.all([
+      leadIds.length ? supabase.from("leads").select("id,nome").in("id", leadIds) : Promise.resolve({ data: [] as any[] }),
+      userIds.length ? supabase.from("profiles").select("id,name").in("id", userIds) : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const nomesLead: Record<string, string> = {};
+    (leadsR.data ?? []).forEach((l: any) => { nomesLead[l.id] = l.nome; });
+    const nomesUser: Record<string, string> = {};
+    (perfisR.data ?? []).forEach((p: any) => { nomesUser[p.id] = p.name; });
+    const nomesFila: Record<string, string> = {};
+    filas.forEach((f) => { nomesFila[f.id] = f.nome; });
+
+    setLogs(linhas.map((l) => ({
+      ...l,
+      leadNome: nomesLead[l.lead_id] ?? "—",
+      userNome: l.user_id ? (nomesUser[l.user_id] ?? "—") : "—",
+      filaNome: l.fila_id ? (nomesFila[l.fila_id] ?? "—") : "—",
+    })));
+    setCarregando(false);
+  }
+
+  useEffect(() => { carregar(filtroFila); }, [filtroFila]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <ModalShell onClose={onClose} label="Auditoria da distribuição" className="bg-white rounded-2xl shadow-2xl w-[min(880px,94vw)] max-h-[90vh] overflow-y-auto">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+        <div className="flex items-center gap-2.5">
+          <span className="w-9 h-9 rounded-xl bg-brand-50 text-brand-500 grid place-items-center shrink-0"><History size={18} /></span>
+          <div>
+            <h3 className="font-extrabold text-ink text-lg">Auditoria</h3>
+            <p className="text-xs text-muted">Últimas 50 distribuições registradas no motor de filas</p>
+          </div>
+        </div>
+        <button onClick={onClose} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
+      </div>
+
+      <div className="p-6 space-y-4">
+        <Select
+          value={filtroFila}
+          onChange={setFiltroFila}
+          placeholder="Todas as filas"
+          options={filas.map((f) => ({ value: f.id, label: f.nome }))}
+        />
+
+        {carregando ? (
+          <Spinner label="Carregando auditoria..." />
+        ) : logs.length === 0 ? (
+          <EmptyState icon={History} title="Nenhum registro de distribuição" hint="Assim que o motor de filas atribuir leads, os registros aparecem aqui." />
+        ) : (
+          <Table head={<><Th>Quando</Th><Th>Lead</Th><Th>Fila</Th><Th>Usuário</Th><Th>Motivo</Th></>}>
+            {logs.map((l) => (
+              <Tr key={l.id}>
+                <Td>{new Date(l.created_at).toLocaleString("pt-BR")}</Td>
+                <Td>{l.leadNome}</Td>
+                <Td>{l.filaNome}</Td>
+                <Td>{l.userNome}</Td>
+                <Td>{l.motivo}</Td>
+              </Tr>
+            ))}
+          </Table>
+        )}
+      </div>
+    </ModalShell>
   );
 }
 

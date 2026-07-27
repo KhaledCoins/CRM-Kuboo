@@ -8,6 +8,7 @@ import { PageHeader, Button, Card, Table, Th, Td, Tr, Badge, EmptyState, Spinner
 import { ModalShell } from "../../components/ModalShell";
 import { supabase } from "../../lib/supabase";
 import { useAuth, type Role } from "../../context/AuthContext";
+import { can } from "../../lib/permissoes";
 import { dateBR, initials } from "../../lib/format";
 import { exportarCsv } from "../../lib/csv";
 
@@ -80,6 +81,8 @@ function PermToggle({ label, value, onChange, disabled }: { label: string; value
 
 export function Usuarios() {
   const { user, isManager } = useAuth();
+  const podeEditarUsuarios = can(user, "editar_usuarios");
+  const podeExtrair = can(user, "extrair_relatorios");
   const [rows, setRows] = useState<TeamRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [colunasFaltando, setColunasFaltando] = useState(false);
@@ -120,7 +123,7 @@ export function Usuarios() {
   useEffect(() => { carregar(); }, []);
 
   function exportar() {
-    if (!rows.length) return;
+    if (!podeExtrair || !rows.length) return;
     const dados = rows.map((u) => ({
       nome: u.name,
       email: u.email || "",
@@ -142,6 +145,7 @@ export function Usuarios() {
   }
 
   async function reativar(u: TeamRow) {
+    if (!podeEditarUsuarios) return;
     try {
       const token = await tokenSessao();
       const r = await fetch("/api/atualizar-equipe", {
@@ -166,8 +170,8 @@ export function Usuarios() {
         icon={UserCog}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" icon={Download} onClick={exportar} disabled={!rows.length}>Exportar CSV</Button>
-            <Button icon={UserPlus} onClick={() => setNovoAberto(true)}>Novo Usuário</Button>
+            {podeExtrair && <Button variant="outline" icon={Download} onClick={exportar} disabled={!rows.length}>Exportar CSV</Button>}
+            {podeEditarUsuarios && <Button icon={UserPlus} onClick={() => setNovoAberto(true)}>Novo Usuário</Button>}
           </div>
         }
       />
@@ -203,7 +207,9 @@ export function Usuarios() {
                   <Td>{dateBR(u.created_at)}</Td>
                   <Td right>
                     <div className="flex items-center justify-end gap-1.5">
-                      {u.aprovado === false ? (
+                      {!podeEditarUsuarios ? (
+                        <span className="text-xs text-muted">—</span>
+                      ) : u.aprovado === false ? (
                         <button onClick={() => reativar(u)} title="Reativar" aria-label={`Reativar ${u.name}`}
                           className="p-2 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50"><Power size={16} /></button>
                       ) : (
@@ -228,11 +234,20 @@ export function Usuarios() {
         </Card>
       )}
 
-      {novoAberto && (
+      {isManager && !podeEditarUsuarios && (
+        <Card className="mt-5">
+          <div className="flex items-start gap-2.5">
+            <span className="w-8 h-8 rounded-lg bg-brand-50 text-brand-500 grid place-items-center shrink-0"><Info size={16} /></span>
+            <p className="text-xs text-muted">Você não tem permissão para criar, editar ou desativar usuários — modo somente leitura.</p>
+          </div>
+        </Card>
+      )}
+
+      {novoAberto && podeEditarUsuarios && (
         <NovoUsuarioModal onFechar={() => setNovoAberto(false)} onCriado={carregar} />
       )}
 
-      {editando && (
+      {editando && podeEditarUsuarios && (
         <EditarUsuarioModal
           usuario={editando}
           colunasFaltando={colunasFaltando}

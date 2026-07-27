@@ -249,6 +249,10 @@ export function ImportarLeads({ modulo: moduloRota }: { modulo: Modulo }) {
       origem: "formulario",
       status: "novo",
       vendedor_id: l.vendedorId ?? (fallback === "fixo" ? (fallbackUserId || null) : null),
+      // etapa "perdido" sem descartado é um formato que nenhuma tela trata
+      // (Bolsão/Pipeline/Dashboards esperam soft-delete via `descartado`) —
+      // marca junto pra já nascer consistente.
+      descartado: l.etapa === "perdido",
     });
 
     let importados = 0;

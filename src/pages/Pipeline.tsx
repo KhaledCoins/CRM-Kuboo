@@ -267,8 +267,9 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
 
   useEffect(() => { (async () => { setLeads(await fetchLeads()); setLoading(false); })(); }, []);
 
-  // Pipeline = leads COM dono e fora do bolsão (em atendimento)
-  const ativos = useMemo(() => leads.filter((l) => moduloDe(l) === modulo && !noBolsao(l)), [leads, modulo]);
+  // Pipeline = leads COM dono e fora do bolsão (em atendimento), exceto os descartados
+  // (lead arquivado não pode ficar preso pra sempre numa coluna do kanban)
+  const ativos = useMemo(() => leads.filter((l) => moduloDe(l) === modulo && !noBolsao(l) && !l.descartado), [leads, modulo]);
   const visiveis = useMemo(
     () => (escopo === "meus" && user ? ativos.filter((l) => l.vendedor_id === user.id) : ativos),
     [ativos, escopo, user]

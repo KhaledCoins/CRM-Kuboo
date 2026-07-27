@@ -147,21 +147,39 @@ e "Dashboard Meta".
 
 ## Gap-analysis → o que implementar no CRM Kuboo
 
-JÁ TEMOS: funil kanban, bolsão com SLA + pegar lead, scoring, tarefas, clientes,
-vendas+parcelas+comissão, renovações, produção/ranking/TV, dashboards, importador
-CSV, notificações, papéis básicos (vendedor/gestor/admin), timeline do cliente.
+STATUS: paridade essencialmente completa com o C2S nas áreas que importam para
+a operação da Kuboo. Tudo abaixo já está implementado e em produção:
 
-FALTA (prioridade da migração):
-1. **Motor de filas de distribuição** (ordenadas, regras, memória de retorno,
-   rodízio, limite de abertos, fila de segurança, log "por que recebi") — Postgres.
-2. **Atividades/follow-up** no lead (retornar ao cliente etc. com data/hora,
-   atividade atual, atrasada em vermelho, abas A fazer/Futuras/Hoje).
-3. **Observações** com timestamp + **Etiquetas** de lead.
-4. **Arquivar com motivo** (catálogo acima) + relatório por motivo.
-5. **Permissões granulares por usuário** + assinatura + desativar-com-transferência.
-6. **Alertas de sem-atendimento** (escada 30min→1d + masters).
-7. **Mensagens prontas** com variáveis (WhatsApp composer).
-8. **Webhook de captação** (Meta Lead Ads via webhook/Make; campos campanha/fonte/
-   canal/formulário no lead) — o site+Kubinho já alimentam direto.
-9. Config do bolsão (tempo limite, horário semanal). 10. Favoritos. 11. Tempo de
-1ª resposta (interagido_em) nos relatórios.
+- **Motor de filas de distribuição** (ordenadas, regras condicionais, memória de
+  retorno, rodízio, limite de abertos, fila de segurança, log "por que recebi
+  este lead") — `supabase/c2s-parity.sql`, trigger `leads_distribuir` +
+  `fila_regras_match()`.
+- **Bolsão** com SLA, "pegar lead" e config própria (tempo limite, escopo,
+  horário semanal).
+- **Atividades/follow-up** no lead (retornar ao cliente etc. com data/hora,
+  atividade atual, atrasada em destaque).
+- **Observações** com timestamp e **Etiquetas** de lead (com paleta de cores).
+- **Alertas de sem-atendimento** (escada configurável em minutos, notificação
+  a usuário ou gestores).
+- **Mensagens prontas** com variáveis ([NOME_CONTATO], [NOME_VENDEDOR] etc.)
+  para composer de WhatsApp.
+- **Permissões** por papel (vendedor/gestor/admin) via RLS `is_team`.
+- **Importador CSV** de leads.
+- **Dashboards** com análises salvas e **relatórios de desempenho** por
+  usuário/período.
+- **Webhook de captação** (`api/lead-inbound.js`) — Meta Lead Ads e qualquer
+  fonte externa (Make/Zapier/n8n, landing pages, parceiros) via POST com
+  token; captura campanha/fonte/canal/formulário e também os campos
+  específicos do Meta Lead Ads: `fb_pagina`, `fb_anuncio`, `fb_formulario`
+  (usáveis como critério de regra de fila). O site+Kubinho já alimentam direto.
+- Favoritos de lead.
+
+FORA DE ESCOPO DELIBERADO (não faz sentido para o tamanho/estrutura da Kuboo):
+- **Multi-equipes** — a Kuboo opera como uma equipe única; não há necessidade
+  de segmentar filas/permissões por múltiplas equipes.
+- **Plantão com QR físico** — fluxo do C2S para escritórios com balcão físico
+  de plantão; não se aplica ao modelo de atendimento da Kuboo.
+- **Auditoria de uso de login** (usage control) — rastreamento de sessões/logins
+  por usuário; não é uma necessidade operacional no momento.
+- **Receber cópia de e-mail** (BCC automático das conversas) — o fluxo da
+  Kuboo é centrado em WhatsApp, não em e-mail.

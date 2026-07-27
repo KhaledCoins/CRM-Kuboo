@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { buscarBolsaoConfig, type BolsaoConfig } from "./c2s";
 
 export interface Lead {
   id: string;
@@ -17,6 +18,7 @@ export interface Lead {
   atribuido_em?: string | null;
   sla_expira_em?: string | null;
   primeiro_contato_em?: string | null;
+  interagido_em?: string | null;
   score?: number | null;
   urgencia?: string | null;
   descartado?: boolean | null;
@@ -24,7 +26,31 @@ export interface Lead {
   created_at?: string;
 }
 
-export const SLA_MINUTOS = 15;
+// ─── bolsao_config — cache simples em módulo (TTL curto) ─────────────────────
+// pegarLead() precisa do limite_minutos em quase toda ação; sem cache isso
+// vira 1 SELECT extra por clique. TTL de 60s: rápido o bastante pra refletir
+// mudança de config, barato o bastante pra não martelar o Supabase.
+const BOLSAO_CFG_TTL_MS = 60_000;
+const BOLSAO_CFG_FALLBACK = 20; // mesmo default da coluna bolsao_config.limite_minutos
+let bolsaoCfgCache: { data: BolsaoConfig | null; em: number } | null = null;
+
+/** Config do bolsão (cacheada ~60s) — outras telas podem chamar à vontade. */
+export async function getBolsaoConfig(): Promise<BolsaoConfig | null> {
+  const agora = Date.now();
+  if (bolsaoCfgCache && agora - bolsaoCfgCache.em < BOLSAO_CFG_TTL_MS) return bolsaoCfgCache.data;
+  const { data, erro } = await buscarBolsaoConfig();
+  if (erro) return bolsaoCfgCache?.data ?? null; // falhou: mantém o cache antigo em vez de derrubar quem chamou
+  bolsaoCfgCache = { data, em: agora };
+  return data;
+}
+
+/** Minutos de SLA do 1º contato — mesmo valor que o trigger de distribuição
+ *  usa (bolsao_config.limite_minutos). Fallback 20 min se a config não
+ *  carregar (rede fora, migration não rodada etc.) — nunca trava a UI. */
+export async function limiteSlaMinutos(): Promise<number> {
+  const cfg = await getBolsaoConfig();
+  return cfg?.limite_minutos ?? BOLSAO_CFG_FALLBACK;
+}
 
 // ─── Priorização de leads (best practice: score + tempo de espera) ────────────
 export type Temperatura = "quente" | "morno" | "frio";
@@ -81,7 +107,8 @@ export async function fetchLeads(): Promise<Lead[]> {
 export async function pegarLead(id: string, vendedorId: string): Promise<boolean> {
   if (!supabase) return false;
   const now = new Date().toISOString();
-  const sla = new Date(Date.now() + SLA_MINUTOS * 60000).toISOString();
+  const minutos = await limiteSlaMinutos();
+  const sla = new Date(Date.now() + minutos * 60000).toISOString();
   const { data } = await supabase.from("leads").update({
     vendedor_id: vendedorId,
     atribuido_em: now,
@@ -95,7 +122,10 @@ export async function pegarLead(id: string, vendedorId: string): Promise<boolean
 
 export async function registrarContato(id: string) {
   if (!supabase) return;
-  await supabase.from("leads").update({ primeiro_contato_em: new Date().toISOString() }).eq("id", id);
+  const now = new Date().toISOString();
+  // interagido_em também: a regra de retorno de 16 dias e os alertas de
+  // inatividade dependem desse campo (LeadDetalhe já seta nas ações dele).
+  await supabase.from("leads").update({ primeiro_contato_em: now, interagido_em: now }).eq("id", id);
 }
 
 export async function devolverBolsao(id: string) {
@@ -105,8 +135,9 @@ export async function devolverBolsao(id: string) {
 
 export async function moverEtapa(id: string, etapa: string) {
   if (!supabase) return;
+  // interagido_em junto: mover de coluna é interação — mesma regra do registrarContato.
   // propaga o erro pra quem chama (Pipeline usa try/catch p/ desfazer o card se falhar)
-  const { error } = await supabase.from("leads").update({ etapa }).eq("id", id);
+  const { error } = await supabase.from("leads").update({ etapa, interagido_em: new Date().toISOString() }).eq("id", id);
   if (error) throw error;
 }
 

@@ -5,7 +5,7 @@ import { supabase } from "./supabase";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 export interface RegraFila {
-  campo: "modulo" | "origem" | "fonte" | "canal" | "campanha" | "produto_interesse" | "urgencia" | "etiqueta" | "score" | "valor_potencial";
+  campo: "modulo" | "origem" | "fonte" | "canal" | "campanha" | "produto_interesse" | "urgencia" | "etiqueta" | "score" | "valor_potencial" | "fb_pagina" | "fb_anuncio" | "fb_formulario";
   op: "igual" | "contem" | "maior" | "menor";
   valor: string;
 }
@@ -212,6 +212,9 @@ export const CAMPO_OPCOES: { valor: RegraFila["campo"]; rotulo: string }[] = [
   { valor: "etiqueta", rotulo: "Etiqueta" },
   { valor: "score", rotulo: "Score" },
   { valor: "valor_potencial", rotulo: "Valor potencial" },
+  { valor: "fb_pagina", rotulo: "FB — Página" },
+  { valor: "fb_anuncio", rotulo: "FB — Anúncio" },
+  { valor: "fb_formulario", rotulo: "FB — Formulário" },
 ];
 export const OP_ROTULOS: Record<RegraFila["op"], string> = {
   igual: "É igual a", contem: "Contém", maior: "Maior que", menor: "Menor que",

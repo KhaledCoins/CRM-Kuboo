@@ -10,6 +10,8 @@ export interface TeamUser {
   role: Role;
   nivel?: string | null;
   aprovado?: boolean;
+  // Permissões granulares (paridade C2S) — consumir via can() de lib/permissoes
+  permissoes?: Record<string, boolean> | null;
 }
 
 interface AuthCtx {
@@ -49,10 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let role: string | null = null;
     let nivel: string | null = null;
     let aprovado = true;
+    let permissoes: Record<string, boolean> | null = null;
     try {
       const { data } = await supabase
         .from("profiles")
-        .select("name, role, nivel, aprovado")
+        .select("name, role, nivel, aprovado, permissoes")
         .eq("id", id)
         .single();
       if (data) {
@@ -60,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role = (data as any).role ?? null;
         nivel = (data as any).nivel ?? null;
         if (typeof (data as any).aprovado === "boolean") aprovado = (data as any).aprovado;
+        if ((data as any).permissoes && typeof (data as any).permissoes === "object") permissoes = (data as any).permissoes;
       }
     } catch {
       role = null; // falha na leitura do perfil = sem acesso (nunca assumir papel)
@@ -80,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setUser({ id, email, name, role: role as Role, nivel, aprovado });
+    setUser({ id, email, name, role: role as Role, nivel, aprovado, permissoes });
     setLoading(false);
   }
 

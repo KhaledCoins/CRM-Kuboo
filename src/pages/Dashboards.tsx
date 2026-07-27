@@ -44,20 +44,27 @@ interface LeadRow {
 
 const moduloDeLead = (l: LeadRow): "seguros" | "consorcios" => (l.modulo === "consorcios" ? "consorcios" : "seguros");
 
-type EtapaBucket = "novo" | "em_atendimento" | "proposta" | "ganho" | "arquivado";
+type EtapaBucket = "novo" | "em_atendimento" | "proposta" | "ganho" | "perdido" | "arquivado";
 const ETAPA_BUCKETS: { id: EtapaBucket; label: string; color: string }[] = [
   { id: "novo", label: "Novo / sem etapa", color: "#94A3B8" },
   { id: "em_atendimento", label: "Em atendimento", color: "#36ABE2" },
   { id: "proposta", label: "Proposta", color: "#F5B53D" },
   { id: "ganho", label: "Ganho", color: "#22C55E" },
+  { id: "perdido", label: "Perdido", color: "#F87171" },
   { id: "arquivado", label: "Arquivado", color: "#EF4444" },
 ];
 // Classificação sintética — o schema não tem uma coluna única "status do
-// funil": arquivado = soft-delete do bolsão (descartado); ganho = etapa do
-// kanban; proposta = leads em cotação/negociação; "em atendimento" é
-// definido por primeiro_contato_em (igual o C2S faz, não por um valor fixo
-// de etapa); o resto cai em "novo/sem etapa".
+// funil": arquivado = soft-delete do bolsão (descartado, ex.: spam/duplicado);
+// ganho/perdido = etapas finais do kanban (perdido tem bucket próprio, igual
+// o FunilConversao.tsx trata — é um desfecho do funil, não um descarte);
+// proposta = leads em cotação/negociação; "em atendimento" é definido por
+// primeiro_contato_em (igual o C2S faz, não por um valor fixo de etapa); o
+// resto cai em "novo/sem etapa". Perdido é checado antes de descartado: um
+// lead perdido pode ou não estar com `descartado` marcado (import histórico
+// marca os dois — ver ImportarLeads.tsx), mas o desfecho "perdido" é sempre
+// mais informativo que o genérico "arquivado".
 function etapaBucket(l: LeadRow): EtapaBucket {
+  if (l.etapa === "perdido") return "perdido";
   if (l.descartado) return "arquivado";
   if (l.etapa === "ganho") return "ganho";
   if (l.etapa === "negociacao" || l.etapa === "cotacao" || l.etapa === "proposta") return "proposta";
@@ -277,7 +284,7 @@ export function Dashboards() {
   const porFonte = useMemo(() => groupTopN(leadsFiltrados.map((l) => l.fonte || l.origem), "Sem fonte"), [leadsFiltrados]);
   const porCampanha = useMemo(() => groupTopN(leadsFiltrados.map((l) => l.campanha), "Sem campanha"), [leadsFiltrados]);
   const porEtapa = useMemo(() => {
-    const cont: Record<EtapaBucket, number> = { novo: 0, em_atendimento: 0, proposta: 0, ganho: 0, arquivado: 0 };
+    const cont: Record<EtapaBucket, number> = { novo: 0, em_atendimento: 0, proposta: 0, ganho: 0, perdido: 0, arquivado: 0 };
     for (const l of leadsFiltrados) cont[etapaBucket(l)] += 1;
     return ETAPA_BUCKETS.map((b) => ({ label: b.label, total: cont[b.id], color: b.color }));
   }, [leadsFiltrados]);

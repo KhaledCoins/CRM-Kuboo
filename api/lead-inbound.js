@@ -8,7 +8,15 @@
 // token longo aleatório). Sem o token correto → 401.
 //
 // Body (JSON): { nome*, telefone, email, produto_interesse, mensagem, modulo
-//   ('seguros'|'consorcios'), origem, fonte, canal, campanha, formulario{} , score }
+//   ('seguros'|'consorcios'), origem, fonte, canal, campanha, formulario{},
+//   score, fb_pagina, fb_anuncio, fb_formulario }
+//
+// origem aceita: 'chatbot' | 'formulario' | 'whatsapp' | 'indicacao' |
+//   'portal' | 'manual' | 'webhook' (default deste endpoint quando omitido).
+//
+// fb_pagina / fb_anuncio / fb_formulario: campos do Meta Lead Ads (Facebook/
+// Instagram), aceitos também como page_name / ad_name / form_name — usados
+// pelo motor de filas (fila_regras_match) como critério de regra.
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -55,6 +63,9 @@ export default async function handler(req, res) {
     canal: String(b.canal || "Internet").trim().slice(0, 60),
     campanha: String(b.campanha || "").trim().slice(0, 160) || null,
     formulario: b.formulario && typeof b.formulario === "object" ? b.formulario : null,
+    fb_pagina: String(b.fb_pagina || b.page_name || "").trim().slice(0, 120) || null,
+    fb_anuncio: String(b.fb_anuncio || b.ad_name || "").trim().slice(0, 120) || null,
+    fb_formulario: String(b.fb_formulario || b.form_name || "").trim().slice(0, 120) || null,
     status: "novo",
     score: Number.isFinite(+b.score) ? Math.max(0, Math.min(100, +b.score)) : 60,
   };

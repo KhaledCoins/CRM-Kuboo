@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   MessageCircle, Phone, Mail, Star, ArrowLeftRight, HelpCircle, ArrowLeft,
   CheckCircle2, AlertTriangle, Archive, Trophy, Undo2, Copy, Send, Plus,
-  ChevronDown, ChevronUp, Tag, X, User as UserIcon, Inbox,
+  ChevronDown, ChevronUp, Tag, X, User as UserIcon, Inbox, FileText,
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge, EmptyState, Spinner } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
@@ -178,6 +178,55 @@ function ModalArquivar({ lead, motivos, userId, onClose, onDone }: {
       <div className="flex gap-2 justify-end mt-4">
         <Button variant="ghost" onClick={onClose}>Cancelar</Button>
         <Button variant="danger" onClick={salvar} disabled={salvando || !motivo}>{salvando ? "Arquivando…" : "Arquivar"}</Button>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Modal: Cadastrar proposta (paridade C2S) ────────────────────────────────
+function ModalProposta({ lead, userId, onClose, onDone }: {
+  lead: LeadDetalhado; userId?: string; onClose: () => void; onDone: () => void;
+}) {
+  const [valor, setValor] = useState("");
+  const [obs, setObs] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  async function salvar() {
+    const num = Number(valor.replace(/\./g, "").replace(",", "."));
+    if (!valor.trim() || !Number.isFinite(num) || num <= 0) { toast.error("Informe o valor da proposta."); return; }
+    if (!userId) { toast.error("Sessão expirada — faça login novamente."); return; }
+    setSalvando(true);
+    const agora = new Date().toISOString();
+    const okLead = await atualizar("leads", lead.id, { etapa: "negociacao", valor_potencial: num, interagido_em: agora });
+    if (!okLead) { setSalvando(false); toast.error("Não foi possível cadastrar a proposta."); return; }
+    const valorFmt = num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    await inserir("lead_atividades", {
+      lead_id: lead.id, tipo: "proposta", titulo: `Proposta enviada — ${valorFmt}`,
+      quando: agora, status: "concluida", concluida_em: agora, criado_por: userId,
+    });
+    if (obs.trim()) {
+      await inserir("lead_observacoes", { lead_id: lead.id, texto: obs.trim(), criado_por: userId });
+    }
+    setSalvando(false);
+    toast.success("Proposta cadastrada.");
+    onDone();
+  }
+
+  return (
+    <ModalShell onClose={onClose} label="Cadastrar proposta"
+      backdropClassName="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-ink flex items-center gap-2"><FileText size={18} className="text-brand-500" /> Cadastrar proposta</h3>
+        <button onClick={onClose} aria-label="Fechar" className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+      </div>
+      <label className={lblCls}>Valor da proposta (R$) *</label>
+      <input className={inputCls} inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 1500,00" autoFocus />
+      <label className={`${lblCls} mt-3`}>Observação (opcional)</label>
+      <textarea className={`${inputCls} resize-none`} rows={3} value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Detalhe a proposta, se quiser…" />
+      <div className="flex gap-2 justify-end mt-4">
+        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+        <Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar proposta"}</Button>
       </div>
     </ModalShell>
   );
@@ -413,6 +462,7 @@ export function LeadDetalhe() {
   const [showTransferir, setShowTransferir] = useState(false);
   const [showPorque, setShowPorque] = useState(false);
   const [showArquivar, setShowArquivar] = useState(false);
+  const [showProposta, setShowProposta] = useState(false);
 
   async function carregarTudo(leadId: string, aliveRef: { current: boolean }) {
     if (!supabase) { if (aliveRef.current) setLoading(false); return; }
@@ -656,6 +706,7 @@ export function LeadDetalhe() {
             <h3 className="font-bold text-ink mb-3">Mantenha seu lead atualizado</h3>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" icon={Trophy} onClick={onFecharNegocio}>Marcar negócio fechado</Button>
+              <Button size="sm" variant="outline" icon={FileText} onClick={() => setShowProposta(true)}>Cadastrar proposta</Button>
               <Button size="sm" variant="outline" icon={Archive} onClick={() => setShowArquivar(true)}>Arquivar lead</Button>
               <Button size="sm" variant="outline" icon={Undo2} onClick={onDevolverBolsao}>Devolver ao bolsão</Button>
             </div>
@@ -673,6 +724,9 @@ export function LeadDetalhe() {
       {showPorque && <ModalPorQue leadId={lead.id} onClose={() => setShowPorque(false)} />}
       {showArquivar && (
         <ModalArquivar lead={lead} motivos={motivos} userId={user?.id} onClose={() => setShowArquivar(false)} onDone={() => { setShowArquivar(false); reload(); }} />
+      )}
+      {showProposta && (
+        <ModalProposta lead={lead} userId={user?.id} onClose={() => setShowProposta(false)} onDone={() => { setShowProposta(false); reload(); }} />
       )}
     </>
   );
