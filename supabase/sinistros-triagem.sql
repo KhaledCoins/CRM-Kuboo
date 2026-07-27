@@ -52,3 +52,18 @@ create policy sinistros_team_update on public.sinistros_chamados
 drop policy if exists sinistros_team_delete on public.sinistros_chamados;
 create policy sinistros_team_delete on public.sinistros_chamados
   for delete to authenticated using (public.is_team());
+
+-- Mantém atualizado_em correto em todo UPDATE (assumir, mudar status etc.)
+create or replace function public.trg_sinistros_touch() returns trigger
+language plpgsql security invoker set search_path = public as $$
+begin
+  new.atualizado_em := now();
+  return new;
+end $$;
+drop trigger if exists sinistros_touch on public.sinistros_chamados;
+create trigger sinistros_touch before update on public.sinistros_chamados
+  for each row execute function public.trg_sinistros_touch();
+
+-- Índices de FK (advisor de performance)
+create index if not exists sinistros_chamados_cliente_idx on public.sinistros_chamados (cliente_id);
+create index if not exists sinistros_chamados_responsavel_idx on public.sinistros_chamados (responsavel_id);

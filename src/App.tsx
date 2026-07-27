@@ -28,6 +28,7 @@ import { Filas } from "./pages/config/Filas";
 import { ConfigHub } from "./pages/config/ConfigHub";
 import { LeadDetalhe } from "./pages/LeadDetalhe";
 import { MeusLeads } from "./pages/MeusLeads";
+import { ImportarLeads } from "./pages/ImportarLeads";
 import { SinistrosChamados } from "./pages/SinistrosChamados";
 import { Desempenho } from "./pages/Desempenho";
 import { Perfil } from "./pages/Perfil";
@@ -89,6 +90,7 @@ function Shell() {
         <Route path="/seguros/configuracoes" element={<RequireManager><ConfigHub /></RequireManager>} />
         <Route path="/seguros/leads" element={<MeusLeads modulo="seguros" />} />
         <Route path="/seguros/leads/:id" element={<LeadDetalhe />} />
+        <Route path="/seguros/importar-leads" element={<RequireManager><ImportarLeads modulo="seguros" /></RequireManager>} />
         <Route path="/seguros/desempenho" element={<RequireManager><Desempenho /></RequireManager>} />
         <Route path="/seguros/dashboards" element={<RequireManager><Dashboards /></RequireManager>} />
         <Route path="/seguros/perfil" element={<Perfil />} />
@@ -114,6 +116,7 @@ function Shell() {
         <Route path="/consorcios/configuracoes" element={<RequireManager><ConfigHub /></RequireManager>} />
         <Route path="/consorcios/leads" element={<MeusLeads modulo="consorcios" />} />
         <Route path="/consorcios/leads/:id" element={<LeadDetalhe />} />
+        <Route path="/consorcios/importar-leads" element={<RequireManager><ImportarLeads modulo="consorcios" /></RequireManager>} />
         <Route path="/consorcios/desempenho" element={<RequireManager><Desempenho /></RequireManager>} />
         <Route path="/consorcios/dashboards" element={<RequireManager><Dashboards /></RequireManager>} />
         <Route path="/consorcios/perfil" element={<Perfil />} />

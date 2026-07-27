@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Download, Radio, Megaphone, Workflow, CalendarDays, ArchiveX, Percent as PercentIcon } from "lucide-react";
+import { BarChart3, Download, Radio, Megaphone, Workflow, CalendarDays, ArchiveX, Percent as PercentIcon, BookmarkPlus, Trash2 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
   AreaChart, Area,
@@ -11,12 +11,13 @@ import { Card, PageHeader, EmptyState, Select, Button, Spinner } from "../compon
 import { supabase } from "../lib/supabase";
 import { exportarCsv } from "../lib/csv";
 import { dateBR, pct } from "../lib/format";
+import { useAuth } from "../context/AuthContext";
 
 // Dashboards de leads — clone melhorado dos "Dashboards personalizados" do
-// C2S (docs/C2S-SCAN.md §Relatórios: Leads por Canal/Fonte, período). Aqui
-// sem "salvar análise" (fora de escopo desta entrega), mas com mais
-// recortes: etapa do funil, motivos de arquivamento e % atendimento/semana
-// (bônus — o C2S não tem essa visão).
+// C2S (docs/C2S-SCAN.md §Relatórios: Leads por Canal/Fonte, período), com
+// mais recortes: etapa do funil, motivos de arquivamento e % atendimento/
+// semana (bônus — o C2S não tem essa visão) + "Análises salvas"
+// (supabase/dashboards-analises.sql) pra guardar combinações de filtros.
 
 type PeriodoDias = 7 | 30 | 90;
 const PERIODOS: { dias: PeriodoDias; label: string }[] = [
@@ -126,6 +127,21 @@ function pctSemanalData(leads: LeadRow[], dias: number): { label: string; pct: n
   return semanas.map((s) => ({ label: s.label, total: s.total, pct: s.total ? (s.atendidos / s.total) * 100 : 0 }));
 }
 
+// Análise salva = snapshot dos filtros do dashboard (paridade com os
+// "dashboards personalizados" do C2S). A tabela é opcional — se a migration
+// supabase/dashboards-analises.sql não rodou ainda, escondemos a feature
+// sem exibir nenhum banner novo (o aviso de parity já existente é sobre
+// outra migration).
+interface AnaliseConfig {
+  periodo: PeriodoDias;
+  moduloFiltro: "" | "seguros" | "consorcios";
+}
+interface AnaliseSalva {
+  id: string;
+  nome: string;
+  config: AnaliseConfig;
+}
+
 const BRAND = "#1873BA";
 const axisTick = { fontSize: 11, fill: "#94a3b8" };
 
@@ -147,11 +163,67 @@ function ChartCard({ icon: Icon, titulo, total, vazio, hintVazio, children }: {
 }
 
 export function Dashboards() {
+  const { user } = useAuth();
   const [periodo, setPeriodo] = useState<PeriodoDias>(30);
   const [moduloFiltro, setModuloFiltro] = useState<"" | "seguros" | "consorcios">("");
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [avisoParity, setAvisoParity] = useState(false); // migration c2s-parity ainda não rodou
+
+  // Análises salvas — some silenciosamente se a tabela não existir ainda.
+  const [analises, setAnalises] = useState<AnaliseSalva[]>([]);
+  const [analisesDisponiveis, setAnalisesDisponiveis] = useState(true);
+  const [analiseSelecionadaId, setAnaliseSelecionadaId] = useState("");
+
+  useEffect(() => {
+    if (!supabase || !user) return;
+    (async () => {
+      const { data, error } = await supabase!
+        .from("dashboards_analises")
+        .select("id,nome,config")
+        .order("created_at", { ascending: false });
+      if (error) { setAnalisesDisponiveis(false); return; } // tabela ainda não existe (migration pendente)
+      setAnalises((data ?? []) as unknown as AnaliseSalva[]);
+    })();
+  }, [user]);
+
+  function aplicarAnalise(id: string) {
+    setAnaliseSelecionadaId(id);
+    if (!id) return;
+    const analise = analises.find((a) => a.id === id);
+    if (!analise) return;
+    setPeriodo(analise.config.periodo);
+    setModuloFiltro(analise.config.moduloFiltro);
+  }
+
+  async function salvarAnalise() {
+    if (!supabase || !user) return;
+    const nome = window.prompt("Nome da análise:", "");
+    if (!nome || !nome.trim()) return;
+    const config: AnaliseConfig = { periodo, moduloFiltro };
+    const { data, error } = await supabase
+      .from("dashboards_analises")
+      .insert({ nome: nome.trim(), user_id: user.id, config })
+      .select("id,nome,config")
+      .single();
+    if (error) { toast.error("Não foi possível salvar a análise."); return; }
+    const nova = data as unknown as AnaliseSalva;
+    setAnalises((prev) => [nova, ...prev]);
+    setAnaliseSelecionadaId(nova.id);
+    toast.success(`Análise "${nova.nome}" salva.`);
+  }
+
+  async function excluirAnalise() {
+    if (!supabase || !analiseSelecionadaId) return;
+    const analise = analises.find((a) => a.id === analiseSelecionadaId);
+    if (!analise) return;
+    if (!window.confirm(`Excluir a análise "${analise.nome}"?`)) return;
+    const { error } = await supabase.from("dashboards_analises").delete().eq("id", analise.id);
+    if (error) { toast.error("Não foi possível excluir a análise."); return; }
+    setAnalises((prev) => prev.filter((a) => a.id !== analise.id));
+    setAnaliseSelecionadaId("");
+    toast.success("Análise excluída.");
+  }
 
   // Colunas base sempre existem; fonte/campanha/canal/motivo_descarte vêm da
   // migration c2s-parity.sql. Sem ela, o select cheio dá 400 e zeraria a tela —
@@ -259,9 +331,32 @@ export function Dashboards() {
         icon={BarChart3}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
+            {analisesDisponiveis && (
+              <>
+                <Select
+                  value={analiseSelecionadaId}
+                  onChange={aplicarAnalise}
+                  placeholder="Análises salvas"
+                  options={analises.map((a) => ({ value: a.id, label: a.nome }))}
+                />
+                {analiseSelecionadaId && (
+                  <button
+                    onClick={excluirAnalise}
+                    title="Excluir análise"
+                    aria-label="Excluir análise salva"
+                    className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+                <Button variant="outline" icon={BookmarkPlus} onClick={salvarAnalise}>
+                  Salvar análise
+                </Button>
+              </>
+            )}
             <Select
               value={moduloFiltro}
-              onChange={(v) => setModuloFiltro(v as "" | "seguros" | "consorcios")}
+              onChange={(v) => { setModuloFiltro(v as "" | "seguros" | "consorcios"); setAnaliseSelecionadaId(""); }}
               placeholder="Todos os módulos"
               options={[{ value: "seguros", label: "Seguros" }, { value: "consorcios", label: "Consórcios" }]}
             />
@@ -269,7 +364,7 @@ export function Dashboards() {
               {PERIODOS.map((p) => (
                 <button
                   key={p.dias}
-                  onClick={() => setPeriodo(p.dias)}
+                  onClick={() => { setPeriodo(p.dias); setAnaliseSelecionadaId(""); }}
                   className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${periodo === p.dias ? "bg-white shadow text-brand-600" : "text-slate-500 hover:text-slate-700"}`}
                 >
                   {p.label}

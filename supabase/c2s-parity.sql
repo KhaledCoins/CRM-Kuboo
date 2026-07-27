@@ -372,3 +372,12 @@ alter function public.fila_no_horario(jsonb) set search_path = public;
 alter function public.fila_proximo_usuario(public.filas) set search_path = public;
 revoke execute on function public.distribuir_lead(uuid) from anon, authenticated;
 revoke execute on function public.trg_distribuir_lead() from anon, authenticated;
+
+-- Índices de FK (advisor de performance — tabelas que crescem com o uso)
+create index if not exists distribuicao_log_fila_idx on public.distribuicao_log (fila_id);
+create index if not exists distribuicao_log_user_idx on public.distribuicao_log (user_id);
+create index if not exists fila_usuarios_user_idx on public.fila_usuarios (user_id);
+create index if not exists lead_atividades_criado_por_idx on public.lead_atividades (criado_por);
+create index if not exists lead_etiquetas_etiqueta_idx on public.lead_etiquetas (etiqueta_id);
+create index if not exists lead_favoritos_lead_idx on public.lead_favoritos (lead_id);
+create index if not exists lead_observacoes_criado_por_idx on public.lead_observacoes (criado_por);

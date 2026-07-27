@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ShieldAlert, Phone, MessageCircle, Clock, AlertTriangle, FileSearch, FileClock,
-  CheckCircle2, Hand, X, Users as UsersIcon, Tag, Building2, Radio,
+  CheckCircle2, Hand, X, Users as UsersIcon, Tag, Building2, Radio, Trash2,
 } from "lucide-react";
 import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select, SearchInput, Table, Th, Td, Tr } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
@@ -72,7 +72,7 @@ function matchBusca(c: SinistroChamado, termo: string) {
 }
 
 export function SinistrosChamados() {
-  const { user } = useAuth();
+  const { user, isManager } = useAuth();
   const [chamados, setChamados] = useState<SinistroChamado[]>([]);
   const [equipe, setEquipe] = useState<{ id: string; name: string; role: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,6 +147,23 @@ export function SinistrosChamados() {
       patchLocal(c.id, { responsavel_id: user.id, atualizado_em });
     } else {
       toast.error("Não foi possível assumir o chamado agora.");
+    }
+  }
+
+  // O insert do chamado é público (chat sem login) — gestor precisa poder
+  // remover spam/teste sem abrir o SQL Editor.
+  async function handleExcluir(c: SinistroChamado) {
+    if (!supabase) return;
+    if (!window.confirm(`Excluir o chamado de "${c.nome}"? Essa ação não tem volta.`)) return;
+    setSalvando(true);
+    const { error } = await supabase.from("sinistros_chamados").delete().eq("id", c.id);
+    setSalvando(false);
+    if (!error) {
+      toast.success("Chamado excluído.");
+      setChamados((prev) => prev.filter((x) => x.id !== c.id));
+      setSelecionado(null);
+    } else {
+      toast.error("Não foi possível excluir o chamado.");
     }
   }
 
@@ -324,6 +341,18 @@ export function SinistrosChamados() {
               <div>
                 <p className="text-xs font-bold text-muted uppercase tracking-wide mb-2">Transcrição da conversa</p>
                 <pre className="whitespace-pre-wrap text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl p-3 max-h-64 overflow-y-auto">{selecionado.conversa}</pre>
+              </div>
+            )}
+
+            {isManager && (
+              <div className="flex justify-end pt-1 border-t border-slate-100">
+                <button
+                  onClick={() => handleExcluir(selecionado)}
+                  disabled={salvando}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={13} /> Excluir chamado
+                </button>
               </div>
             )}
           </div>
