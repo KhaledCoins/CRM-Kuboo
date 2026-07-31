@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   MessageCircle, ListChecks, CalendarClock, Star, Layers, Clock,
-  AlertTriangle, Tag, Phone, Users as UsersIcon, Plus, X,
+  AlertTriangle, Tag, Phone, Users as UsersIcon, Plus, X, MapPin, Archive,
 } from "lucide-react";
 import { PageHeader, Card, Badge, EmptyState, Spinner, SearchInput, Select, Button } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
@@ -38,12 +38,14 @@ const dateTimeBR = (v?: string | null) => {
 const rotuloTipo = (t: string) => TIPOS_ATIVIDADE.find((x) => x.valor === t)?.rotulo ?? t;
 const fimDoDia = () => { const d = new Date(); d.setHours(23, 59, 59, 999); return d.getTime(); };
 
-type AbaChave = "afazer" | "futuras" | "favoritos" | "todos";
+type AbaChave = "afazer" | "visitas" | "futuras" | "favoritos" | "todos" | "arquivados";
 const ABAS: { valor: AbaChave; rotulo: string; icon: typeof ListChecks }[] = [
   { valor: "afazer", rotulo: "A fazer", icon: ListChecks },
+  { valor: "visitas", rotulo: "Visitas", icon: MapPin },
   { valor: "futuras", rotulo: "Futuras", icon: CalendarClock },
   { valor: "favoritos", rotulo: "Favoritos", icon: Star },
   { valor: "todos", rotulo: "Todos", icon: Layers },
+  { valor: "arquivados", rotulo: "Arquivados", icon: Archive },
 ];
 
 const origemTone: Record<string, "blue" | "green" | "violet" | "amber" | "slate"> = {
@@ -73,12 +75,17 @@ function infoAtividade(atividades: Atividade[]) {
   return { atual, atrasada, hoje, futura };
 }
 
+// Paridade C2S: busca por produto/NOME/TELEFONE/E-MAIL. Telefone compara por
+// dígitos normalizados — "(12) 98888-7777" tem que casar com "12988887777".
 function matchBusca(l: Lead, termo: string) {
   if (!termo) return true;
   const t = termo.toLowerCase();
+  const digitos = onlyDigits(termo);
   return (
     (l.nome || "").toLowerCase().includes(t) ||
     (l.telefone || "").toLowerCase().includes(t) ||
+    (digitos.length >= 4 && onlyDigits(l.telefone || "").includes(digitos)) ||
+    (l.email || "").toLowerCase().includes(t) ||
     (l.produto_interesse || "").toLowerCase().includes(t)
   );
 }
@@ -112,14 +119,15 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
     const req = ++loadReq.current;
     try {
       const [todosLeads, ativsRes, favs, equipeRes] = await Promise.all([
-        fetchLeads(),
+        // Descartados vêm junto: a aba "Arquivados" precisa deles (as demais filtram)
+        fetchLeads({ incluirDescartados: true }),
         supabase ? supabase.from("lead_atividades").select("*").eq("status", "pendente") : Promise.resolve({ data: [], error: null }),
         user ? favoritosDoUsuario(user.id) : Promise.resolve(new Set<string>()),
         isManager ? listarEquipe() : Promise.resolve([]),
       ]);
       if (req !== loadReq.current) return;
 
-      setLeads(todosLeads.filter((l) => moduloDe(l) === modulo && !l.descartado) as LeadRico[]);
+      setLeads(todosLeads.filter((l) => moduloDe(l) === modulo) as LeadRico[]);
       setAvisoParity(!!ativsRes.error);
       const mapa = new Map<string, Atividade[]>();
       ((ativsRes.data as Atividade[]) ?? []).forEach((a) => {
@@ -157,29 +165,42 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
     () => escopo.map((l) => ({ lead: l, ...infoAtividade(atividadesPorLead.get(l.id) ?? []) })),
     [escopo, atividadesPorLead]
   );
+  // Arquivados têm aba própria; todas as demais visões são só dos ativos.
+  const ativosClass = useMemo(() => classificados.filter((c) => !c.lead.descartado), [classificados]);
+  const arquivadosLeads = useMemo(
+    () => classificados.filter((c) => c.lead.descartado).sort((a, b) => (b.lead.created_at ?? "").localeCompare(a.lead.created_at ?? "")),
+    [classificados]
+  );
 
   const hojeLeads = useMemo(
-    () => classificados.filter((c) => c.atrasada || c.hoje).sort((a, b) => (a.atual?.quando ?? "").localeCompare(b.atual?.quando ?? "")),
-    [classificados]
+    () => ativosClass.filter((c) => c.atrasada || c.hoje).sort((a, b) => (a.atual?.quando ?? "").localeCompare(b.atual?.quando ?? "")),
+    [ativosClass]
   );
   const semContatoLeads = useMemo(
-    () => classificados.filter((c) => !c.atual && !c.lead.primeiro_contato_em).sort((a, b) => (a.lead.created_at ?? "").localeCompare(b.lead.created_at ?? "")),
-    [classificados]
+    () => ativosClass.filter((c) => !c.atual && !c.lead.primeiro_contato_em).sort((a, b) => (a.lead.created_at ?? "").localeCompare(b.lead.created_at ?? "")),
+    [ativosClass]
+  );
+  // Aba "Visitas" do C2S: leads cuja atividade atual é uma visita agendada
+  const visitasLeads = useMemo(
+    () => ativosClass.filter((c) => c.atual?.tipo === "visita").sort((a, b) => (a.atual?.quando ?? "").localeCompare(b.atual?.quando ?? "")),
+    [ativosClass]
   );
   const futurasLeads = useMemo(
-    () => classificados.filter((c) => c.futura).sort((a, b) => (a.atual?.quando ?? "").localeCompare(b.atual?.quando ?? "")),
-    [classificados]
+    () => ativosClass.filter((c) => c.futura).sort((a, b) => (a.atual?.quando ?? "").localeCompare(b.atual?.quando ?? "")),
+    [ativosClass]
   );
   const favoritosLeads = useMemo(
-    () => classificados.filter((c) => favoritos.has(c.lead.id)),
-    [classificados, favoritos]
+    () => ativosClass.filter((c) => favoritos.has(c.lead.id)),
+    [ativosClass, favoritos]
   );
 
   const contagens: Record<AbaChave, number> = {
     afazer: hojeLeads.length + semContatoLeads.length,
+    visitas: visitasLeads.length,
     futuras: futurasLeads.length,
     favoritos: favoritosLeads.length,
-    todos: classificados.length,
+    todos: ativosClass.length,
+    arquivados: arquivadosLeads.length,
   };
 
   async function handleFavorito(leadId: string) {
@@ -301,6 +322,7 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
                 {l.telefone && <span className="text-xs text-muted flex items-center gap-1"><Phone size={11} /> {l.telefone}</span>}
               </div>
               <div className="flex flex-wrap gap-1.5 mt-2">
+                {l.descartado && <Badge tone="red"><Archive size={11} /> Arquivado{l.motivo_descarte ? ` · ${l.motivo_descarte}` : ""}</Badge>}
                 {l.produto_interesse && <Badge tone="blue"><Tag size={11} /> {l.produto_interesse}</Badge>}
                 {l.campanha && <Badge tone="violet">{l.campanha}</Badge>}
                 {(l.fonte || l.canal) && <Badge tone="amber">{[l.fonte, l.canal].filter(Boolean).join(" · ")}</Badge>}
@@ -364,7 +386,7 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
 
       <Card className="mb-5">
         <div className="flex items-center gap-3 flex-wrap">
-          <SearchInput value={busca} onChange={setBusca} placeholder="Buscar por nome, telefone ou produto..." />
+          <SearchInput value={busca} onChange={setBusca} placeholder="Buscar por nome, telefone, e-mail ou produto..." />
           {isManager && (
             <Select
               value={visao}
@@ -448,11 +470,33 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
             );
           })()}
 
+          {aba === "visitas" && (() => {
+            const arr = filtro(visitasLeads);
+            return arr.length === 0 ? (
+              <Card pad={false}>
+                <EmptyState icon={MapPin} title="Nenhuma visita agendada" hint="Leads cuja próxima atividade é uma visita aparecem aqui — sua agenda de rua." />
+              </Card>
+            ) : (
+              <div className="space-y-2">{arr.map((c) => <LeadRow key={c.lead.id} item={c} />)}</div>
+            );
+          })()}
+
           {aba === "todos" && (() => {
-            const arr = filtro(classificados);
+            const arr = filtro(ativosClass);
             return arr.length === 0 ? (
               <Card pad={false}>
                 <EmptyState icon={Layers} title="Nenhum lead encontrado" hint="Ajuste a busca ou o filtro de visão." />
+              </Card>
+            ) : (
+              <div className="space-y-2">{arr.map((c) => <LeadRow key={c.lead.id} item={c} />)}</div>
+            );
+          })()}
+
+          {aba === "arquivados" && (() => {
+            const arr = filtro(arquivadosLeads);
+            return arr.length === 0 ? (
+              <Card pad={false}>
+                <EmptyState icon={Archive} title="Nenhum lead arquivado" hint="Leads arquivados ficam aqui com o motivo — abra um para reabrir se precisar." />
               </Card>
             ) : (
               <div className="space-y-2">{arr.map((c) => <LeadRow key={c.lead.id} item={c} />)}</div>

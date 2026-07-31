@@ -192,6 +192,7 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
         <Select value={origem} onChange={setOrigem} placeholder="Todas as origens" options={[
           { value: "chatbot", label: "Kubinho (chatbot)" }, { value: "formulario", label: "Formulário" },
           { value: "whatsapp", label: "WhatsApp" }, { value: "indicacao", label: "Indicação" }, { value: "portal", label: "Portal" },
+          { value: "webhook", label: "Webhook (Meta/Make)" }, { value: "manual", label: "Manual" },
         ]} />
         {isManager && filtered.length > 0 && (
           <Button variant="outline" icon={Shuffle} onClick={handleDistribuir} disabled={distribuindo}>

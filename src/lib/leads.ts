@@ -94,10 +94,18 @@ export function moduloDe(l: Lead): "seguros" | "consorcios" {
   return l.modulo === "consorcios" ? "consorcios" : "seguros";
 }
 
-export async function fetchLeads(): Promise<Lead[]> {
+// Descartados ficam FORA por padrão (alivia o teto da query — pós-importação dos
+// 754 do C2S a base cresce ~130/mês). Quem precisa deles (aba Arquivados do
+// MeusLeads) pede explicitamente. Limite alto + warning quando estourar, pra
+// nunca truncar a base em silêncio.
+const FETCH_LIMIT = 3000;
+export async function fetchLeads(opts?: { incluirDescartados?: boolean }): Promise<Lead[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(1000);
+  let q = supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(FETCH_LIMIT);
+  if (!opts?.incluirDescartados) q = q.eq("descartado", false);
+  const { data, error } = await q;
   if (error) console.error("[leads] fetchLeads:", error.message); // não engole em silêncio
+  if (data && data.length === FETCH_LIMIT) console.warn(`[leads] fetchLeads atingiu o teto de ${FETCH_LIMIT} — leads mais antigos fora da lista; hora de paginar.`);
   return (data as any) ?? [];
 }
 

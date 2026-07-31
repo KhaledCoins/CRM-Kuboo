@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import { initials } from "../lib/format";
 import { fetchLeads, noBolsao, moduloDe } from "../lib/leads";
 import { fetchAvisos, type Aviso } from "../lib/avisos";
+import { can } from "../lib/permissoes";
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -106,7 +107,7 @@ export function Layout() {
               <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold px-2 mb-1.5">{g.title}</p>
               <div className="space-y-0.5">
                 {g.items
-                  .filter((it) => !it.roles || it.roles.includes(role))
+                  .filter((it) => !it.roles || it.roles.includes(role) || (it.perms && it.perms.some((p) => can(user, p))))
                   .map((it) => (
                     <NavLink
                       key={it.to}

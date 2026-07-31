@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   MessageCircle, Phone, Mail, Star, ArrowLeftRight, HelpCircle, ArrowLeft,
   CheckCircle2, AlertTriangle, Archive, Trophy, Undo2, Copy, Send, Plus,
-  ChevronDown, ChevronUp, Tag, X, User as UserIcon, Inbox, FileText,
+  ChevronDown, ChevronUp, Tag, X, User as UserIcon, Inbox, FileText, Pencil, RotateCcw,
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge, EmptyState, Spinner } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
@@ -13,7 +13,7 @@ import { useAuth } from "../context/AuthContext";
 import type { TeamUser } from "../context/AuthContext";
 import { onlyDigits } from "../lib/format";
 import {
-  type Lead, registrarContato, devolverBolsao, descartarLead, moverEtapa,
+  type Lead, registrarContato, devolverBolsao, descartarLead, moverEtapa, limiteSlaMinutos,
 } from "../lib/leads";
 import {
   type Atividade, type Observacao, type Etiqueta, type MensagemPronta,
@@ -21,6 +21,7 @@ import {
   atividadesDoLead, atividadeAtual, atividadeAtrasada, concluirAtividade,
   observacoesDoLead, etiquetasDoLead, alternarEtiqueta, favoritosDoUsuario,
   alternarFavorito, logDoLead, renderTemplate, listar, inserir, atualizar,
+  CORES_ETIQUETA,
 } from "../lib/c2s";
 import type { Modulo } from "../lib/nav";
 
@@ -52,11 +53,41 @@ function waLink(telefone?: string | null, texto?: string) {
 
 const rotuloTipo = (t: string) => TIPOS_ATIVIDADE.find((x) => x.valor === t)?.rotulo ?? t;
 
+// Chip de etapa do lead no header (paridade C2S: "Status: Em negociação")
+const ETAPA_INFO: Record<string, { rotulo: string; tone: "slate" | "green" | "blue" | "amber" | "red" | "violet" }> = {
+  novos: { rotulo: "Novo", tone: "slate" },
+  contato: { rotulo: "Em atendimento", tone: "blue" },
+  cotacao: { rotulo: "Cotação enviada", tone: "violet" },
+  negociacao: { rotulo: "Em negociação", tone: "amber" },
+  ganho: { rotulo: "Negócio fechado", tone: "green" },
+  perdido: { rotulo: "Perdido", tone: "red" },
+};
+
+// "1.500,50" | "1500,50" | "1500.50" | "1.500" → número certo (nunca ×100).
+// Ponto único a 1–2 casas do fim = decimal; caso contrário é separador de milhar.
+function parseValorBR(s: string): number {
+  let t = s.trim().replace(/[R$\s]/gi, "");
+  if (!t) return NaN;
+  const temVirgula = t.includes(",");
+  const temPonto = t.includes(".");
+  if (temVirgula && temPonto) t = t.replace(/\./g, "").replace(",", ".");
+  else if (temVirgula) t = t.replace(",", ".");
+  else if (temPonto) {
+    const i = t.lastIndexOf(".");
+    const casasDecimais = t.length - i - 1;
+    const pontoUnico = t.indexOf(".") === i;
+    if (!(pontoUnico && casasDecimais >= 1 && casasDecimais <= 2)) t = t.replace(/\./g, "");
+  }
+  return Number(t);
+}
+
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none text-ink focus:border-brand-400";
 const lblCls = "block text-xs font-bold text-slate-600 mb-1.5";
 
 // ─── Modal: Transferir lead (só gestor/admin) ────────────────────────────────
-function ModalTransferir({ lead, onClose, onDone }: { lead: LeadDetalhado; onClose: () => void; onDone: () => void }) {
+function ModalTransferir({ lead, gestor, onClose, onDone }: {
+  lead: LeadDetalhado; gestor: TeamUser | null; onClose: () => void; onDone: () => void;
+}) {
   const [equipe, setEquipe] = useState<{ id: string; name: string }[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [alvo, setAlvo] = useState("");
@@ -66,9 +97,14 @@ function ModalTransferir({ lead, onClose, onDone }: { lead: LeadDetalhado; onClo
     let alive = true;
     (async () => {
       if (!supabase) { setCarregando(false); return; }
-      const { data } = await supabase.from("profiles").select("id,name")
+      // Só usuários aprovados — transferir p/ conta desativada mataria o lead em silêncio
+      // (mesmo critério do motor de filas em c2s-parity.sql).
+      const { data } = await supabase.from("profiles").select("id,name,aprovado")
         .in("role", ["admin", "gestor", "vendedor"]).order("name");
-      if (alive) { setEquipe((data as any) ?? []); setCarregando(false); }
+      if (alive) {
+        setEquipe(((data as any[]) ?? []).filter((p) => p.aprovado !== false));
+        setCarregando(false);
+      }
     })();
     return () => { alive = false; };
   }, []);
@@ -76,7 +112,20 @@ function ModalTransferir({ lead, onClose, onDone }: { lead: LeadDetalhado; onClo
   async function salvar() {
     if (!alvo) { toast.error("Escolha um usuário."); return; }
     setSalvando(true);
-    const ok = await atualizar("leads", lead.id, { vendedor_id: alvo, atribuido_em: new Date().toISOString() });
+    const now = new Date().toISOString();
+    // SLA renovado pro novo dono: sem isso um lead com SLA estourado continuaria
+    // satisfazendo noBolsao() e qualquer vendedor poderia "roubá-lo" do bolsão
+    // segundos depois da decisão do gestor.
+    const minutos = await limiteSlaMinutos();
+    const sla = new Date(Date.now() + minutos * 60000).toISOString();
+    const ok = await atualizar("leads", lead.id, { vendedor_id: alvo, atribuido_em: now, sla_expira_em: sla });
+    if (ok) {
+      // Auditoria: "Por que recebi este lead?" precisa refletir a transferência manual.
+      await inserir("distribuicao_log", {
+        lead_id: lead.id, user_id: alvo,
+        motivo: `Transferido manualmente${gestor ? ` por ${gestor.name}` : ""}`,
+      });
+    }
     setSalvando(false);
     if (ok) { toast.success("Lead transferido."); onDone(); } else toast.error("Não foi possível transferir o lead.");
   }
@@ -192,7 +241,7 @@ function ModalProposta({ lead, userId, onClose, onDone }: {
   const [salvando, setSalvando] = useState(false);
 
   async function salvar() {
-    const num = Number(valor.replace(/\./g, "").replace(",", "."));
+    const num = parseValorBR(valor);
     if (!valor.trim() || !Number.isFinite(num) || num <= 0) { toast.error("Informe o valor da proposta."); return; }
     if (!userId) { toast.error("Sessão expirada — faça login novamente."); return; }
     setSalvando(true);
@@ -232,20 +281,80 @@ function ModalProposta({ lead, userId, onClose, onDone }: {
   );
 }
 
+// ─── Modal: Editar dados do lead (paridade C2S: "editar" no header) ──────────
+// Telefone digitado errado quebrava o wa.me sem nenhum caminho de correção.
+function ModalEditar({ lead, onClose, onDone }: { lead: LeadDetalhado; onClose: () => void; onDone: () => void }) {
+  const [form, setForm] = useState({
+    nome: lead.nome || "", telefone: lead.telefone || "", email: lead.email || "",
+    produto_interesse: lead.produto_interesse || "",
+    valor_potencial: lead.valor_potencial != null ? String(lead.valor_potencial).replace(".", ",") : "",
+  });
+  const [salvando, setSalvando] = useState(false);
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  async function salvar() {
+    const nome = form.nome.trim();
+    if (nome.length < 2) { toast.error("Informe o nome do lead."); return; }
+    let valor: number | null = null;
+    if (form.valor_potencial.trim()) {
+      valor = parseValorBR(form.valor_potencial);
+      if (!Number.isFinite(valor) || valor < 0) { toast.error("Valor potencial inválido."); return; }
+    }
+    setSalvando(true);
+    const ok = await atualizar("leads", lead.id, {
+      nome, telefone: form.telefone.trim() || null, email: form.email.trim() || null,
+      produto_interesse: form.produto_interesse.trim() || null, valor_potencial: valor,
+    });
+    setSalvando(false);
+    if (ok) { toast.success("Lead atualizado."); onDone(); } else toast.error("Não foi possível salvar as alterações.");
+  }
+
+  return (
+    <ModalShell onClose={onClose} label="Editar lead"
+      backdropClassName="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-ink flex items-center gap-2"><Pencil size={17} className="text-brand-500" /> Editar lead</h3>
+        <button onClick={onClose} aria-label="Fechar" className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+      </div>
+      <label className={lblCls}>Nome *</label>
+      <input className={inputCls} value={form.nome} onChange={set("nome")} />
+      <label className={`${lblCls} mt-3`}>Telefone/WhatsApp</label>
+      <input className={inputCls} value={form.telefone} onChange={set("telefone")} inputMode="tel" placeholder="(12) 90000-0000" />
+      <label className={`${lblCls} mt-3`}>E-mail</label>
+      <input className={inputCls} value={form.email} onChange={set("email")} type="email" />
+      <label className={`${lblCls} mt-3`}>Produto de interesse</label>
+      <input className={inputCls} value={form.produto_interesse} onChange={set("produto_interesse")} placeholder="Seguro Auto, Consórcio Imóvel…" />
+      <label className={`${lblCls} mt-3`}>Valor potencial (R$)</label>
+      <input className={inputCls} value={form.valor_potencial} onChange={set("valor_potencial")} inputMode="decimal" placeholder="Ex.: 1500,00" />
+      <div className="flex gap-2 justify-end mt-4">
+        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+        <Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>
+      </div>
+    </ModalShell>
+  );
+}
+
 // ─── Card: WhatsApp rápido com mensagens prontas ─────────────────────────────
-function CardWhatsapp({ lead, atual, mensagens, user, onUsar }: {
-  lead: LeadDetalhado; atual: Atividade | null; mensagens: MensagemPronta[]; user: TeamUser | null; onUsar: () => void;
+function CardWhatsapp({ lead, atual, mensagens, user, meuPerfil, onUsar }: {
+  lead: LeadDetalhado; atual: Atividade | null; mensagens: MensagemPronta[]; user: TeamUser | null;
+  meuPerfil: { phone?: string | null; assinatura?: string | null } | null; onUsar: () => void;
 }) {
   const [selecionada, setSelecionada] = useState("");
   const template = mensagens.find((m) => m.id === selecionada);
-  const texto = template ? renderTemplate(template.conteudo, {
+  // A assinatura pode conter variáveis (o Perfil faz preview dela assim) —
+  // renderiza primeiro e injeta o resultado como [ASSINATURA] do template.
+  const ctxBase = {
     nomeContato: lead.nome,
     nomeVendedor: user?.name,
+    telefoneVendedor: meuPerfil?.phone,
     produto: lead.produto_interesse,
     campanha: lead.campanha,
     nomeAtividade: atual ? rotuloTipo(atual.tipo) : undefined,
     dataAtividade: atual ? dateTimeBR(atual.quando) ?? undefined : undefined,
-  }) : "";
+  };
+  const assinatura = meuPerfil?.assinatura ? renderTemplate(meuPerfil.assinatura, ctxBase) : undefined;
+  const texto = template ? renderTemplate(template.conteudo, { ...ctxBase, assinatura }) : "";
   const href = waLink(lead.telefone, texto || undefined);
 
   async function copiar() {
@@ -376,11 +485,27 @@ function PainelAtividades({ atividades, onConcluir, onCriar }: {
 }
 
 // ─── Painel: Etiquetas ────────────────────────────────────────────────────────
-function PainelEtiquetas({ tags, disponiveis, onToggle }: {
+// Paridade C2S: "Etiquetas (select + CRIAR)" — dá pra criar direto na página do
+// lead (RLS libera INSERT pra equipe; gerenciar/editar continua no ConfigHub).
+function PainelEtiquetas({ tags, disponiveis, onToggle, onCriar }: {
   tags: Etiqueta[]; disponiveis: Etiqueta[]; onToggle: (etiquetaId: string, tem: boolean) => void;
+  onCriar: (nome: string, cor: string) => Promise<void>;
 }) {
   const [novaId, setNovaId] = useState("");
+  const [criando, setCriando] = useState(false);
+  const [nomeNova, setNomeNova] = useState("");
+  const [corNova, setCorNova] = useState(CORES_ETIQUETA[0]);
+  const [salvando, setSalvando] = useState(false);
   const restantes = disponiveis.filter((d) => !tags.some((t) => t.id === d.id));
+
+  async function criar() {
+    const n = nomeNova.trim();
+    if (n.length < 2) { toast.error("Dê um nome à etiqueta."); return; }
+    setSalvando(true);
+    await onCriar(n, corNova);
+    setSalvando(false);
+    setNomeNova(""); setCriando(false);
+  }
 
   return (
     <Card>
@@ -401,6 +526,26 @@ function PainelEtiquetas({ tags, disponiveis, onToggle }: {
             {restantes.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
           </select>
           <Button size="sm" disabled={!novaId} onClick={() => { onToggle(novaId, false); setNovaId(""); }}>Adicionar</Button>
+        </div>
+      )}
+      {!criando ? (
+        <button onClick={() => setCriando(true)} className="mt-2 text-xs font-bold text-brand-500 hover:text-brand-700 inline-flex items-center gap-1">
+          <Plus size={12} /> Criar etiqueta
+        </button>
+      ) : (
+        <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
+          <input className={inputCls} value={nomeNova} onChange={(e) => setNomeNova(e.target.value)} placeholder="Nome da etiqueta" autoFocus />
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {CORES_ETIQUETA.map((c) => (
+              <button key={c} onClick={() => setCorNova(c)} aria-label={`Cor ${c}`}
+                className={`w-6 h-6 rounded-full border-2 ${corNova === c ? "border-ink scale-110" : "border-transparent"}`}
+                style={{ background: c }} />
+            ))}
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setCriando(false)}>Cancelar</Button>
+            <Button size="sm" disabled={salvando || nomeNova.trim().length < 2} onClick={criar}>{salvando ? "Criando…" : "Criar e aplicar"}</Button>
+          </div>
         </div>
       )}
     </Card>
@@ -450,6 +595,8 @@ export function LeadDetalhe() {
   const [responsavel, setResponsavel] = useState<{ id: string; name: string } | null>(null);
   const [favorito, setFavorito] = useState(false);
   const [pessoas, setPessoas] = useState<Record<string, string>>({});
+  // phone+assinatura do usuário logado — [TELEFONE_VENDEDOR]/[ASSINATURA] dos templates
+  const [meuPerfil, setMeuPerfil] = useState<{ phone?: string | null; assinatura?: string | null } | null>(null);
 
   const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [observacoes, setObservacoes] = useState<Observacao[]>([]);
@@ -463,6 +610,7 @@ export function LeadDetalhe() {
   const [showPorque, setShowPorque] = useState(false);
   const [showArquivar, setShowArquivar] = useState(false);
   const [showProposta, setShowProposta] = useState(false);
+  const [showEditar, setShowEditar] = useState(false);
 
   async function carregarTudo(leadId: string, aliveRef: { current: boolean }) {
     if (!supabase) { if (aliveRef.current) setLoading(false); return; }
@@ -471,7 +619,7 @@ export function LeadDetalhe() {
     if (error || !leadData) { setNotFound(true); setLoading(false); return; }
     const l = leadData as LeadDetalhado;
 
-    const [parityCheck, ativs, obs, tags, allTags, msgs, mots, favs] = await Promise.all([
+    const [parityCheck, ativs, obs, tags, allTags, msgs, mots, favs, perfilRes] = await Promise.all([
       supabase.from("lead_atividades").select("id").limit(1),
       atividadesDoLead(leadId),
       observacoesDoLead(leadId),
@@ -480,6 +628,7 @@ export function LeadDetalhe() {
       listar<MensagemPronta>("mensagens_prontas", "ordem"),
       listar<MotivoArquivamento>("motivos_arquivamento", "nome"),
       user ? favoritosDoUsuario(user.id) : Promise.resolve(new Set<string>()),
+      user ? supabase.from("profiles").select("phone, assinatura").eq("id", user.id).single() : Promise.resolve({ data: null }),
     ]);
     if (!aliveRef.current) return;
 
@@ -504,6 +653,7 @@ export function LeadDetalhe() {
     setMensagensProntas(msgs.filter((m) => m.ativa));
     setMotivos(mots.filter((m) => m.ativo));
     setFavorito(favs.has(leadId));
+    setMeuPerfil((perfilRes as any)?.data ?? null);
     setPessoas(mapaPessoas);
     setResponsavel(l.vendedor_id && mapaPessoas[l.vendedor_id] ? { id: l.vendedor_id, name: mapaPessoas[l.vendedor_id] } : null);
     setLoading(false);
@@ -585,6 +735,27 @@ export function LeadDetalhe() {
     });
   }
 
+  // Cria a etiqueta na hora (paridade C2S) e já aplica no lead.
+  async function onCriarEtiqueta(nome: string, cor: string) {
+    if (!lead || !supabase) return;
+    const { data, error } = await supabase.from("etiquetas").insert({ nome, cor }).select("id, nome, cor, ativa").single();
+    if (error || !data) { toast.error("Não foi possível criar a etiqueta."); return; }
+    const nova = data as Etiqueta;
+    setTodasEtiquetas((prev) => [...prev, nova]);
+    const ok = await alternarEtiqueta(lead.id, nova.id, false);
+    if (ok) { setEtiquetasLead((prev) => [...prev, nova]); toast.success("Etiqueta criada e aplicada."); }
+    else toast.success("Etiqueta criada.");
+  }
+
+  // Reabrir lead arquivado (o C2S mantém arquivados acessíveis e reativáveis).
+  async function onReabrir() {
+    if (!lead) return;
+    const patch: Record<string, unknown> = { descartado: false, motivo_descarte: null };
+    if (lead.etapa === "perdido") patch.etapa = "contato"; // volta pro funil em atendimento
+    const ok = await atualizar("leads", lead.id, patch);
+    if (ok) { toast.success("Lead reaberto."); reload(); } else toast.error("Não foi possível reabrir o lead.");
+  }
+
   async function onAdicionarObs() {
     if (!lead || !user || !novaObs.trim()) return;
     const ok = await inserir("lead_observacoes", { lead_id: lead.id, texto: novaObs.trim(), criado_por: user.id });
@@ -634,12 +805,23 @@ export function LeadDetalhe() {
         </div>
       )}
 
+      {/* Lead arquivado: banner com motivo + reabrir (a página não pode fingir que está ativo) */}
+      {lead.descartado && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm font-bold text-red-700 flex items-center gap-2">
+            <Archive size={15} /> Lead arquivado{lead.motivo_descarte ? ` — motivo: ${lead.motivo_descarte}` : ""}
+          </p>
+          <Button size="sm" variant="outline" icon={RotateCcw} onClick={onReabrir}>Reabrir lead</Button>
+        </div>
+      )}
+
       {/* Cabeçalho */}
       <Card className="mb-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-display text-ink leading-tight">{lead.nome}</h1>
+              {(() => { const e = ETAPA_INFO[lead.etapa || "novos"]; return e ? <Badge tone={e.tone}>{e.rotulo}</Badge> : null; })()}
               <button onClick={toggleFavorito} title={favorito ? "Remover dos favoritos" : "Favoritar"}
                 aria-label={favorito ? "Remover dos favoritos" : "Favoritar"}
                 className={`p-1.5 rounded-lg ${favorito ? "text-amber-500" : "text-slate-300 hover:text-amber-400"}`}>
@@ -670,9 +852,12 @@ export function LeadDetalhe() {
               <HelpCircle size={12} /> Por que recebi este lead?
             </button>
           </div>
-          {isManager && (
-            <Button variant="outline" icon={ArrowLeftRight} onClick={() => setShowTransferir(true)}>Transferir</Button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" icon={Pencil} onClick={() => setShowEditar(true)}>Editar</Button>
+            {isManager && (
+              <Button variant="outline" icon={ArrowLeftRight} onClick={() => setShowTransferir(true)}>Transferir</Button>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -697,29 +882,41 @@ export function LeadDetalhe() {
             )}
           </Card>
 
-          <CardWhatsapp lead={lead} atual={atividadeAtual(atividades)} mensagens={mensagensProntas} user={user} onUsar={onUsarWhatsapp} />
+          <CardWhatsapp lead={lead} atual={atividadeAtual(atividades)} mensagens={mensagensProntas} user={user} meuPerfil={meuPerfil} onUsar={onUsarWhatsapp} />
         </div>
 
         {/* Coluna direita */}
         <div className="space-y-5">
           <Card>
             <h3 className="font-bold text-ink mb-3">Mantenha seu lead atualizado</h3>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" icon={Trophy} onClick={onFecharNegocio}>Marcar negócio fechado</Button>
-              <Button size="sm" variant="outline" icon={FileText} onClick={() => setShowProposta(true)}>Cadastrar proposta</Button>
-              <Button size="sm" variant="outline" icon={Archive} onClick={() => setShowArquivar(true)}>Arquivar lead</Button>
-              <Button size="sm" variant="outline" icon={Undo2} onClick={onDevolverBolsao}>Devolver ao bolsão</Button>
-            </div>
+            {lead.descartado ? (
+              <p className="text-sm text-muted">Este lead está arquivado — reabra para voltar a trabalhar nele.</p>
+            ) : lead.etapa === "ganho" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="green">Negócio fechado</Badge>
+                <Button size="sm" variant="outline" icon={Archive} onClick={() => setShowArquivar(true)}>Arquivar lead</Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" icon={Trophy} onClick={onFecharNegocio}>Marcar negócio fechado</Button>
+                <Button size="sm" variant="outline" icon={FileText} onClick={() => setShowProposta(true)}>Cadastrar proposta</Button>
+                <Button size="sm" variant="outline" icon={Archive} onClick={() => setShowArquivar(true)}>Arquivar lead</Button>
+                <Button size="sm" variant="outline" icon={Undo2} onClick={onDevolverBolsao}>Devolver ao bolsão</Button>
+              </div>
+            )}
           </Card>
 
           <PainelAtividades atividades={atividades} onConcluir={onConcluirAtividade} onCriar={onCriarAtividade} />
-          <PainelEtiquetas tags={etiquetasLead} disponiveis={todasEtiquetas} onToggle={onToggleEtiqueta} />
+          <PainelEtiquetas tags={etiquetasLead} disponiveis={todasEtiquetas} onToggle={onToggleEtiqueta} onCriar={onCriarEtiqueta} />
           <PainelObservacoes observacoes={observacoes} pessoas={pessoas} texto={novaObs} onTexto={setNovaObs} onAdicionar={onAdicionarObs} />
         </div>
       </div>
 
       {showTransferir && (
-        <ModalTransferir lead={lead} onClose={() => setShowTransferir(false)} onDone={() => { setShowTransferir(false); reload(); }} />
+        <ModalTransferir lead={lead} gestor={user} onClose={() => setShowTransferir(false)} onDone={() => { setShowTransferir(false); reload(); }} />
+      )}
+      {showEditar && (
+        <ModalEditar lead={lead} onClose={() => setShowEditar(false)} onDone={() => { setShowEditar(false); reload(); }} />
       )}
       {showPorque && <ModalPorQue leadId={lead.id} onClose={() => setShowPorque(false)} />}
       {showArquivar && (

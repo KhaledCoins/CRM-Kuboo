@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { ClipboardCheck, Settings, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { can } from "./lib/permissoes";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
 import { SectionPage } from "./pages/SectionPage";
@@ -48,6 +49,15 @@ function RequireManager({ children }: { children: React.ReactNode }) {
   return isManager ? <>{children}</> : <Navigate to="/seguros" replace />;
 }
 
+// ConfigHub entra por PERMISSÃO GRANULAR, não por papel (paridade C2S: um
+// vendedor de confiança pode receber "editar etiquetas" sem ser gestor —
+// antes o toggle no cadastro de usuários era letra morta, a rota barrava).
+function RequireConfig({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const ok = can(user, "acessar_config") || can(user, "editar_etiquetas") || can(user, "editar_bolsao");
+  return ok ? <>{children}</> : <Navigate to="/seguros" replace />;
+}
+
 function Shell() {
   const { user, loading } = useAuth();
   if (loading)
@@ -87,7 +97,7 @@ function Shell() {
         <Route path="/seguros/produtos" element={<Produtos />} />
         <Route path="/seguros/usuarios" element={<RequireManager><Usuarios /></RequireManager>} />
         <Route path="/seguros/filas" element={<RequireManager><Filas /></RequireManager>} />
-        <Route path="/seguros/configuracoes" element={<RequireManager><ConfigHub /></RequireManager>} />
+        <Route path="/seguros/configuracoes" element={<RequireConfig><ConfigHub /></RequireConfig>} />
         <Route path="/seguros/leads" element={<MeusLeads modulo="seguros" />} />
         <Route path="/seguros/leads/:id" element={<LeadDetalhe />} />
         <Route path="/seguros/importar-leads" element={<RequireManager><ImportarLeads modulo="seguros" /></RequireManager>} />
@@ -113,7 +123,7 @@ function Shell() {
         <Route path="/consorcios/produtos" element={<Produtos />} />
         <Route path="/consorcios/usuarios" element={<RequireManager><Usuarios /></RequireManager>} />
         <Route path="/consorcios/filas" element={<RequireManager><Filas /></RequireManager>} />
-        <Route path="/consorcios/configuracoes" element={<RequireManager><ConfigHub /></RequireManager>} />
+        <Route path="/consorcios/configuracoes" element={<RequireConfig><ConfigHub /></RequireConfig>} />
         <Route path="/consorcios/leads" element={<MeusLeads modulo="consorcios" />} />
         <Route path="/consorcios/leads/:id" element={<LeadDetalhe />} />
         <Route path="/consorcios/importar-leads" element={<RequireManager><ImportarLeads modulo="consorcios" /></RequireManager>} />

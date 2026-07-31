@@ -14,6 +14,9 @@ export interface NavItem {
   to: string;
   icon: LucideIcon;
   roles?: Role[]; // se ausente, todos
+  // Permissões granulares que TAMBÉM liberam o item (qualquer uma basta) —
+  // ex.: vendedor com "editar_etiquetas" vê Configurações sem ser gestor.
+  perms?: import("./permissoes").PermissaoChave[];
   badge?: "soon";
 }
 
@@ -37,7 +40,7 @@ const adminGroup = (modulo: Modulo): NavGroup => ({
     { label: "Dashboards", to: `/${modulo}/dashboards`, icon: BarChart3, roles: ["admin", "gestor"] },
     { label: "Distribuição de Leads", to: `/${modulo}/filas`, icon: Shuffle, roles: ["admin", "gestor"] },
     { label: "Importar leads", to: `/${modulo}/importar-leads`, icon: Upload, roles: ["admin", "gestor"] },
-    { label: "Configurações", to: `/${modulo}/configuracoes`, icon: Settings, roles: ["admin", "gestor"] },
+    { label: "Configurações", to: `/${modulo}/configuracoes`, icon: Settings, roles: ["admin", "gestor"], perms: ["acessar_config", "editar_etiquetas", "editar_bolsao"] },
     { label: "Meu Perfil", to: `/${modulo}/perfil`, icon: UserCircle },
   ],
 });

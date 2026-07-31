@@ -51,18 +51,37 @@ export default async function handler(req, res) {
   const nome = String(b.nome || "").trim().slice(0, 200);
   if (!nome) return res.status(400).json({ error: "nome é obrigatório" });
 
+  // origem fora do catálogo do CHECK do banco viraria 500 e o lead pago do Meta
+  // seria PERDIDO em silêncio (quem monta o Make mapeia "facebook"/"instagram"
+  // naturalmente). Fora do catálogo → 'webhook'; o valor original vira fonte.
+  const ORIGENS = new Set(["chatbot", "formulario", "whatsapp", "indicacao", "portal", "manual", "webhook"]);
+  const origemBruta = String(b.origem || "webhook").trim().slice(0, 60);
+  const origem = ORIGENS.has(origemBruta) ? origemBruta : "webhook";
+  const fonteBruta = String(b.fonte || "").trim().slice(0, 80);
+  const fonte = fonteBruta || (origem !== origemBruta ? origemBruta : "") || null;
+
+  // No C2S a 1ª mensagem do lead É o formulário respondido — se o cenário do
+  // Make só mapear formulario{}, sintetizamos a mensagem a partir dele.
+  let mensagem = String(b.mensagem || "").trim().slice(0, 4000) || null;
+  const formulario = b.formulario && typeof b.formulario === "object" ? b.formulario : null;
+  if (!mensagem && formulario) {
+    mensagem = Object.entries(formulario)
+      .map(([p, r]) => `• ${String(p).slice(0, 120)}: ${String(r).slice(0, 300)}`)
+      .join("\n").slice(0, 4000) || null;
+  }
+
   const lead = {
     nome,
     telefone: String(b.telefone || "").trim().slice(0, 30) || null,
     email: String(b.email || "").trim().toLowerCase().slice(0, 200) || null,
     produto_interesse: String(b.produto_interesse || "").trim().slice(0, 120) || null,
-    mensagem: String(b.mensagem || "").trim().slice(0, 4000) || null,
+    mensagem,
     modulo: b.modulo === "consorcios" ? "consorcios" : "seguros",
-    origem: String(b.origem || "webhook").trim().slice(0, 60),
-    fonte: String(b.fonte || "").trim().slice(0, 80) || null,       // ex.: Instagram Leads
+    origem,
+    fonte,                                                          // ex.: Instagram Leads
     canal: String(b.canal || "Internet").trim().slice(0, 60),
     campanha: String(b.campanha || "").trim().slice(0, 160) || null,
-    formulario: b.formulario && typeof b.formulario === "object" ? b.formulario : null,
+    formulario,
     fb_pagina: String(b.fb_pagina || b.page_name || "").trim().slice(0, 120) || null,
     fb_anuncio: String(b.fb_anuncio || b.ad_name || "").trim().slice(0, 120) || null,
     fb_formulario: String(b.fb_formulario || b.form_name || "").trim().slice(0, 120) || null,

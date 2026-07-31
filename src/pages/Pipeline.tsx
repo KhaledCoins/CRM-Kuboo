@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 import {
   DndContext, useDraggable, useDroppable, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
-import { KanbanSquare, MessageCircle, User, Clock, DollarSign, CheckCircle2, AlertTriangle, Inbox, ListPlus, Trophy, X } from "lucide-react";
+import { KanbanSquare, MessageCircle, User, Clock, DollarSign, CheckCircle2, AlertTriangle, Inbox, ListPlus, Trophy, X, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, KpiCard, Card, Spinner } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
 import { criarColumnKeyboardCoordinateGetter } from "../lib/dndKeyboard";
-import { fetchLeads, moverEtapa, registrarContato, noBolsao, slaRestanteMin, moduloDe, temperaturaLead, type Lead } from "../lib/leads";
+import { fetchLeads, moverEtapa, registrarContato, descartarLead, noBolsao, slaRestanteMin, moduloDe, temperaturaLead, type Lead } from "../lib/leads";
+import { listar, type MotivoArquivamento } from "../lib/c2s";
 
 const TEMP_DOT: Record<string, string> = { quente: "#ef4444", morno: "#f59e0b", frio: "#5bc4f5" };
 import { criarTarefa } from "../lib/tarefas";
@@ -30,6 +31,21 @@ const STAGES = [
 // (ordem fixa, definida uma vez fora do componente).
 const stageKeyboardCoordinateGetter = criarColumnKeyboardCoordinateGetter(STAGES.map((s) => s.id));
 
+// campanha/fonte/canal vêm da c2s-parity.sql (fetchLeads faz select *) — o card
+// do C2S mostra tudo isso e o gestor precisa saber de quem é cada card na visão Equipe.
+interface LeadPipe extends Lead {
+  campanha?: string | null;
+  fonte?: string | null;
+  canal?: string | null;
+}
+// Atividade atual do lead (pendente mais próxima) — atrasada = vermelho, como no C2S.
+interface AtivAtual { titulo: string; quando: string; atrasada: boolean }
+
+// Colunas "fora do funil" (dossiê: Fechado/Arquivado ficam fora): mostramos só a
+// janela recente pra não acumular pra sempre — e elas não contam no potencial.
+const FORA_DO_FUNIL = new Set(["ganho", "perdido"]);
+const JANELA_FECHADOS_DIAS = 30;
+
 function SlaBadge({ lead }: { lead: Lead }) {
   if (lead.primeiro_contato_em) return <span className="text-[10px] font-bold text-green-600 flex items-center gap-0.5"><CheckCircle2 size={11} /> contatado</span>;
   const min = slaRestanteMin(lead);
@@ -38,10 +54,13 @@ function SlaBadge({ lead }: { lead: Lead }) {
   return <span className="text-[10px] font-bold text-amber-600 flex items-center gap-0.5"><Clock size={11} /> {min} min</span>;
 }
 
-function LeadCard({ lead, onContato, onAbrir }: { lead: Lead; onContato: (id: string) => void; onAbrir: (id: string) => void }) {
+function LeadCard({ lead, consultor, ativ, onContato, onAbrir }: {
+  lead: LeadPipe; consultor?: string; ativ?: AtivAtual; onContato: (id: string) => void; onAbrir: (id: string) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id });
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined;
   const wa = lead.telefone ? `https://wa.me/55${onlyDigits(lead.telefone)}` : null;
+  const fonteCanal = [lead.fonte, lead.canal].filter(Boolean).join(" · ");
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}
       className={`bg-white rounded-xl border border-slate-200 p-3 mb-2.5 cursor-grab active:cursor-grabbing shadow-sm ${isDragging ? "opacity-60 ring-2 ring-brand-300" : ""}`}>
@@ -57,10 +76,24 @@ function LeadCard({ lead, onContato, onAbrir }: { lead: Lead; onContato: (id: st
         </button>
         <SlaBadge lead={lead} />
       </div>
-      <div className="flex items-center justify-between gap-2 mb-2">
+      <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
         {lead.produto_interesse && <span className="text-[11px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md">{lead.produto_interesse}</span>}
         {lead.valor_potencial ? <span className="text-xs font-bold text-ink">{brl(lead.valor_potencial)}</span> : null}
       </div>
+      {(lead.campanha || fonteCanal) && (
+        <p className="text-[10px] text-muted mb-1 truncate" title={[lead.campanha, fonteCanal].filter(Boolean).join(" — ")}>
+          {[lead.campanha, fonteCanal].filter(Boolean).join(" — ")}
+        </p>
+      )}
+      {ativ && (
+        <p className={`text-[10px] font-bold mb-1 flex items-center gap-1 ${ativ.atrasada ? "text-red-600" : "text-brand-600"}`}>
+          {ativ.atrasada ? <AlertTriangle size={10} /> : <Clock size={10} />}
+          <span className="truncate">{ativ.titulo} · {new Date(ativ.quando).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+        </p>
+      )}
+      {consultor && (
+        <p className="text-[10px] text-muted mb-1.5 flex items-center gap-1"><User size={10} /> {consultor}</p>
+      )}
       <div className="flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
         {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg"><MessageCircle size={12} /> WhatsApp</a>}
         {!lead.primeiro_contato_em && (
@@ -85,7 +118,11 @@ function LeadCard({ lead, onContato, onAbrir }: { lead: Lead; onContato: (id: st
   );
 }
 
-function Column({ stage, leads, onContato, onAbrir }: { stage: typeof STAGES[number]; leads: Lead[]; onContato: (id: string) => void; onAbrir: (id: string) => void }) {
+function Column({ stage, leads, pessoas, ativs, mostrarConsultor, onContato, onAbrir }: {
+  stage: typeof STAGES[number]; leads: LeadPipe[];
+  pessoas: Record<string, string>; ativs: Record<string, AtivAtual>; mostrarConsultor: boolean;
+  onContato: (id: string) => void; onAbrir: (id: string) => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = leads.reduce((s, l) => s + (l.valor_potencial ?? 0), 0);
   return (
@@ -97,11 +134,44 @@ function Column({ stage, leads, onContato, onAbrir }: { stage: typeof STAGES[num
           <span className="text-xs bg-slate-100 text-slate-500 rounded-full px-1.5 font-bold">{leads.length}</span>
         </div>
       </div>
-      <div className="text-[11px] text-muted px-1 mb-2">{brlShort(total)}</div>
+      <div className="text-[11px] text-muted px-1 mb-2">
+        {brlShort(total)}{FORA_DO_FUNIL.has(stage.id) ? ` · últimos ${JANELA_FECHADOS_DIAS}d` : ""}
+      </div>
       <div ref={setNodeRef} className={`min-h-[140px] rounded-xl p-2 transition-colors ${isOver ? "bg-brand-50" : "bg-slate-100/60"}`}>
-        {leads.map((l) => <LeadCard key={l.id} lead={l} onContato={onContato} onAbrir={onAbrir} />)}
+        {leads.map((l) => (
+          <LeadCard key={l.id} lead={l} ativ={ativs[l.id]}
+            consultor={mostrarConsultor && l.vendedor_id ? pessoas[l.vendedor_id] : undefined}
+            onContato={onContato} onAbrir={onAbrir} />
+        ))}
       </div>
     </div>
+  );
+}
+
+// ─── Modal: motivo do "Perdido" (todo arquivamento passa por motivo — C2S) ────
+function ModalPerdido({ lead, motivos, onConfirm, onCancel }: {
+  lead: Lead; motivos: MotivoArquivamento[]; onConfirm: (motivo: string) => void; onCancel: () => void;
+}) {
+  const [motivo, setMotivo] = useState("");
+  return (
+    <ModalShell onClose={onCancel} label="Motivo da perda"
+      backdropClassName="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-ink flex items-center gap-2"><Archive size={17} className="text-red-500" /> Por que perdemos?</h3>
+        <button onClick={onCancel} aria-label="Fechar" className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+      </div>
+      <p className="text-xs text-muted mb-3">{lead.nome} sai do funil e vai pros arquivados com o motivo escolhido.</p>
+      <select className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-ink outline-none focus:border-brand-400"
+        value={motivo} onChange={(e) => setMotivo(e.target.value)} autoFocus>
+        <option value="">Selecione um motivo…</option>
+        {motivos.map((m) => <option key={m.id} value={m.nome}>{m.nome}</option>)}
+      </select>
+      <div className="flex gap-2 justify-end mt-4">
+        <Button variant="ghost" onClick={onCancel}>Cancelar</Button>
+        <Button variant="danger" disabled={!motivo} onClick={() => onConfirm(motivo)}>Arquivar como perdido</Button>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -109,10 +179,14 @@ function Column({ stage, leads, onContato, onAbrir }: { stage: typeof STAGES[num
 // Abre ao soltar um lead em "Fechado": registra a venda pré-preenchida e gera
 // AUTOMATICAMENTE as N parcelas + a comissão do consultor (fim do retrabalho em 3 telas).
 function RegistrarVendaModal({
-  lead, onClose, onSaved,
-}: { lead: Lead; onClose: () => void; onSaved: () => void }) {
+  lead, pessoas, onClose, onSaved,
+}: { lead: Lead; pessoas: Record<string, string>; onClose: () => void; onSaved: () => void }) {
   const { user } = useAuth();
   const hoje = new Date().toISOString().slice(0, 10);
+  // A venda e a comissão são do DONO do lead — não de quem arrastou o card.
+  // (Gestor movendo card de consultor na visão Equipe corrompia Produção/Ranking/comissão.)
+  const donoId = lead.vendedor_id ?? user?.id ?? null;
+  const donoNome = (lead.vendedor_id && pessoas[lead.vendedor_id]) || user?.name || "—";
   const [form, setForm] = useState({
     produto: lead.produto_interesse ?? "",
     seguradora: "",
@@ -144,8 +218,8 @@ function RegistrarVendaModal({
       const { data: venda, error: e1 } = await supabase.from("vendas").insert({
         data_venda: form.data_venda,
         cliente_nome: lead.nome,
-        vendedor_id: user.id,
-        vendedor_nome: user.name,
+        vendedor_id: donoId,
+        vendedor_nome: donoNome,
         seguradora: form.seguradora.trim() || null,
         produto: form.produto.trim(),
         valor: valorNum,
@@ -174,7 +248,7 @@ function RegistrarVendaModal({
       // 3) Comissão do consultor
       const lib = new Date(dv); lib.setMonth(lib.getMonth() + 1);
       const { error: e3 } = await supabase.from("comissoes").insert({
-        venda_id: venda.id, vendedor_id: user.id, valor: comissaoValor, pct,
+        venda_id: venda.id, vendedor_id: donoId, valor: comissaoValor, pct,
         liberacao: lib.toISOString().slice(0, 10), status: "a_pagar",
       });
       if (e3) throw e3;
@@ -205,7 +279,7 @@ function RegistrarVendaModal({
             <span className="w-10 h-10 rounded-xl bg-green-50 text-green-600 grid place-items-center"><Trophy size={20} /></span>
             <div>
               <h3 className="font-bold text-ink">Fechou! Registrar a venda</h3>
-              <p className="text-xs text-muted">{lead.nome} · parcelas e comissão são geradas sozinhas</p>
+              <p className="text-xs text-muted">{lead.nome} · venda de <strong>{donoNome}</strong> · parcelas e comissão automáticas</p>
             </div>
           </div>
           <button onClick={onClose} aria-label="Fechar" className="text-slate-500 hover:text-slate-700 p-1"><X size={18} /></button>
@@ -256,24 +330,63 @@ function RegistrarVendaModal({
 export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
   const navigate = useNavigate();
   const { user, isManager } = useAuth();
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<LeadPipe[]>([]);
   const [loading, setLoading] = useState(true);
-  const [escopo, setEscopo] = useState<"meus" | "todos">("meus");
+  // "meus" | "todos" | id de um consultor específico ("Ver como" do C2S)
+  const [escopo, setEscopo] = useState<string>("meus");
   const [vendaLead, setVendaLead] = useState<Lead | null>(null); // lead recém-fechado → modal de venda
+  const [perdidoPend, setPerdidoPend] = useState<{ lead: Lead; anterior: string } | null>(null);
+  const [pessoas, setPessoas] = useState<Record<string, string>>({});
+  const [ativs, setAtivs] = useState<Record<string, AtivAtual>>({});
+  const [motivos, setMotivos] = useState<MotivoArquivamento[]>([]);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: stageKeyboardCoordinateGetter }),
   );
 
-  useEffect(() => { (async () => { setLeads(await fetchLeads()); setLoading(false); })(); }, []);
+  useEffect(() => {
+    (async () => {
+      const [ls, mots] = await Promise.all([fetchLeads(), listar<MotivoArquivamento>("motivos_arquivamento", "nome")]);
+      setLeads(ls as LeadPipe[]);
+      setMotivos(mots.filter((m) => m.ativo));
+      if (supabase) {
+        // Nomes da equipe (consultor no card, dono da venda, "Ver como")
+        const { data: perfis } = await supabase.from("profiles").select("id,name")
+          .in("role", ["admin", "gestor", "vendedor"]).order("name");
+        const mapa: Record<string, string> = {};
+        (perfis || []).forEach((p: any) => { mapa[p.id] = p.name; });
+        setPessoas(mapa);
+        // Atividade atual (pendente mais próxima) por lead — em lote, 1 query
+        const { data: pend } = await supabase.from("lead_atividades")
+          .select("lead_id, titulo, quando").eq("status", "pendente").order("quando").limit(2000);
+        const porLead: Record<string, AtivAtual> = {};
+        const agora = Date.now();
+        (pend || []).forEach((a: any) => {
+          if (!porLead[a.lead_id]) porLead[a.lead_id] = { titulo: a.titulo, quando: a.quando, atrasada: new Date(a.quando).getTime() < agora };
+        });
+        setAtivs(porLead);
+      }
+      setLoading(false);
+    })();
+  }, []);
 
   // Pipeline = leads COM dono e fora do bolsão (em atendimento), exceto os descartados
-  // (lead arquivado não pode ficar preso pra sempre numa coluna do kanban)
-  const ativos = useMemo(() => leads.filter((l) => moduloDe(l) === modulo && !noBolsao(l) && !l.descartado), [leads, modulo]);
-  const visiveis = useMemo(
-    () => (escopo === "meus" && user ? ativos.filter((l) => l.vendedor_id === user.id) : ativos),
-    [ativos, escopo, user]
-  );
+  // (lead arquivado não pode ficar preso pra sempre numa coluna do kanban).
+  // Ganho/Perdido só aparecem na janela recente — no C2S ficam fora do funil.
+  const corteFechados = useMemo(() => Date.now() - JANELA_FECHADOS_DIAS * 24 * 60 * 60 * 1000, []);
+  const ativos = useMemo(() => leads.filter((l) => {
+    if (moduloDe(l) !== modulo || noBolsao(l) || l.descartado) return false;
+    if (FORA_DO_FUNIL.has(l.etapa ?? "")) {
+      const ref = l.interagido_em ?? l.created_at;
+      return !!ref && new Date(ref).getTime() >= corteFechados;
+    }
+    return true;
+  }), [leads, modulo, corteFechados]);
+  const visiveis = useMemo(() => {
+    if (escopo === "todos") return ativos;
+    if (escopo === "meus") return user ? ativos.filter((l) => l.vendedor_id === user.id) : ativos;
+    return ativos.filter((l) => l.vendedor_id === escopo); // "Ver como" consultor específico
+  }, [ativos, escopo, user]);
 
   async function onDragEnd(e: DragEndEvent) {
     const id = String(e.active.id);
@@ -282,6 +395,9 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
     if (!to || !atual || (atual.etapa ?? "novos") === to) return; // drop fora ou mesma coluna
     const anterior = atual.etapa ?? "novos";
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, etapa: to } : l)));
+    // Perdido exige MOTIVO (C2S: todo arquivamento tem motivo) — confirma no modal
+    // antes de gravar; cancelar devolve o card pra coluna de origem.
+    if (to === "perdido") { setPerdidoPend({ lead: atual, anterior }); return; }
     try {
       await moverEtapa(id, to);
       // fechou o negócio → oferece registrar a venda na hora (parcelas + comissão automáticas)
@@ -289,6 +405,29 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
     } catch {
       setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, etapa: anterior } : l)));
     }
+  }
+
+  async function confirmarPerdido(motivo: string) {
+    if (!perdidoPend) return;
+    const { lead } = perdidoPend;
+    setPerdidoPend(null);
+    try {
+      await moverEtapa(lead.id, "perdido");
+      const ok = await descartarLead(lead.id, motivo);
+      if (!ok) throw new Error("descartar falhou");
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, etapa: "perdido", descartado: true, motivo_descarte: motivo } : l)));
+      toast.success("Lead arquivado como perdido.");
+    } catch {
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, etapa: perdidoPend.anterior } : l)));
+      toast.error("Não foi possível arquivar o lead.");
+    }
+  }
+
+  function cancelarPerdido() {
+    if (!perdidoPend) return;
+    const { lead, anterior } = perdidoPend;
+    setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, etapa: anterior } : l)));
+    setPerdidoPend(null);
   }
 
   async function onContato(id: string) {
@@ -300,7 +439,9 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
     navigate(`/${modulo}/leads/${id}`);
   }
 
-  const potencial = visiveis.reduce((s, l) => s + (l.valor_potencial ?? 0), 0);
+  // Potencial = só o que ainda está EM ABERTO no funil (contar ganho/perdido
+  // inflava o número reportado ao gestor com negócio já resolvido).
+  const potencial = visiveis.filter((l) => !FORA_DO_FUNIL.has(l.etapa ?? "")).reduce((s, l) => s + (l.valor_potencial ?? 0), 0);
   const fechados = visiveis.filter((l) => l.etapa === "ganho").length;
 
   return (
@@ -310,21 +451,24 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
         subtitle="Funil de leads — arraste entre as etapas"
         icon={KanbanSquare}
         actions={isManager ? (
-          <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
-            {(["meus", "todos"] as const).map((e) => (
-              <button key={e} onClick={() => setEscopo(e)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-lg ${escopo === e ? "bg-white shadow text-brand-600" : "text-slate-500"}`}>
-                {e === "meus" ? "Meus leads" : "Equipe"}
-              </button>
+          <select
+            value={escopo} onChange={(e) => setEscopo(e.target.value)}
+            aria-label="Ver funil como"
+            className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-ink outline-none focus:border-brand-400"
+          >
+            <option value="meus">Meus leads</option>
+            <option value="todos">Equipe (todos)</option>
+            {Object.entries(pessoas).filter(([pid]) => pid !== user?.id).map(([pid, nome]) => (
+              <option key={pid} value={pid}>{nome}</option>
             ))}
-          </div>
+          </select>
         ) : undefined}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <KpiCard label="Potencial no Funil" value={brlShort(potencial)} icon={DollarSign} accent="brand" />
-        <KpiCard label="Leads Ativos" value={String(visiveis.length)} icon={User} accent="sky" />
-        <KpiCard label="Fechados" value={String(fechados)} icon={CheckCircle2} accent="success" />
+        <KpiCard label="Potencial no Funil" value={brlShort(potencial)} hint="Só etapas em aberto" icon={DollarSign} accent="brand" />
+        <KpiCard label="Leads Ativos" value={String(visiveis.filter((l) => !FORA_DO_FUNIL.has(l.etapa ?? "")).length)} icon={User} accent="sky" />
+        <KpiCard label="Fechados" value={String(fechados)} hint={`Últimos ${JANELA_FECHADOS_DIAS} dias`} icon={CheckCircle2} accent="success" />
       </div>
 
       {loading ? (
@@ -341,7 +485,9 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
             {STAGES.map((s) => (
-              <Column key={s.id} stage={s} leads={visiveis.filter((l) => (l.etapa ?? "novos") === s.id)} onContato={onContato} onAbrir={onAbrir} />
+              <Column key={s.id} stage={s} leads={visiveis.filter((l) => (l.etapa ?? "novos") === s.id)}
+                pessoas={pessoas} ativs={ativs} mostrarConsultor={escopo !== "meus"}
+                onContato={onContato} onAbrir={onAbrir} />
             ))}
           </div>
         </DndContext>
@@ -350,9 +496,13 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
       {vendaLead && (
         <RegistrarVendaModal
           lead={vendaLead}
+          pessoas={pessoas}
           onClose={() => setVendaLead(null)}
           onSaved={() => setVendaLead(null)}
         />
+      )}
+      {perdidoPend && (
+        <ModalPerdido lead={perdidoPend.lead} motivos={motivos} onConfirm={confirmarPerdido} onCancel={cancelarPerdido} />
       )}
     </>
   );
