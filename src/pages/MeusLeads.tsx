@@ -11,8 +11,8 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { fetchLeads, moduloDe, type Lead } from "../lib/leads";
 import {
-  type Atividade, TIPOS_ATIVIDADE, atividadeAtual, atividadeAtrasada,
-  favoritosDoUsuario, alternarFavorito, listarEquipe, inserir,
+  type Atividade, type Etiqueta, TIPOS_ATIVIDADE, atividadeAtual, atividadeAtrasada,
+  favoritosDoUsuario, alternarFavorito, listarEquipe, inserir, listar,
 } from "../lib/c2s";
 import { onlyDigits } from "../lib/format";
 import { paraNumero } from "../lib/num";
@@ -104,6 +104,12 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
   const [busca, setBusca] = useState("");
   const [aba, setAba] = useState<AbaChave>("afazer");
   const [visao, setVisao] = useState<string>("todos"); // "todos" | userId — só relevante p/ gestor/admin
+  // Filtros estruturados (paridade C2S: "Busca + Filtros")
+  const [fOrigem, setFOrigem] = useState("");
+  const [fEtiqueta, setFEtiqueta] = useState("");
+  const [fPeriodo, setFPeriodo] = useState(""); // dias: "" = sempre
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
+  const [etiquetasPorLead, setEtiquetasPorLead] = useState<Map<string, Set<string>>>(new Map());
 
   // Modal "Novo lead"
   const [novoAberto, setNovoAberto] = useState(false);
@@ -118,12 +124,14 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
   async function load() {
     const req = ++loadReq.current;
     try {
-      const [todosLeads, ativsRes, favs, equipeRes] = await Promise.all([
+      const [todosLeads, ativsRes, favs, equipeRes, tagsRes, vinculosRes] = await Promise.all([
         // Descartados vêm junto: a aba "Arquivados" precisa deles (as demais filtram)
         fetchLeads({ incluirDescartados: true }),
         supabase ? supabase.from("lead_atividades").select("*").eq("status", "pendente") : Promise.resolve({ data: [], error: null }),
         user ? favoritosDoUsuario(user.id) : Promise.resolve(new Set<string>()),
         isManager ? listarEquipe() : Promise.resolve([]),
+        listar<Etiqueta>("etiquetas"),
+        supabase ? supabase.from("lead_etiquetas").select("lead_id, etiqueta_id").limit(5000) : Promise.resolve({ data: [], error: null }),
       ]);
       if (req !== loadReq.current) return;
 
@@ -138,6 +146,14 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
       setAtividadesPorLead(mapa);
       setFavoritos(favs);
       setEquipe(equipeRes);
+      setEtiquetas(tagsRes.filter((t) => t.ativa));
+      const mapaTags = new Map<string, Set<string>>();
+      (((vinculosRes as any).data as { lead_id: string; etiqueta_id: string }[]) ?? []).forEach((v) => {
+        const s = mapaTags.get(v.lead_id) ?? new Set<string>();
+        s.add(v.etiqueta_id);
+        mapaTags.set(v.lead_id, s);
+      });
+      setEtiquetasPorLead(mapaTags);
     } catch (e) {
       console.error("[meus-leads] load:", e);
     } finally {
@@ -366,7 +382,17 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
     );
   }
 
-  const filtro = (arr: typeof classificados) => arr.filter((c) => matchBusca(c.lead, busca));
+  // Busca livre + filtros estruturados (origem, etiqueta, período de criação)
+  const filtro = (arr: typeof classificados) => arr.filter((c) => {
+    if (!matchBusca(c.lead, busca)) return false;
+    if (fOrigem && c.lead.origem !== fOrigem) return false;
+    if (fEtiqueta && !etiquetasPorLead.get(c.lead.id)?.has(fEtiqueta)) return false;
+    if (fPeriodo) {
+      const corte = Date.now() - Number(fPeriodo) * 24 * 60 * 60 * 1000;
+      if (!c.lead.created_at || new Date(c.lead.created_at).getTime() < corte) return false;
+    }
+    return true;
+  });
 
   return (
     <>
@@ -387,6 +413,19 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
       <Card className="mb-5">
         <div className="flex items-center gap-3 flex-wrap">
           <SearchInput value={busca} onChange={setBusca} placeholder="Buscar por nome, telefone, e-mail ou produto..." />
+          <Select value={fOrigem} onChange={setFOrigem} placeholder="Todas as origens" options={[
+            { value: "chatbot", label: "Kubinho (chatbot)" }, { value: "formulario", label: "Formulário" },
+            { value: "whatsapp", label: "WhatsApp" }, { value: "indicacao", label: "Indicação" }, { value: "portal", label: "Portal" },
+            { value: "webhook", label: "Webhook (Meta/Make)" }, { value: "manual", label: "Manual" },
+          ]} />
+          {etiquetas.length > 0 && (
+            <Select value={fEtiqueta} onChange={setFEtiqueta} placeholder="Todas as etiquetas"
+              options={etiquetas.map((t) => ({ value: t.id, label: t.nome }))} />
+          )}
+          <Select value={fPeriodo} onChange={setFPeriodo} placeholder="Qualquer período" options={[
+            { value: "1", label: "Hoje" }, { value: "7", label: "Últimos 7 dias" },
+            { value: "30", label: "Últimos 30 dias" }, { value: "90", label: "Últimos 90 dias" },
+          ]} />
           {isManager && (
             <Select
               value={visao}
