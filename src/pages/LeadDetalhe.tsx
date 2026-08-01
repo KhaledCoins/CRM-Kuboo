@@ -720,6 +720,11 @@ export function LeadDetalhe() {
     if (!lead || !user) return;
     const ok = await inserir("lead_atividades", { lead_id: lead.id, tipo, titulo, quando, status: "pendente", criado_por: user.id });
     if (!ok) { toast.error(`Não foi possível criar a atividade.${avisoParity ? " Rode a migration supabase/c2s-parity.sql." : ""}`); return; }
+    // Agendar follow-up É atendimento (C2S: memória de retorno conta "última
+    // atividade") — sem isso o lead seguia na escada de sem-atendimento.
+    const now = new Date().toISOString();
+    await atualizar("leads", lead.id, { interagido_em: now });
+    setLead((p) => (p ? { ...p, interagido_em: now } : p));
     toast.success("Atividade criada.");
     reload();
   }

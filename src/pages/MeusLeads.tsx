@@ -9,7 +9,7 @@ import { PageHeader, Card, Badge, EmptyState, Spinner, SearchInput, Select, Butt
 import { ModalShell } from "../components/ModalShell";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { fetchLeads, moduloDe, type Lead } from "../lib/leads";
+import { fetchLeads, moduloDe, limiteSlaMinutos, type Lead } from "../lib/leads";
 import {
   type Atividade, type Etiqueta, TIPOS_ATIVIDADE, atividadeAtual, atividadeAtrasada,
   favoritosDoUsuario, alternarFavorito, listarEquipe, inserir, listar,
@@ -281,7 +281,13 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
         score: 60,
         vendedor_id: vendedorId,
       };
-      if (vendedorId) payload.atribuido_em = new Date().toISOString();
+      if (vendedorId) {
+        payload.atribuido_em = new Date().toISOString();
+        // SLA de 1º contato também na atribuição manual — sem isso o lead
+        // criado "pra um colega" nunca entrava nos avisos nem na reciclagem.
+        const minutos = await limiteSlaMinutos();
+        payload.sla_expira_em = new Date(Date.now() + minutos * 60000).toISOString();
+      }
 
       const { data: inserido, error } = await supabase.from("leads").insert(payload).select("id").single();
       if (error) throw error;

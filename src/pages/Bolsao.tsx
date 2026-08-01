@@ -146,9 +146,15 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
   // Complementa o "pegar lead" — não o substitui.
   async function handleDistribuir() {
     if (!supabase || !filtered.length) return;
-    const { data: vendedores } = await supabase.from("profiles").select("id,name").in("role", ["vendedor", "gestor", "admin"]).limit(50);
-    const ids = (vendedores || []).map((v) => v.id);
-    if (!ids.length) { toast.error("Nenhum vendedor encontrado pra distribuir."); return; }
+    // Só VENDEDORES aprovados e com check-in ativo — mesma régua do motor
+    // (fila_proximo_usuario): quem fez check-out de plantão não recebe lead,
+    // e gestor/admin não entram na conta do rodízio manual.
+    const { data: vendedores } = await supabase.from("profiles")
+      .select("id,name,aprovado,disponivel").eq("role", "vendedor").limit(50);
+    const ids = (vendedores || [])
+      .filter((v: any) => v.aprovado !== false && v.disponivel !== false)
+      .map((v: any) => v.id);
+    if (!ids.length) { toast.error("Nenhum vendedor disponível (aprovado e com check-in) pra distribuir."); return; }
     if (!window.confirm(`Distribuir ${filtered.length} lead(s) em rodízio entre ${ids.length} membro(s) da equipe?`)) return;
     setDistribuindo(true);
     const r = await distribuirBolsao(filtered, ids);

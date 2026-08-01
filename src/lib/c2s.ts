@@ -196,7 +196,9 @@ export function horarioPadrao(): HorarioSemana {
 export function horarioResumo(h?: HorarioSemana | null): string {
   if (!h) return "Sempre ativa (sem restrição de horário)";
   const ativos = DIAS_SEMANA.filter((d) => h[d.chave]?.ativo);
-  if (!ativos.length) return "Sempre ativa (sem restrição de horário)";
+  // Horário restrito SEM nenhum dia ativo = a fila NUNCA distribui (fila_no_horario
+  // retorna false). Dizer "sempre ativa" aqui era o oposto da realidade.
+  if (!ativos.length) return "ATENÇÃO: nenhum dia ativo — esta fila nunca distribui";
   return ativos.map((d) => `${d.curto} ${h[d.chave]!.ini}–${h[d.chave]!.fim}`).join(" · ");
 }
 

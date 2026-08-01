@@ -356,6 +356,17 @@ function FilaEditor({ fila, equipe, filaUsuarios, proximaOrdem, onClose, onSaved
 
   async function salvar() {
     if (!nome.trim()) { toast.error("Dê um nome para a fila."); return; }
+    // Regra numérica sem valor nunca casaria (o banco é blindado pelo
+    // safe_numeric da fase 3) — o certo é nem deixar salvar assim.
+    const regraInvalida = regras.find((r) =>
+      (r.campo === "score" || r.campo === "valor_potencial") &&
+      (!r.valor?.trim() || Number.isNaN(Number(r.valor.replace(",", "."))))
+    );
+    if (regraInvalida) { toast.error("Há uma regra de Score/Preço sem valor numérico — preencha ou remova a condição."); return; }
+    if (usarHorario && !DIAS_SEMANA.some((d) => horario[d.chave]?.ativo)) {
+      toast.error("Horário restrito sem nenhum dia ativo — a fila nunca distribuiria. Marque ao menos um dia ou desligue a restrição.");
+      return;
+    }
     setSalvando(true);
     const id = await salvarFila({
       id: fila?.id,
