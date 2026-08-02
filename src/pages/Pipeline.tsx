@@ -25,7 +25,9 @@ const STAGES = [
   { id: "cotacao", label: "Cotação Enviada", color: "#5BC4F5" },
   { id: "negociacao", label: "Em Negociação", color: "#F59E0B" },
   { id: "ganho", label: "Fechado", color: "#16A34A" },
-  { id: "perdido", label: "Perdido", color: "#94A3B8" },
+  // "Perdido" NÃO é coluna: todo perdido vira arquivado (descartado) no mesmo
+  // fluxo, então a coluna vivia permanentemente vazia ocupando 270px do quadro.
+  // O drop para perder continua existindo — na ZonaPerdido, abaixo do funil.
 ];
 // Coordenadas de teclado do funil: seta esquerda/direita pula de coluna
 // (ordem fixa, definida uma vez fora do componente).
@@ -144,6 +146,23 @@ function Column({ stage, leads, pessoas, ativs, mostrarConsultor, onContato, onA
             onContato={onContato} onAbrir={onAbrir} />
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── Zona de descarte: arrastar aqui = perdido (pede motivo) ─────────────────
+// Substitui a antiga coluna "Perdido", que ficava sempre vazia porque perder um
+// lead o arquiva (descartado) e ele sai do funil. Fica abaixo do kanban, discreta,
+// e só acende quando um card está sendo arrastado por cima.
+function ZonaPerdido() {
+  const { setNodeRef, isOver } = useDroppable({ id: "perdido" });
+  return (
+    <div ref={setNodeRef}
+      className={`mt-1 mb-4 rounded-xl border-2 border-dashed px-4 py-3 flex items-center justify-center gap-2 text-sm font-bold transition-colors ${
+        isOver ? "border-red-400 bg-red-50 text-red-700" : "border-slate-200 text-slate-400"
+      }`}>
+      <Archive size={16} />
+      {isOver ? "Solte para arquivar como perdido" : "Arraste um lead aqui para marcar como perdido"}
     </div>
   );
 }
@@ -338,6 +357,7 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
                 onContato={onContato} onAbrir={onAbrir} />
             ))}
           </div>
+          <ZonaPerdido />
         </DndContext>
       )}
 

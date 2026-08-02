@@ -2,9 +2,10 @@ node_modules
 dist
 dist-ssr
 *.local
-.env
-.env.local
-.env.*.local
+# Pega TUDO que começa com .env e libera só o template — antes `.env.*.local`
+# não cobria `.env.production`/`.env.development`, que iriam pro git com segredo.
+.env*
+!.env.example
 .DS_Store
 .vercel
 *.log
