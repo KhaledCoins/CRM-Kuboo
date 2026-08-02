@@ -30,6 +30,35 @@ interface LeadRow {
 }
 interface Equipe { id: string; name: string; role: string | null; permissoes?: Record<string, boolean> | null }
 
+// Uma visita já normalizada: quem responde por ela, de que módulo é o lead e as
+// duas datas que interessam (quando foi agendada / quando foi realizada).
+interface VisitaRow {
+  userId: string | null;
+  modulo: string | null;
+  criadaEm: string | null;
+  concluidaEm: string | null;
+  concluida: boolean;
+}
+
+// lead_atividades pode não existir (migration supabase/c2s-parity.sql não rodada)
+// — nesse caso o relatório perde as colunas de visita, mas não quebra.
+function normalizarVisitas(res: { data: unknown; error: unknown } | null): VisitaRow[] {
+  if (!res || res.error || !Array.isArray(res.data)) return [];
+  return (res.data as Record<string, any>[]).map((a) => {
+    // embed to-one do PostgREST vem como objeto, mas defensivo contra array de 1
+    const lead = Array.isArray(a.lead) ? a.lead[0] : a.lead;
+    return {
+      // A visita conta pro dono do lead; se o lead sumiu do alcance, cai pra
+      // quem criou a atividade (na prática é o próprio consultor).
+      userId: lead?.vendedor_id ?? a.criado_por ?? null,
+      modulo: lead?.modulo ?? null,
+      criadaEm: a.created_at ?? null,
+      concluidaEm: a.concluida_em ?? null,
+      concluida: a.status === "concluida",
+    };
+  });
+}
+
 // visível como TeamUser só o suficiente pra can() avaliar visivel_relatorios
 const comoTeamUser = (u: Equipe): TeamUser => ({ id: u.id, email: "", name: u.name, role: (u.role as Role) ?? "vendedor", permissoes: u.permissoes });
 
@@ -43,9 +72,14 @@ interface LinhaConsultor {
   tempoMedioMin: number | null;
   maisRapidoMin: number | null;
   maisLentoMin: number | null;
+  visitasAgendadas: number;
+  visitasRealizadas: number;
   fechados: number;
   arquivados: number;
 }
+
+// Linha só entra no CSV / tira a tela do vazio se tiver algum número
+const temDados = (l: LinhaConsultor) => l.recebidos > 0 || l.visitasAgendadas > 0 || l.visitasRealizadas > 0;
 
 // "12min" / "1h20" / "2h" — mais compacto que minutosLabel() (usado nos avisos/config)
 // porque aqui aparece repetido numa tabela inteira.
@@ -57,7 +91,8 @@ function formatarTempo(min: number): string {
   return resto > 0 ? `${h}h${resto}` : `${h}h`;
 }
 
-const moduloDeLead = (l: LeadRow): "seguros" | "consorcios" => (l.modulo === "consorcios" ? "consorcios" : "seguros");
+const normalizarModulo = (m: string | null): "seguros" | "consorcios" => (m === "consorcios" ? "consorcios" : "seguros");
+const moduloDeLead = (l: LeadRow) => normalizarModulo(l.modulo);
 
 export function Desempenho() {
   const { user } = useAuth();
@@ -65,6 +100,7 @@ export function Desempenho() {
   const [periodo, setPeriodo] = useState<PeriodoDias>(30);
   const [moduloFiltro, setModuloFiltro] = useState<"" | "seguros" | "consorcios">("");
   const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [visitas, setVisitas] = useState<VisitaRow[]>([]);
   const [equipe, setEquipe] = useState<Equipe[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -79,16 +115,25 @@ export function Desempenho() {
       if (!supabase) { setLoading(false); return; }
       try {
         const desde = new Date(Date.now() - periodo * 86400000).toISOString();
-        const [leadsR, equipeR] = await Promise.all([
+        const [leadsR, visitasR, equipeR] = await Promise.all([
           supabase.from("leads")
             .select("id,nome,vendedor_id,modulo,etapa,descartado,created_at,primeiro_contato_em")
             .gte("created_at", desde)
+            .limit(5000),
+          // Visitas (C2S §Relatórios "Visitas e Negócios Fechados"). O filtro é OR
+          // porque uma visita agendada ANTES do período pode ter sido realizada
+          // DENTRO dele — filtrar só por created_at perderia a coluna de realizadas.
+          supabase.from("lead_atividades")
+            .select("id,status,created_at,concluida_em,criado_por,lead:leads(vendedor_id,modulo)")
+            .eq("tipo", "visita")
+            .or(`created_at.gte.${desde},concluida_em.gte.${desde}`)
             .limit(5000),
           supabase.from("profiles").select("id,name,role,permissoes")
             .in("role", ["vendedor", "gestor", "admin"]).order("name"),
         ]);
         if (!active || req !== loadReq.current) return;
         setLeads((leadsR.data as LeadRow[]) ?? []);
+        setVisitas(normalizarVisitas(visitasR));
         // "Visível nos relatórios" (paridade C2S): consultor com a permissão
         // desligada some das linhas do relatório, mesmo que tenha leads.
         const todaEquipe = (equipeR.data as Equipe[]) ?? [];
@@ -107,6 +152,22 @@ export function Desempenho() {
     [leads, moduloFiltro]
   );
 
+  // Agendadas = criadas no período; realizadas = concluídas no período. São
+  // janelas diferentes sobre a MESMA linha, por isso os dois contadores juntos.
+  const visitasPorConsultor = useMemo(() => {
+    const desdeMs = Date.now() - periodo * 86400000;
+    const mapa = new Map<string, { agendadas: number; realizadas: number }>();
+    for (const v of visitas) {
+      if (!v.userId) continue;
+      if (moduloFiltro && normalizarModulo(v.modulo) !== moduloFiltro) continue;
+      const acc = mapa.get(v.userId) ?? { agendadas: 0, realizadas: 0 };
+      if (v.criadaEm && new Date(v.criadaEm).getTime() >= desdeMs) acc.agendadas++;
+      if (v.concluida && v.concluidaEm && new Date(v.concluidaEm).getTime() >= desdeMs) acc.realizadas++;
+      mapa.set(v.userId, acc);
+    }
+    return mapa;
+  }, [visitas, moduloFiltro, periodo]);
+
   const linhas: LinhaConsultor[] = useMemo(() => {
     const porVendedor = new Map<string, LeadRow[]>();
     for (const l of leadsFiltrados) {
@@ -117,6 +178,7 @@ export function Desempenho() {
     }
     const rows = equipe.map((u): LinhaConsultor => {
       const meus = porVendedor.get(u.id) ?? [];
+      const vis = visitasPorConsultor.get(u.id);
       const atendidosLeads = meus.filter((l) => l.primeiro_contato_em);
       const tempos = atendidosLeads.map((l) => (new Date(l.primeiro_contato_em!).getTime() - new Date(l.created_at).getTime()) / 60000).filter((n) => n >= 0);
       const tempoMedio = tempos.length ? tempos.reduce((a, b) => a + b, 0) / tempos.length : null;
@@ -130,6 +192,8 @@ export function Desempenho() {
         tempoMedioMin: tempoMedio,
         maisRapidoMin: tempos.length ? Math.min(...tempos) : null,
         maisLentoMin: tempos.length ? Math.max(...tempos) : null,
+        visitasAgendadas: vis?.agendadas ?? 0,
+        visitasRealizadas: vis?.realizadas ?? 0,
         fechados: meus.filter((l) => l.etapa === "ganho").length,
         arquivados: meus.filter((l) => l.descartado).length,
       };
@@ -141,13 +205,13 @@ export function Desempenho() {
       if (b.tempoMedioMin == null) return -1;
       return a.tempoMedioMin - b.tempoMedioMin;
     });
-  }, [leadsFiltrados, equipe]);
+  }, [leadsFiltrados, equipe, visitasPorConsultor]);
 
   const melhorId = linhas.find((l) => l.tempoMedioMin != null)?.id ?? null;
 
   function exportar() {
     if (!podeExtrair) return;
-    const linhasComDados = linhas.filter((l) => l.recebidos > 0);
+    const linhasComDados = linhas.filter(temDados);
     if (!linhasComDados.length) return;
     const dados = linhasComDados.map((l) => ({
       nome: l.nome,
@@ -158,6 +222,8 @@ export function Desempenho() {
       tempoMedio: l.tempoMedioMin != null ? formatarTempo(l.tempoMedioMin) : "—",
       maisRapido: l.maisRapidoMin != null ? formatarTempo(l.maisRapidoMin) : "—",
       maisLento: l.maisLentoMin != null ? formatarTempo(l.maisLentoMin) : "—",
+      visitasAgendadas: l.visitasAgendadas,
+      visitasRealizadas: l.visitasRealizadas,
       fechados: l.fechados,
       arquivados: l.arquivados,
     }));
@@ -172,6 +238,8 @@ export function Desempenho() {
         { chave: "tempoMedio", rotulo: "Tempo Médio" },
         { chave: "maisRapido", rotulo: "Mais Rápido" },
         { chave: "maisLento", rotulo: "Mais Lento" },
+        { chave: "visitasAgendadas", rotulo: "Visitas Agendadas" },
+        { chave: "visitasRealizadas", rotulo: "Visitas Realizadas" },
         { chave: "fechados", rotulo: "Fechados" },
         { chave: "arquivados", rotulo: "Arquivados" },
       ],
@@ -217,7 +285,7 @@ export function Desempenho() {
               ))}
             </div>
             {podeExtrair && (
-              <Button variant="outline" icon={Download} onClick={exportar} disabled={!linhas.some((l) => l.recebidos > 0)}>
+              <Button variant="outline" icon={Download} onClick={exportar} disabled={!linhas.some(temDados)}>
                 Exportar CSV
               </Button>
             )}
@@ -234,14 +302,14 @@ export function Desempenho() {
 
       {loading ? (
         <Spinner label="Calculando desempenho..." />
-      ) : linhas.every((l) => l.recebidos === 0) ? (
+      ) : !linhas.some(temDados) ? (
         <Card pad={false}>
-          <EmptyState icon={Gauge} title="Sem leads no período" hint="Ajuste o período ou o módulo para ver o desempenho da equipe." />
+          <EmptyState icon={Gauge} title="Sem dados no período" hint="Nenhum lead recebido nem visita registrada. Ajuste o período ou o módulo para ver o desempenho da equipe." />
         </Card>
       ) : (
         <Card pad={false}>
           <div className="p-2 overflow-x-auto">
-            <table className="w-full text-sm min-w-[900px]">
+            <table className="w-full text-sm min-w-[1080px]">
               <thead>
                 <tr className="text-left text-muted border-b border-slate-200">
                   <th className="font-bold text-xs uppercase tracking-wide py-3 px-3">Consultor</th>
@@ -251,6 +319,8 @@ export function Desempenho() {
                   <th className="font-bold text-xs uppercase tracking-wide py-3 px-3 text-right">Tempo Médio</th>
                   <th className="font-bold text-xs uppercase tracking-wide py-3 px-3 text-right">Mais Rápido</th>
                   <th className="font-bold text-xs uppercase tracking-wide py-3 px-3 text-right">Mais Lento</th>
+                  <th className="font-bold text-xs uppercase tracking-wide py-3 px-3 text-right">Visitas Agendadas</th>
+                  <th className="font-bold text-xs uppercase tracking-wide py-3 px-3 text-right">Visitas Realizadas</th>
                   <th className="font-bold text-xs uppercase tracking-wide py-3 px-3 text-right">Fechados</th>
                   <th className="font-bold text-xs uppercase tracking-wide py-3 px-3 text-right">Arquivados</th>
                 </tr>
@@ -279,6 +349,14 @@ export function Desempenho() {
                     <td className="py-3 px-3 text-right font-semibold text-ink">{l.tempoMedioMin != null ? formatarTempo(l.tempoMedioMin) : "—"}</td>
                     <td className="py-3 px-3 text-right text-green-600">{l.maisRapidoMin != null ? formatarTempo(l.maisRapidoMin) : "—"}</td>
                     <td className="py-3 px-3 text-right text-amber-600">{l.maisLentoMin != null ? formatarTempo(l.maisLentoMin) : "—"}</td>
+                    <td className="py-3 px-3 text-right text-ink">{l.visitasAgendadas || "—"}</td>
+                    <td className="py-3 px-3 text-right font-semibold text-ink">
+                      {l.visitasRealizadas > 0 ? (
+                        <span className="text-green-600">{l.visitasRealizadas}</span>
+                      ) : (
+                        <span className="text-muted font-normal">—</span>
+                      )}
+                    </td>
                     <td className="py-3 px-3 text-right text-ink">{l.fechados}</td>
                     <td className="py-3 px-3 text-right text-muted">{l.arquivados}</td>
                   </tr>

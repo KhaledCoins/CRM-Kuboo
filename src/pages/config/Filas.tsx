@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Shuffle, Plus, Pencil, Trash2, ChevronUp, ChevronDown, ShieldCheck, Users, Clock, X, Info, AlertTriangle, Power, Shield, History, Lock } from "lucide-react";
+import { Shuffle, Plus, Pencil, Trash2, ChevronUp, ChevronDown, ShieldCheck, Users, Clock, X, Info, AlertTriangle, Power, Shield, History, Lock, UserCheck, CircleDot, Moon } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Card, Button, Badge, EmptyState, Spinner, Table, Th, Td, Tr, Select } from "../../components/ui";
 import { ModalShell } from "../../components/ModalShell";
@@ -61,6 +61,7 @@ export function Filas() {
   const [movendo, setMovendo] = useState<string | null>(null);
   const [redistribuindo, setRedistribuindo] = useState(false);
   const [mostrarAuditoria, setMostrarAuditoria] = useState(false);
+  const [mostrarCheckin, setMostrarCheckin] = useState(false);
 
   async function carregar() {
     setLoading(true);
@@ -126,6 +127,7 @@ export function Filas() {
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" icon={History} onClick={() => setMostrarAuditoria(true)}>Auditoria</Button>
+            <Button variant="outline" icon={UserCheck} onClick={() => setMostrarCheckin(true)}>Check-in</Button>
             {isManager && (
               <Button variant="outline" icon={Shield} onClick={redistribuirBolsao} disabled={redistribuindo}>
                 {redistribuindo ? "Redistribuindo..." : "Redistribuir bolsão"}
@@ -227,6 +229,16 @@ export function Filas() {
       {mostrarAuditoria && (
         <ModalAuditoria filas={filas} onClose={() => setMostrarAuditoria(false)} />
       )}
+
+      {mostrarCheckin && (
+        <ModalCheckin
+          filas={filas}
+          filaUsuarios={filaUsuarios}
+          podeEditar={podeEditar}
+          meuId={user?.id ?? null}
+          onClose={() => setMostrarCheckin(false)}
+        />
+      )}
     </>
   );
 }
@@ -309,6 +321,189 @@ function ModalAuditoria({ filas, onClose }: { filas: Fila[]; onClose: () => void
               </Tr>
             ))}
           </Table>
+        )}
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Check-in da equipe (profiles.disponivel) ───────────────────────────────
+// O motor já respeita o check-in (fila_proximo_usuario filtra coalesce(disponivel,true)),
+// mas até aqui só o próprio consultor enxergava o próprio estado, no Perfil. Esta
+// visão dá ao gestor o raio-x de quem está de plantão em cada fila.
+const ROLES_EQUIPE = ["vendedor", "gestor", "admin"];
+const ROLE_ROTULO: Record<string, string> = { vendedor: "Consultor", gestor: "Gestor", admin: "Administrador" };
+
+interface MembroCheckin { id: string; name: string; role: string | null; disponivel: boolean }
+
+function ModalCheckin({ filas, filaUsuarios, podeEditar, meuId, onClose }: {
+  filas: Fila[];
+  filaUsuarios: FilaUsuario[];
+  podeEditar: boolean;
+  meuId: string | null;
+  onClose: () => void;
+}) {
+  const [membros, setMembros] = useState<MembroCheckin[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [semColuna, setSemColuna] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [salvando, setSalvando] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      if (!supabase) { setCarregando(false); return; }
+      // `disponivel` só existe depois de supabase/c2s-parity.sql — sem ela a tela
+      // ainda vale pelo mapa "quem está em qual fila", então degradamos em silêncio.
+      let linhas: any[] = [];
+      const res = await supabase.from("profiles").select("id,name,role,aprovado,disponivel").in("role", ROLES_EQUIPE).order("name");
+      if (res.error) {
+        const alt = await supabase.from("profiles").select("id,name,role,aprovado").in("role", ROLES_EQUIPE).order("name");
+        if (!alt.error && ativo) { linhas = (alt.data as any[]) ?? []; setSemColuna(true); }
+      } else linhas = (res.data as any[]) ?? [];
+      if (!ativo) return;
+      // aprovado null = conta antiga aprovada por default; só o false explícito sai.
+      setMembros(linhas.filter((p) => p.aprovado !== false).map((p) => ({
+        id: p.id,
+        name: p.name ?? "—",
+        role: p.role,
+        disponivel: p.disponivel !== false, // espelha o coalesce(disponivel, true) do motor
+      })));
+      setCarregando(false);
+    })();
+    return () => { ativo = false; };
+  }, []);
+
+  const filasPorUsuario = useMemo(() => {
+    const nomes = new Map(filas.map((f) => [f.id, f.nome]));
+    const m = new Map<string, string[]>();
+    for (const fu of filaUsuarios) {
+      if (!fu.ativo) continue;
+      const nome = nomes.get(fu.fila_id);
+      if (!nome) continue;
+      m.set(fu.user_id, [...(m.get(fu.user_id) ?? []), nome]);
+    }
+    return m;
+  }, [filas, filaUsuarios]);
+
+  const disponiveis = membros.filter((m) => m.disponivel).length;
+
+  async function alternar(m: MembroCheckin) {
+    if (!supabase || semColuna || salvando) return;
+    const novo = !m.disponivel;
+    setSalvando(m.id);
+    // Caminho principal: RPC definir_disponibilidade (SECURITY DEFINER, exige
+    // is_manager e altera SÓ a coluna disponivel — ver supabase/rpc-checkin.sql).
+    const rpc = await supabase.rpc("definir_disponibilidade", { p_user_id: m.id, p_disponivel: novo });
+    let gravou = !rpc.error && rpc.data === true;
+
+    // Fallback pro update direto: cobre o usuário alterando a PRÓPRIA
+    // disponibilidade (policy profiles_self_update) e bancos onde a RPC ainda
+    // não foi aplicada. Atenção: UPDATE barrado por RLS NÃO devolve erro —
+    // devolve ZERO linhas —, então é o .select() que revela se gravou mesmo.
+    // Sem isso a tela mentiria pro gestor dizendo "salvo".
+    if (!gravou) {
+      const { data, error } = await supabase.from("profiles").update({ disponivel: novo }).eq("id", m.id).select("id");
+      gravou = !error && !!data && data.length > 0;
+    }
+    setSalvando(null);
+    if (!gravou) {
+      setBloqueado(true);
+      toast.error(`Não foi possível alterar o check-in de ${m.name.split(" ")[0]} — só a própria pessoa pode fazer isso, em Perfil > Disponibilidade.`);
+      return;
+    }
+    setBloqueado(false);
+    setMembros((p) => p.map((x) => (x.id === m.id ? { ...x, disponivel: novo } : x)));
+    toast.success(novo ? `${m.name} está disponível para receber leads.` : `${m.name} está ausente — o rodízio vai pular.`);
+  }
+
+  return (
+    <ModalShell onClose={onClose} label="Check-in da equipe" className="bg-white rounded-2xl shadow-2xl w-[min(880px,94vw)] max-h-[90vh] overflow-y-auto">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+        <div className="flex items-center gap-2.5">
+          <span className="w-9 h-9 rounded-xl bg-brand-50 text-brand-500 grid place-items-center shrink-0"><UserCheck size={18} /></span>
+          <div>
+            <h3 className="font-extrabold text-ink text-lg">Check-in</h3>
+            <p className="text-xs text-muted">Quem está de plantão agora — só quem está disponível entra no rodízio</p>
+          </div>
+        </div>
+        <button onClick={onClose} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
+      </div>
+
+      <div className="p-6 space-y-4">
+        {semColuna && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+            <span>O check-in ainda não está ativo no banco. Rode a migration <code className="font-mono">supabase/c2s-parity.sql</code> para habilitar a disponibilidade.</span>
+          </div>
+        )}
+
+        {bloqueado && !semColuna && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
+            <Lock size={16} className="mt-0.5 shrink-0" />
+            <span>
+              O banco só permite que cada pessoa altere o próprio check-in (política <code className="font-mono">profiles_self_update</code>).
+              Peça ao consultor para ajustar em <b>Perfil &gt; Disponibilidade</b> — ou libere a edição por gestor no Supabase.
+            </span>
+          </div>
+        )}
+
+        {carregando ? (
+          <Spinner label="Carregando equipe..." />
+        ) : membros.length === 0 ? (
+          <EmptyState icon={UserCheck} title="Nenhum membro de equipe" hint="Cadastre consultores em Configurações > Usuários para vê-los aqui." />
+        ) : (
+          <>
+            {!semColuna && (
+              <div className="flex items-center gap-3 text-xs text-muted flex-wrap">
+                <span className="inline-flex items-center gap-1.5"><CircleDot size={13} className="text-green-500" /> {disponiveis} disponíve{disponiveis !== 1 ? "is" : "l"}</span>
+                <span className="inline-flex items-center gap-1.5"><Moon size={13} className="text-slate-400" /> {membros.length - disponiveis} ausente{membros.length - disponiveis !== 1 ? "s" : ""}</span>
+              </div>
+            )}
+
+            <Table head={<><Th>Pessoa</Th><Th>Papel</Th>{!semColuna && <Th>Status</Th>}<Th>Filas</Th>{podeEditar && !semColuna && <Th right>Ação</Th>}</>}>
+              {membros.map((m) => {
+                const minhasFilas = filasPorUsuario.get(m.id) ?? [];
+                return (
+                  <Tr key={m.id}>
+                    <Td>
+                      <span className="font-bold text-ink">{m.name}</span>
+                      {m.id === meuId && <span className="text-xs text-muted"> (você)</span>}
+                    </Td>
+                    <Td>{ROLE_ROTULO[m.role ?? ""] ?? m.role ?? "—"}</Td>
+                    {!semColuna && (
+                      <Td>
+                        {m.disponivel
+                          ? <Badge tone="green"><CircleDot size={11} /> Disponível</Badge>
+                          : <Badge tone="slate"><Moon size={11} /> Ausente</Badge>}
+                      </Td>
+                    )}
+                    <Td>
+                      {minhasFilas.length === 0 ? (
+                        <span className="text-xs text-muted">Fora de todas as filas</span>
+                      ) : (
+                        <span className="inline-flex flex-wrap gap-1">
+                          {minhasFilas.map((nome) => <Badge key={nome} tone="blue">{nome}</Badge>)}
+                        </span>
+                      )}
+                    </Td>
+                    {podeEditar && !semColuna && (
+                      <Td right>
+                        <Button variant="outline" size="sm" onClick={() => alternar(m)} disabled={salvando === m.id}>
+                          {salvando === m.id ? "Salvando..." : m.disponivel ? "Marcar ausente" : "Marcar disponível"}
+                        </Button>
+                      </Td>
+                    )}
+                  </Tr>
+                );
+              })}
+            </Table>
+
+            <p className="text-xs text-muted">
+              Consultor ausente é pulado pelo rodízio de todas as filas — os leads seguem para o próximo da vez.
+              {podeEditar && !semColuna && " A alteração por gestor depende de permissão no banco; se falhar, o próprio consultor ajusta no Perfil dele."}
+            </p>
+          </>
         )}
       </div>
     </ModalShell>

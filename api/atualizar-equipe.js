@@ -5,9 +5,10 @@
 //
 // SEGURANÇA: o fix de escalada de privilégio revogou UPDATE em profiles pro
 // client (só must_change_password segue liberado). Qualquer edição de
-// role/aprovado/permissoes/assinatura/phone/name de OUTRO usuário passa por
-// aqui, com service role, e exige JWT de GESTOR/ADMIN. Só admin muda papel
-// de/para admin. Nunca mexe em profiles com role 'cliente'.
+// role/aprovado/permissoes/assinatura/phone/name/disponivel de OUTRO usuário passa
+// por aqui, com service role, e exige JWT de GESTOR/ADMIN. Só admin muda papel
+// de/para admin. Nunca mexe em profiles com role 'cliente'. Desativar/reativar
+// também bane/desbane a sessão no Auth (token válido não sobrevive à demissão).
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -43,6 +44,26 @@ async function authCaller(req) {
   const role = rows?.[0]?.role;
   if (!["gestor", "admin"].includes(role)) return { error: 403, msg: "Só gestores e admins gerenciam a equipe" };
   return { user, callerRole: role };
+}
+
+// Desativar no profile (aprovado=false) é a trava principal — is_team() barra tudo
+// no banco. Mas o JWT já emitido continua válido por até uma hora, então o
+// ex-funcionário seguiria batendo na API até expirar. Banir no Auth mata a sessão
+// na hora. Falha aqui não derruba a operação: o aprovado=false já protegeu o dado.
+async function definirBanimento(admin, userId, banir) {
+  try {
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: banir ? "876000h" : "none", // ~100 anos = permanente
+    });
+    if (error) throw new Error(error.message);
+    return true;
+  } catch (err) {
+    console.error(JSON.stringify({
+      level: "error", fn: "atualizar-equipe", step: banir ? "banir" : "desbanir",
+      userId, msg: String(err).slice(0, 300),
+    }));
+    return false;
+  }
 }
 
 function isColumnMissing(err) {
@@ -103,6 +124,15 @@ export default async function handler(req, res) {
       if (p.assinatura !== undefined) {
         patch.assinatura = String(p.assinatura || "").slice(0, 2000) || null;
       }
+      // Check-in de plantão: a RLS profiles_self_update só deixa o próprio dono
+      // mexer, então marcar alguém como ausente (férias, saiu mais cedo) só é
+      // possível por aqui, com service role e JWT de gestor/admin.
+      if (p.disponivel !== undefined) {
+        if (typeof p.disponivel !== "boolean") {
+          return res.status(400).json({ error: "Disponibilidade precisa ser verdadeiro ou falso." });
+        }
+        patch.disponivel = p.disponivel;
+      }
       if (p.permissoes !== undefined) {
         const entrada = p.permissoes && typeof p.permissoes === "object" ? p.permissoes : {};
         const permissoes = {};
@@ -119,7 +149,7 @@ export default async function handler(req, res) {
       const { error: upErr } = await admin.from("profiles").update(patch).eq("id", userId);
       if (upErr) {
         if (isColumnMissing(upErr)) {
-          return res.status(409).json({ error: "Permissões/assinatura ainda não existem no banco — rode supabase/c2s-parity.sql." });
+          return res.status(409).json({ error: "Permissões/assinatura/disponibilidade ainda não existem no banco — rode supabase/c2s-parity.sql." });
         }
         throw new Error(upErr.message);
       }
@@ -161,16 +191,21 @@ export default async function handler(req, res) {
 
       await admin.from("fila_usuarios").delete().eq("user_id", userId);
 
+      const sessaoEncerrada = await definirBanimento(admin, userId, true);
+
       return res.status(200).json({
         ativosMovidos: ativosUpdated?.length ?? 0,
         arquivadosMovidos: arquivadosUpdated?.length ?? 0,
+        sessaoEncerrada,
       });
     }
 
     if (acao === "reativar") {
       const { error: reativErr } = await admin.from("profiles").update({ aprovado: true }).eq("id", userId);
       if (reativErr) throw new Error(reativErr.message);
-      return res.status(200).json({ ok: true });
+      // Sem tirar o ban o usuário reativado não consegue nem fazer login de novo.
+      const acessoLiberado = await definirBanimento(admin, userId, false);
+      return res.status(200).json({ ok: true, acessoLiberado });
     }
   } catch (err) {
     console.error(JSON.stringify({ level: "error", fn: "atualizar-equipe", msg: String(err).slice(0, 300) }));

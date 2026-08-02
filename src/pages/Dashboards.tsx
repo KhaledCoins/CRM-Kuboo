@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Download, Radio, Megaphone, Workflow, CalendarDays, ArchiveX, Percent as PercentIcon, BookmarkPlus, Trash2, Timer, Trophy, Package } from "lucide-react";
+import { BarChart3, Download, Radio, Megaphone, Workflow, CalendarDays, ArchiveX, Percent as PercentIcon, BookmarkPlus, Trash2, Timer, Trophy, Package, ClipboardList } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
   AreaChart, Area, Line, LineChart,
@@ -29,6 +29,7 @@ const PERIODOS: { dias: PeriodoDias; label: string }[] = [
 interface LeadRow {
   id: string;
   nome: string;
+  vendedor_id: string | null;
   origem: string | null;
   fonte: string | null;
   canal: string | null;
@@ -42,7 +43,10 @@ interface LeadRow {
   created_at: string;
   primeiro_contato_em: string | null;
   fb_anuncio: string | null; // Meta Lead Ads — qual anúncio trouxe o lead
+  fb_formulario: string | null; // Meta Lead Ads — qual formulário o lead preencheu
 }
+
+interface PessoaEquipe { id: string; name: string }
 
 const moduloDeLead = (l: LeadRow): "seguros" | "consorcios" => (l.modulo === "consorcios" ? "consorcios" : "seguros");
 
@@ -183,6 +187,9 @@ function tempoRespostaPorDiaData(leads: LeadRow[], dias: number): { dia: string;
 interface AnaliseConfig {
   periodo: PeriodoDias;
   moduloFiltro: "" | "seguros" | "consorcios";
+  // opcional: análises salvas antes do filtro "Ver como" não têm este campo —
+  // ler sempre com `?? ""` pra não quebrar o que o gestor já guardou.
+  vendedor?: string;
 }
 interface AnaliseSalva {
   id: string;
@@ -211,9 +218,12 @@ function ChartCard({ icon: Icon, titulo, total, vazio, hintVazio, children }: {
 }
 
 export function Dashboards() {
-  const { user } = useAuth();
+  const { user, isManager } = useAuth();
   const [periodo, setPeriodo] = useState<PeriodoDias>(30);
   const [moduloFiltro, setModuloFiltro] = useState<"" | "seguros" | "consorcios">("");
+  // "Ver como" do C2S (mesmo recorte do Pipeline): "" = todos os consultores.
+  const [vendedorFiltro, setVendedorFiltro] = useState("");
+  const [equipe, setEquipe] = useState<PessoaEquipe[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [avisoParity, setAvisoParity] = useState(false); // migration c2s-parity ainda não rodou
@@ -235,6 +245,21 @@ export function Dashboards() {
     })();
   }, [user]);
 
+  // Equipe pro "Ver como" — só o gestor recorta por consultor (o vendedor já
+  // enxerga apenas os leads dele por RLS, o filtro não teria o que fazer).
+  useEffect(() => {
+    if (!supabase || !user || !isManager) return;
+    (async () => {
+      const { data, error } = await supabase!
+        .from("profiles")
+        .select("id,name")
+        .in("role", ["admin", "gestor", "vendedor"])
+        .order("name");
+      if (error) return; // degrada em silêncio: sem lista, sem filtro
+      setEquipe((data ?? []) as unknown as PessoaEquipe[]);
+    })();
+  }, [user, isManager]);
+
   function aplicarAnalise(id: string) {
     setAnaliseSelecionadaId(id);
     if (!id) return;
@@ -242,13 +267,16 @@ export function Dashboards() {
     if (!analise) return;
     setPeriodo(analise.config.periodo);
     setModuloFiltro(analise.config.moduloFiltro);
+    // quem perdeu o papel de gestor não tem mais o seletor na tela — restaurar
+    // o recorte por consultor deixaria a tela vazia sem explicação.
+    setVendedorFiltro(isManager ? (analise.config.vendedor ?? "") : "");
   }
 
   async function salvarAnalise() {
     if (!supabase || !user) return;
     const nome = window.prompt("Nome da análise:", "");
     if (!nome || !nome.trim()) return;
-    const config: AnaliseConfig = { periodo, moduloFiltro };
+    const config: AnaliseConfig = { periodo, moduloFiltro, vendedor: vendedorFiltro };
     const { data, error } = await supabase
       .from("dashboards_analises")
       .insert({ nome: nome.trim(), user_id: user.id, config })
@@ -277,8 +305,8 @@ export function Dashboards() {
   // migration c2s-parity.sql. Sem ela, o select cheio dá 400 e zeraria a tela —
   // então caímos pras colunas base e mostramos o aviso (os gráficos por
   // fonte/campanha/motivo ficam com fallback "Sem ...", o resto funciona).
-  const COLS_BASE = "id,nome,origem,modulo,etapa,descartado,score,created_at,primeiro_contato_em";
-  const COLS_FULL = "id,nome,origem,fonte,canal,campanha,modulo,etapa,descartado,motivo_descarte,produto_interesse,score,created_at,primeiro_contato_em,fb_anuncio";
+  const COLS_BASE = "id,nome,vendedor_id,origem,modulo,etapa,descartado,score,created_at,primeiro_contato_em";
+  const COLS_FULL = "id,nome,vendedor_id,origem,fonte,canal,campanha,modulo,etapa,descartado,motivo_descarte,produto_interesse,score,created_at,primeiro_contato_em,fb_anuncio,fb_formulario";
 
   // guarda de corrida: trocar o período rápido não pode deixar uma resposta
   // antiga sobrescrever a mais recente (mesmo padrão do Desempenho.tsx).
@@ -309,7 +337,8 @@ export function Dashboards() {
       if (erro) console.error("[dashboards]", erro);
       // as colunas novas podem faltar no fallback — normaliza pra LeadRow completo
       setLeads((data ?? []).map((r) => ({
-        fonte: null, canal: null, campanha: null, motivo_descarte: null, produto_interesse: null, fb_anuncio: null, ...r,
+        fonte: null, canal: null, campanha: null, motivo_descarte: null, produto_interesse: null,
+        fb_anuncio: null, fb_formulario: null, ...r,
       })) as LeadRow[]);
       setAvisoParity(parity);
       if (active && req === loadReq.current) setLoading(false);
@@ -317,9 +346,16 @@ export function Dashboards() {
     return () => { active = false; };
   }, [periodo]);
 
-  const leadsFiltrados = useMemo(
-    () => (moduloFiltro ? leads.filter((l) => moduloDeLead(l) === moduloFiltro) : leads),
-    [leads, moduloFiltro]
+  const leadsFiltrados = useMemo(() => {
+    let arr = leads;
+    if (moduloFiltro) arr = arr.filter((l) => moduloDeLead(l) === moduloFiltro);
+    if (vendedorFiltro) arr = arr.filter((l) => l.vendedor_id === vendedorFiltro);
+    return arr;
+  }, [leads, moduloFiltro, vendedorFiltro]);
+
+  const nomeVendedorFiltro = useMemo(
+    () => equipe.find((p) => p.id === vendedorFiltro)?.name ?? "",
+    [equipe, vendedorFiltro]
   );
 
   const porFonte = useMemo(() => groupTopN(leadsFiltrados.map((l) => l.fonte || l.origem), "Sem fonte"), [leadsFiltrados]);
@@ -347,13 +383,23 @@ export function Dashboards() {
   const ganhosPorProduto = useMemo(() => groupTopN(ganhos.map((l) => l.produto_interesse), "Sem produto"), [ganhos]);
   // Meta Lead Ads: responde "qual anúncio traz lead — e qual traz lead que FECHA"
   // (o recorte de ROI do C2S; fb_anuncio vem do webhook api/lead-inbound).
-  const porAnuncio = useMemo(() => groupTopN(leadsFiltrados.map((l) => l.fb_anuncio), "Sem anúncio"), [leadsFiltrados]);
-  const ganhosPorAnuncio = useMemo(() => groupTopN(ganhos.map((l) => l.fb_anuncio), "Sem anúncio"), [ganhos]);
+  // Descarta o lead sem carimbo do Meta ANTES de agrupar: se "Sem anúncio"
+  // entrasse no top-N (e ele domina — site/indicação não têm origem paga),
+  // roubaria uma das 8 vagas e jogaria anúncio real pro balde "Outras".
+  const comAnuncio = useMemo(() => leadsFiltrados.filter((l) => !!l.fb_anuncio), [leadsFiltrados]);
+  const comFormulario = useMemo(() => leadsFiltrados.filter((l) => !!l.fb_formulario), [leadsFiltrados]);
+  const ganhosComAnuncio = useMemo(() => ganhos.filter((l) => !!l.fb_anuncio), [ganhos]);
+  const porAnuncio = useMemo(() => groupTopN(comAnuncio.map((l) => l.fb_anuncio), "Sem anúncio"), [comAnuncio]);
+  const porFormulario = useMemo(() => groupTopN(comFormulario.map((l) => l.fb_formulario), "Sem formulário"), [comFormulario]);
+  const ganhosPorAnuncio = useMemo(() => groupTopN(ganhosComAnuncio.map((l) => l.fb_anuncio), "Sem anúncio"), [ganhosComAnuncio]);
 
   function exportar() {
     if (!leadsFiltrados.length) return;
+    const nomePorId: Record<string, string> = {};
+    for (const p of equipe) nomePorId[p.id] = p.name;
     const linhas = leadsFiltrados.map((l) => ({
       nome: l.nome,
+      consultor: (l.vendedor_id && nomePorId[l.vendedor_id]) || "",
       modulo: moduloDeLead(l) === "consorcios" ? "Consórcios" : "Seguros",
       origem: l.origem || "",
       fonte: l.fonte || "",
@@ -365,11 +411,14 @@ export function Dashboards() {
       primeiro_contato_em: l.primeiro_contato_em ? dateBR(l.primeiro_contato_em) : "",
       descartado: l.descartado ? "Sim" : "Não",
       motivo_descarte: l.motivo_descarte || "",
+      fb_anuncio: l.fb_anuncio || "",
+      fb_formulario: l.fb_formulario || "",
     }));
     exportarCsv(
       `leads-dashboard-${periodo}d-${new Date().toISOString().slice(0, 10)}`,
       [
         { chave: "nome", rotulo: "Nome" },
+        { chave: "consultor", rotulo: "Consultor" },
         { chave: "modulo", rotulo: "Módulo" },
         { chave: "origem", rotulo: "Origem" },
         { chave: "fonte", rotulo: "Fonte" },
@@ -381,6 +430,8 @@ export function Dashboards() {
         { chave: "primeiro_contato_em", rotulo: "1º contato em" },
         { chave: "descartado", rotulo: "Arquivado" },
         { chave: "motivo_descarte", rotulo: "Motivo do arquivamento" },
+        { chave: "fb_anuncio", rotulo: "Anúncio (Meta)" },
+        { chave: "fb_formulario", rotulo: "Formulário (Meta)" },
       ],
       linhas
     );
@@ -391,7 +442,9 @@ export function Dashboards() {
     <>
       <PageHeader
         title="Dashboards"
-        subtitle="Análises de leads por fonte, campanha e funil"
+        subtitle={nomeVendedorFiltro
+          ? `Análises de leads de ${nomeVendedorFiltro}`
+          : "Análises de leads por fonte, campanha e funil"}
         icon={BarChart3}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
@@ -417,6 +470,14 @@ export function Dashboards() {
                   Salvar análise
                 </Button>
               </>
+            )}
+            {isManager && equipe.length > 0 && (
+              <Select
+                value={vendedorFiltro}
+                onChange={(v) => { setVendedorFiltro(v); setAnaliseSelecionadaId(""); }}
+                placeholder="Todos os consultores"
+                options={equipe.map((p) => ({ value: p.id, label: p.name }))}
+              />
             )}
             <Select
               value={moduloFiltro}
@@ -445,7 +506,7 @@ export function Dashboards() {
       {avisoParity && (
         <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
           <BarChart3 size={16} className="mt-0.5 shrink-0" />
-          <span>Rode a migration <code className="font-mono">supabase/c2s-parity.sql</code> para desbloquear as análises por fonte, campanha e motivo de arquivamento. Os demais gráficos já funcionam.</span>
+          <span>Rode as migrations <code className="font-mono">supabase/c2s-parity.sql</code> e <code className="font-mono">supabase/auditoria-leads-2026-07.sql</code> para desbloquear as análises por fonte, campanha, motivo de arquivamento e anúncio/formulário do Meta. Os demais gráficos já funcionam.</span>
         </div>
       )}
 
@@ -453,7 +514,13 @@ export function Dashboards() {
         <Spinner label="Carregando leads..." />
       ) : leadsFiltrados.length === 0 ? (
         <Card pad={false}>
-          <EmptyState icon={BarChart3} title="Sem leads no período" hint="Ajuste o período ou o módulo para ver as análises." />
+          <EmptyState
+            icon={BarChart3}
+            title="Sem leads no período"
+            hint={nomeVendedorFiltro
+              ? `${nomeVendedorFiltro} não tem leads neste recorte. Ajuste o período, o módulo ou volte para todos os consultores.`
+              : "Ajuste o período ou o módulo para ver as análises."}
+          />
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -481,7 +548,7 @@ export function Dashboards() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard icon={Megaphone} titulo="Leads por Anúncio (Meta)" total={leadsFiltrados.length}
+          <ChartCard icon={Megaphone} titulo="Leads por Anúncio (Meta)" total={comAnuncio.length}
             vazio={porAnuncio.length === 0} hintVazio="Nenhum lead com anúncio identificado — o webhook do Meta Lead Ads preenche este campo.">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porAnuncio} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
@@ -494,8 +561,8 @@ export function Dashboards() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard icon={Megaphone} titulo="Negócios Fechados por Anúncio (Meta)" total={ganhos.length}
-            vazio={ganhosPorAnuncio.length === 0} hintVazio="Nenhum negócio fechado com anúncio identificado ainda.">
+          <ChartCard icon={Trophy} titulo="Ganhos por Anúncio (Meta)" total={ganhosComAnuncio.length}
+            vazio={ganhosPorAnuncio.length === 0} hintVazio="Nenhum negócio ganho com anúncio identificado ainda.">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ganhosPorAnuncio} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
@@ -503,6 +570,19 @@ export function Dashboards() {
                 <YAxis type="category" dataKey="label" tick={axisTick} axisLine={false} tickLine={false} width={140} />
                 <Tooltip />
                 <Bar dataKey="total" fill="#16A34A" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard icon={ClipboardList} titulo="Leads por Formulário (Meta)" total={comFormulario.length}
+            vazio={porFormulario.length === 0} hintVazio="Nenhum lead com formulário identificado — o webhook do Meta Lead Ads preenche este campo.">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={porFormulario} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
+                <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" tick={axisTick} axisLine={false} tickLine={false} width={140} />
+                <Tooltip />
+                <Bar dataKey="total" fill="#8B5CF6" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
