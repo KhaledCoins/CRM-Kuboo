@@ -3,6 +3,7 @@ import { Layers, DollarSign, Award, TrendingUp, Building2, PieChart as PieIcon, 
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import { Card, KpiCard, PageHeader, EmptyState, Badge } from "../components/ui";
 import { FunilConversaoCard } from "../components/FunilConversao";
+import { MetaRealizadoCard } from "../components/MetaRealizado";
 import { brl, dateBR } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import { fetchLeads, moduloDe, type Lead } from "../lib/leads";
@@ -107,6 +108,8 @@ export function DashboardConsorcios() {
         <KpiCard label="Crédito Comercializado" value={brl(m.credito)} hint={`Médio ${brl(m.medio)} por cota`} icon={DollarSign} accent="sky" />
         <KpiCard label="Contemplações" value={String(m.contempladas)} hint="Cotas contempladas" icon={Award} accent="warning" />
       </div>
+
+      <MetaRealizadoCard modulo="consorcios" />
 
       <FunilConversaoCard leads={leads.filter((l) => moduloDe(l) === "consorcios")} />
 

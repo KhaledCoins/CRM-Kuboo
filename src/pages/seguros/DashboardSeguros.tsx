@@ -3,6 +3,7 @@ import { ShoppingCart, TrendingUp, DollarSign, Percent, Package, Trophy, PieChar
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { Card, KpiCard, PageHeader, EmptyState } from "../../components/ui";
 import { FunilConversaoCard } from "../../components/FunilConversao";
+import { MetaRealizadoCard } from "../../components/MetaRealizado";
 import { brl, brlShort } from "../../lib/format";
 import { supabase } from "../../lib/supabase";
 import { fetchLeads, moduloDe, type Lead } from "../../lib/leads";
@@ -106,6 +107,8 @@ export function DashboardSeguros() {
         <KpiCard label="Ticket Médio" value={brl(m.ticket)} hint={`Baseado em ${m.nMes} venda${m.nMes === 1 ? "" : "s"}`} icon={DollarSign} accent="sky" />
         <KpiCard label="Comissão Média" value={`${m.comissaoPct.toFixed(1)}%`} hint="Margem sobre vendas do mês" icon={Percent} accent="warning" />
       </div>
+
+      <MetaRealizadoCard modulo="seguros" />
 
       <FunilConversaoCard leads={leads.filter((l) => moduloDe(l) === "seguros")} />
 
