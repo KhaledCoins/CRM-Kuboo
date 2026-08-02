@@ -5,6 +5,11 @@ import { Card, KpiCard, PageHeader, EmptyState, Button, Spinner } from "../compo
 import { PeriodoSelect, rangeFor, labelDe, type PeriodoKey } from "../components/Periodo";
 import { brl } from "../lib/format";
 import { supabase } from "../lib/supabase";
+import { can } from "../lib/permissoes";
+import type { TeamUser, Role } from "../context/AuthContext";
+
+const comoTeamUser = (u: { id: string; role: string | null; permissoes?: Record<string, boolean> | null }): TeamUser =>
+  ({ id: u.id, email: "", name: "", role: (u.role as Role) ?? "vendedor", permissoes: u.permissoes });
 
 // CSV do relatório: linhas de venda do período + rodapé consolidado (contador-friendly)
 function exportarCsv(periodo: string, vendas: Venda[], tot: { prod: number; com: number; n: number }) {
@@ -60,11 +65,21 @@ export function Producao() {
       if (!supabase) { setLoading(false); return; }
       try {
         const r = rangeFor(periodo);
-        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,tipo,cliente_nome").gte("data_venda", r.gte);
+        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,vendedor_id,tipo,cliente_nome").gte("data_venda", r.gte);
         if (r.lte) qy = qy.lte("data_venda", r.lte);
-        const { data } = await qy.limit(5000);
+        const [{ data }, perfis] = await Promise.all([
+          qy.limit(5000),
+          supabase.from("profiles").select("id,role,permissoes").in("role", ["vendedor", "gestor", "admin"]),
+        ]);
         if (!active) return;
-        setVendas(data || []);
+        // "Visível nos relatórios" = NÃO → produção entra nos totais, nome vira
+        // "Outros" (paridade C2S §Usuários; mesmo tratamento do Ranking).
+        const invisiveis = new Set<string>();
+        for (const p of ((perfis.data as any[]) ?? [])) {
+          if (can(comoTeamUser(p), "visivel_relatorios") === false) invisiveis.add(p.id);
+        }
+        setVendas(((data as any[]) ?? []).map((v) =>
+          v.vendedor_id && invisiveis.has(v.vendedor_id) ? { ...v, vendedor_nome: "Outros" } : v));
       } catch (e) {
         console.error("[producao]", e);
       } finally {

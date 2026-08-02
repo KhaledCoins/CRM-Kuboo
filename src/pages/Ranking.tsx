@@ -4,13 +4,22 @@ import { Card, KpiCard, PageHeader, EmptyState, Spinner } from "../components/ui
 import { PeriodoSelect, rangeFor, labelDe, type PeriodoKey } from "../components/Periodo";
 import { brl, brlShort } from "../lib/format";
 import { supabase } from "../lib/supabase";
+import { can } from "../lib/permissoes";
+import type { TeamUser, Role } from "../context/AuthContext";
 
-interface Venda { valor: number | null; comissao_valor: number | null; data_venda: string | null; vendedor_nome: string | null; }
+// Mesmo adaptador do Desempenho: a linha de profiles vira o shape que can() espera.
+const comoTeamUser = (u: { id: string; role: string | null; permissoes?: Record<string, boolean> | null }): TeamUser =>
+  ({ id: u.id, email: "", name: "", role: (u.role as Role) ?? "vendedor", permissoes: u.permissoes });
+
+interface Venda { valor: number | null; comissao_valor: number | null; data_venda: string | null; vendedor_nome: string | null; vendedor_id: string | null; }
 
 export function Ranking() {
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<PeriodoKey>("mes");
+  // Consultores com "Visível nos relatórios" = NÃO (paridade C2S §Usuários):
+  // a produção deles entra nos totais, mas sem expor o nome no pódio.
+  const [ocultos, setOcultos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let active = true;
@@ -19,11 +28,19 @@ export function Ranking() {
       if (!supabase) { setLoading(false); return; }
       try {
         const r = rangeFor(periodo);
-        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,vendedor_nome").gte("data_venda", r.gte);
+        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,vendedor_nome,vendedor_id").gte("data_venda", r.gte);
         if (r.lte) qy = qy.lte("data_venda", r.lte);
-        const { data } = await qy.limit(5000);
+        const [{ data }, perfis] = await Promise.all([
+          qy.limit(5000),
+          supabase.from("profiles").select("id,role,permissoes").in("role", ["vendedor", "gestor", "admin"]),
+        ]);
         if (!active) return;
         setVendas(data || []);
+        const invisiveis = new Set<string>();
+        for (const p of ((perfis.data as any[]) ?? [])) {
+          if (can(comoTeamUser(p), "visivel_relatorios") === false) invisiveis.add(p.id);
+        }
+        setOcultos(invisiveis);
       } catch (e) {
         console.error("[ranking]", e);
       } finally {
@@ -37,7 +54,7 @@ export function Ranking() {
     const map: Record<string, { producao: number; comissao: number; n: number }> = {};
     let tv = 0, tc = 0;
     for (const v of vendas) {
-      const nome = v.vendedor_nome || "Sem vendedor";
+      const nome = (v.vendedor_id && ocultos.has(v.vendedor_id)) ? "Outros" : (v.vendedor_nome || "Sem vendedor");
       const val = Number(v.valor) || 0, com = Number(v.comissao_valor) || 0;
       tv += val; tc += com;
       map[nome] = map[nome] || { producao: 0, comissao: 0, n: 0 };

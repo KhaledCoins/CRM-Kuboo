@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge, EmptyState, Spinner } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
+import { RegistrarVendaModal } from "../components/RegistrarVendaModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import type { TeamUser } from "../context/AuthContext";
@@ -611,6 +612,7 @@ export function LeadDetalhe() {
   const [showArquivar, setShowArquivar] = useState(false);
   const [showProposta, setShowProposta] = useState(false);
   const [showEditar, setShowEditar] = useState(false);
+  const [showVenda, setShowVenda] = useState(false);
 
   async function carregarTudo(leadId: string, aliveRef: { current: boolean }) {
     if (!supabase) { if (aliveRef.current) setLoading(false); return; }
@@ -679,12 +681,15 @@ export function LeadDetalhe() {
     if (!ok) { setFavorito(era); toast.error("Não foi possível atualizar o favorito."); }
   }
 
+  // Fechar o negócio AQUI tem que gerar venda/parcelas/comissão igual ao funil —
+  // antes só movia a etapa e a venda nunca era registrada (Produção, Ranking e
+  // Comissões ficavam cegos pra quem fechava pela página do lead).
   async function onFecharNegocio() {
     if (!lead) return;
     try {
       await moverEtapa(lead.id, "ganho");
       setLead((p) => (p ? { ...p, etapa: "ganho" } : p));
-      toast.success("Negócio marcado como fechado!");
+      setShowVenda(true); // "Agora não" no modal mantém só a etapa (mesmo do Pipeline)
     } catch { toast.error("Não foi possível fechar o negócio."); }
   }
 
@@ -922,6 +927,11 @@ export function LeadDetalhe() {
       )}
       {showEditar && (
         <ModalEditar lead={lead} onClose={() => setShowEditar(false)} onDone={() => { setShowEditar(false); reload(); }} />
+      )}
+      {showVenda && (
+        <RegistrarVendaModal lead={lead} pessoas={pessoas}
+          onClose={() => setShowVenda(false)}
+          onSaved={() => { setShowVenda(false); reload(); }} />
       )}
       {showPorque && <ModalPorQue leadId={lead.id} onClose={() => setShowPorque(false)} />}
       {showArquivar && (

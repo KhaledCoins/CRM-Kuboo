@@ -41,6 +41,7 @@ interface LeadRow {
   score: number | null;
   created_at: string;
   primeiro_contato_em: string | null;
+  fb_anuncio: string | null; // Meta Lead Ads — qual anúncio trouxe o lead
 }
 
 const moduloDeLead = (l: LeadRow): "seguros" | "consorcios" => (l.modulo === "consorcios" ? "consorcios" : "seguros");
@@ -277,7 +278,7 @@ export function Dashboards() {
   // então caímos pras colunas base e mostramos o aviso (os gráficos por
   // fonte/campanha/motivo ficam com fallback "Sem ...", o resto funciona).
   const COLS_BASE = "id,nome,origem,modulo,etapa,descartado,score,created_at,primeiro_contato_em";
-  const COLS_FULL = "id,nome,origem,fonte,canal,campanha,modulo,etapa,descartado,motivo_descarte,produto_interesse,score,created_at,primeiro_contato_em";
+  const COLS_FULL = "id,nome,origem,fonte,canal,campanha,modulo,etapa,descartado,motivo_descarte,produto_interesse,score,created_at,primeiro_contato_em,fb_anuncio";
 
   // guarda de corrida: trocar o período rápido não pode deixar uma resposta
   // antiga sobrescrever a mais recente (mesmo padrão do Desempenho.tsx).
@@ -308,7 +309,7 @@ export function Dashboards() {
       if (erro) console.error("[dashboards]", erro);
       // as colunas novas podem faltar no fallback — normaliza pra LeadRow completo
       setLeads((data ?? []).map((r) => ({
-        fonte: null, canal: null, campanha: null, motivo_descarte: null, produto_interesse: null, ...r,
+        fonte: null, canal: null, campanha: null, motivo_descarte: null, produto_interesse: null, fb_anuncio: null, ...r,
       })) as LeadRow[]);
       setAvisoParity(parity);
       if (active && req === loadReq.current) setLoading(false);
@@ -344,6 +345,10 @@ export function Dashboards() {
   const ganhos = useMemo(() => leadsFiltrados.filter((l) => l.etapa === "ganho"), [leadsFiltrados]);
   const ganhosPorFonte = useMemo(() => groupTopN(ganhos.map((l) => l.fonte || l.origem), "Sem fonte"), [ganhos]);
   const ganhosPorProduto = useMemo(() => groupTopN(ganhos.map((l) => l.produto_interesse), "Sem produto"), [ganhos]);
+  // Meta Lead Ads: responde "qual anúncio traz lead — e qual traz lead que FECHA"
+  // (o recorte de ROI do C2S; fb_anuncio vem do webhook api/lead-inbound).
+  const porAnuncio = useMemo(() => groupTopN(leadsFiltrados.map((l) => l.fb_anuncio), "Sem anúncio"), [leadsFiltrados]);
+  const ganhosPorAnuncio = useMemo(() => groupTopN(ganhos.map((l) => l.fb_anuncio), "Sem anúncio"), [ganhos]);
 
   function exportar() {
     if (!leadsFiltrados.length) return;
@@ -472,6 +477,32 @@ export function Dashboards() {
                 <YAxis type="category" dataKey="label" tick={axisTick} axisLine={false} tickLine={false} width={140} />
                 <Tooltip />
                 <Bar dataKey="total" fill="#36ABE2" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard icon={Megaphone} titulo="Leads por Anúncio (Meta)" total={leadsFiltrados.length}
+            vazio={porAnuncio.length === 0} hintVazio="Nenhum lead com anúncio identificado — o webhook do Meta Lead Ads preenche este campo.">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={porAnuncio} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
+                <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" tick={axisTick} axisLine={false} tickLine={false} width={140} />
+                <Tooltip />
+                <Bar dataKey="total" fill="#8B5CF6" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard icon={Megaphone} titulo="Negócios Fechados por Anúncio (Meta)" total={ganhos.length}
+            vazio={ganhosPorAnuncio.length === 0} hintVazio="Nenhum negócio fechado com anúncio identificado ainda.">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ganhosPorAnuncio} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
+                <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="label" tick={axisTick} axisLine={false} tickLine={false} width={140} />
+                <Tooltip />
+                <Bar dataKey="total" fill="#16A34A" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
