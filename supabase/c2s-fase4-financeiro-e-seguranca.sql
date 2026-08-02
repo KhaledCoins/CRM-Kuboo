@@ -104,3 +104,26 @@ revoke execute on function public.fila_proximo_usuario_seguranca(public.filas) f
 -- última linha de defesa no 1º admin aprovado) está na migração
 -- c2s_fase4b_seguranca_incondicional aplicada no Supabase — o restante do motor
 -- (filas, memória de retorno, rodízio) é idêntico ao da fase 3.
+
+-- ─── FASE 4c: RPCs SECURITY DEFINER expostas no PostgREST (advisor Supabase) ──
+-- CRÍTICO (achado pelo advisor, que nenhum agente viu): import_c2s_leads(jsonb)
+-- é ferramenta de MIGRAÇÃO (ignora RLS por design) e estava executável por
+-- `anon` — qualquer um na internet, com a anon key que está no bundle público
+-- do site, podia POST /rest/v1/rpc/import_c2s_leads e injetar leads em massa.
+-- VALIDADO: ataque agora dá "permission denied"; captação do site segue OK.
+revoke execute on function public.import_c2s_leads(jsonb) from public, anon, authenticated;
+
+-- Motor: chamado pelo TRIGGER (roda como definer), nunca pelo cliente.
+revoke execute on function public.distribuir_lead(uuid) from public, anon, authenticated;
+revoke execute on function public.trg_distribuir_lead() from public, anon, authenticated;
+
+-- redistribuir_bolsao: a UI do gestor chama via RPC (guarda is_manager interna)
+-- — mantém authenticated, tira do anon.
+revoke execute on function public.redistribuir_bolsao() from public, anon;
+
+-- NOTA DELIBERADA: is_team()/is_manager()/has_perm() continuam executáveis por
+-- anon+authenticated. As RLS policies as invocam durante a avaliação da query;
+-- revogar de anon faria o INSERT público de leads do site falhar com
+-- "permission denied for function" em vez de simplesmente negar. Elas só
+-- retornam boolean sobre o próprio usuário (anon => sempre false). O warning do
+-- advisor nessas 3 é aceito conscientemente.
