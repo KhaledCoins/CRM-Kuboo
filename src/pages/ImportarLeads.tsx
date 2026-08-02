@@ -9,6 +9,7 @@ import { onlyDigits } from "../lib/format";
 import type { Modulo } from "../lib/nav";
 import {
   parseCsv, heuristicaMapeamento, normalizarEtapa, normalizarEmail, nomesEquivalentes,
+  parseValorBR, inferirModulo,
   CAMPOS_LEAD, type CampoLead,
 } from "../lib/importCsv";
 
@@ -37,6 +38,10 @@ interface LinhaPreparada {
   fonte: string | null;
   canal: string | null;
   etapa: string;
+  produto: string | null;
+  valor: number | null;
+  motivo: string | null;
+  moduloLinha: "seguros" | "consorcios";
   vendedorTexto: string | null;
   vendedorId: string | null;
 }
@@ -149,6 +154,7 @@ export function ImportarLeads({ modulo: moduloRota }: { modulo: Modulo }) {
       nome: indiceDoCampo("nome"), telefone: indiceDoCampo("telefone"), email: indiceDoCampo("email"),
       campanha: indiceDoCampo("campanha"), fonte: indiceDoCampo("fonte"), canal: indiceDoCampo("canal"),
       etapa: indiceDoCampo("etapa"), vendedor: indiceDoCampo("vendedor"),
+      produto: indiceDoCampo("produto"), valor: indiceDoCampo("valor"), motivo: indiceDoCampo("motivo"),
     };
     const porEmail = new Map(equipe.filter((m) => m.email).map((m) => [normalizarEmail(m.email as string), m]));
 
@@ -164,15 +170,23 @@ export function ImportarLeads({ modulo: moduloRota }: { modulo: Modulo }) {
       }
       const etapaTexto = get(idx.etapa);
       const etapa = (etapaTexto && normalizarEtapa(etapaTexto)) || "novos";
+      const produto = get(idx.produto) || null;
+      const campanha = get(idx.campanha) || null;
       return {
         linha: i + 2,
         nome,
         telefone: get(idx.telefone) || null,
         email: get(idx.email) || null,
-        campanha: get(idx.campanha) || null,
+        campanha,
         fonte: get(idx.fonte) || null,
         canal: get(idx.canal) || null,
         etapa,
+        produto,
+        valor: parseValorBR(get(idx.valor)),
+        motivo: get(idx.motivo) || null,
+        // Módulo POR LINHA (o export do C2S mistura AUTO e CONSUMIDOR na mesma
+        // conta); o select da tela vira só o default de quem não dá pra inferir.
+        moduloLinha: inferirModulo(produto, campanha) ?? modulo,
         vendedorTexto,
         vendedorId,
       };
@@ -245,7 +259,9 @@ export function ImportarLeads({ modulo: moduloRota }: { modulo: Modulo }) {
       fonte: l.fonte,
       canal: l.canal,
       etapa: l.etapa,
-      modulo,
+      produto_interesse: l.produto,
+      valor_potencial: l.valor,
+      modulo: l.moduloLinha,
       origem: "formulario",
       status: "novo",
       vendedor_id: l.vendedorId ?? (fallback === "fixo" ? (fallbackUserId || null) : null),
@@ -253,6 +269,9 @@ export function ImportarLeads({ modulo: moduloRota }: { modulo: Modulo }) {
       // (Bolsão/Pipeline/Dashboards esperam soft-delete via `descartado`) —
       // marca junto pra já nascer consistente.
       descartado: l.etapa === "perdido",
+      // Sem motivo, o arquivado cai em "Sem motivo" no relatório. "De planilha"
+      // é o motivo seedado justamente pra importação em massa.
+      motivo_descarte: l.etapa === "perdido" ? (l.motivo ?? "De planilha") : null,
     });
 
     let importados = 0;
@@ -286,7 +305,8 @@ export function ImportarLeads({ modulo: moduloRota }: { modulo: Modulo }) {
 
   const colunasPreview: { chave: keyof LinhaPreparada; rotulo: string }[] = [
     { chave: "nome", rotulo: "Nome" }, { chave: "telefone", rotulo: "Telefone" }, { chave: "email", rotulo: "E-mail" },
-    { chave: "campanha", rotulo: "Campanha" }, { chave: "fonte", rotulo: "Fonte" }, { chave: "canal", rotulo: "Canal" },
+    { chave: "campanha", rotulo: "Campanha" }, { chave: "produto", rotulo: "Produto" },
+    { chave: "moduloLinha", rotulo: "Módulo" }, { chave: "fonte", rotulo: "Fonte" }, { chave: "canal", rotulo: "Canal" },
     { chave: "etapa", rotulo: "Etapa" },
   ];
 

@@ -61,19 +61,50 @@ export function parseCsv(textoOriginal: string): CsvParseResult {
 }
 
 // ─── Mapeamento de colunas ────────────────────────────────────────────────────
-export type CampoLead = "nome" | "telefone" | "email" | "campanha" | "fonte" | "canal" | "etapa" | "vendedor" | "ignorar";
+export type CampoLead = "nome" | "telefone" | "email" | "campanha" | "fonte" | "canal" | "etapa" | "vendedor" | "produto" | "valor" | "motivo" | "ignorar";
 
 export const CAMPOS_LEAD: { valor: CampoLead; rotulo: string; obrigatorio?: boolean }[] = [
   { valor: "nome", rotulo: "Nome", obrigatorio: true },
   { valor: "telefone", rotulo: "Telefone" },
   { valor: "email", rotulo: "E-mail" },
   { valor: "campanha", rotulo: "Campanha" },
+  { valor: "produto", rotulo: "Produto de interesse" },
+  { valor: "valor", rotulo: "Valor / preço" },
   { valor: "fonte", rotulo: "Fonte" },
   { valor: "canal", rotulo: "Canal" },
   { valor: "etapa", rotulo: "Etapa" },
+  { valor: "motivo", rotulo: "Motivo de arquivamento" },
   { valor: "vendedor", rotulo: "Vendedor" },
   { valor: "ignorar", rotulo: "— Ignorar —" },
 ];
+
+/** "R$ 1.234,56" | "1234.56" | "1.234" → número. Mesma regra do parser pt-BR do
+ *  LeadDetalhe: ponto único a 1-2 casas do fim é decimal, senão é milhar. */
+export function parseValorBR(bruto: string): number | null {
+  let t = String(bruto ?? "").trim().replace(/[R$\s]/gi, "");
+  if (!t) return null;
+  const temVirgula = t.includes(","), temPonto = t.includes(".");
+  if (temVirgula && temPonto) t = t.replace(/\./g, "").replace(",", ".");
+  else if (temVirgula) t = t.replace(",", ".");
+  else if (temPonto) {
+    const i = t.lastIndexOf(".");
+    const casas = t.length - i - 1;
+    if (!(t.indexOf(".") === i && casas >= 1 && casas <= 2)) t = t.replace(/\./g, "");
+  }
+  const n = Number(t);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Módulo por LINHA: o export do C2S mistura seguros e consórcios na mesma conta
+ *  (campanhas AUTO e CONSUMIDOR). Sem isso, o lead de consórcio cairia no funil
+ *  de seguros — mesma classe do bug já corrigido no site (commit a974668). */
+export function inferirModulo(...textos: (string | null | undefined)[]): "seguros" | "consorcios" | null {
+  const alvo = textos.filter(Boolean).join(" ");
+  if (!alvo) return null;
+  if (/cons[oó]rcio|consumidor|carta\s*de\s*cr[eé]dito|im[oó]vel/i.test(alvo)) return "consorcios";
+  if (/seguro|auto|vida|residencial|frota|moto/i.test(alvo)) return "seguros";
+  return null;
+}
 
 function normalizarTexto(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -81,16 +112,20 @@ function normalizarTexto(s: string): string {
 
 // Ordem de prioridade: campos mais específicos primeiro, "nome" por último
 // (senão headers como "Nome do vendedor" cairiam em "nome" antes de "vendedor").
-const ORDEM_PRIORIDADE: Exclude<CampoLead, "ignorar">[] = ["email", "telefone", "vendedor", "campanha", "fonte", "canal", "etapa", "nome"];
+const ORDEM_PRIORIDADE: Exclude<CampoLead, "ignorar">[] = ["email", "telefone", "vendedor", "motivo", "campanha", "produto", "valor", "fonte", "canal", "etapa", "nome"];
 const PADROES: Record<Exclude<CampoLead, "ignorar">, RegExp[]> = {
   email: [/e-?mail/],
   telefone: [/telefone/, /celular/, /whats\s*app/, /^fone/, /^phone/, /contato\s*n/],
   vendedor: [/vendedor/, /responsavel/, /consultor/, /corretor/, /atendente/, /^owner$/],
-  campanha: [/campanha/, /campaign/],
+  // "Motivo de arquivamento" antes de campanha/etapa pra não ser capturado por /status/
+  motivo: [/motivo/, /raz[ao]o.*perda/, /lost\s*reason/],
+  campanha: [/campanha/, /campaign/, /titulo\s*do\s*im[oó]vel/],
+  produto: [/produto/, /interesse/, /natureza.*negocia/, /tipo\s*de\s*neg/],
+  valor: [/^valor/, /^pre[cç]o/, /^price/, /valor.*proposta/, /valor.*fechamento/],
   fonte: [/^fonte/, /^origem/, /^source/, /midia\s*paga/],
   canal: [/canal/, /channel/],
-  etapa: [/etapa/, /estagio/, /^status/, /^stage/, /funil/],
-  nome: [/^nome/, /^cliente$/, /^contato$/, /^lead$/, /nome\s*completo/],
+  etapa: [/etapa/, /estagio/, /^status\s*do\s*lead/, /^status$/, /^stage/, /funil/],
+  nome: [/^nome\s*do\s*cliente/, /^nome/, /^cliente$/, /^contato$/, /^lead$/, /nome\s*completo/],
 };
 
 /** Pré-mapeia colunas do CSV para campos do lead por heurística de header.
@@ -114,8 +149,10 @@ export const ETAPAS_VALIDAS = ["novos", "contato", "cotacao", "negociacao", "gan
 const ETAPA_HEURISTICA: { valor: (typeof ETAPAS_VALIDAS)[number]; padroes: RegExp[] }[] = [
   { valor: "ganho", padroes: [/ganho/, /fechad/, /convertid/, /^venda/, /won/] },
   { valor: "perdido", padroes: [/perdid/, /descart/, /cancelad/, /lost/, /arquivad/] },
-  { valor: "negociacao", padroes: [/negocia/] },
-  { valor: "cotacao", padroes: [/cota/, /orcamento/, /proposta/, /quote/] },
+  { valor: "negociacao", padroes: [/negocia/, /visita\s*realizada/] },
+  // Funil real do C2S: Visita Agendada fica entre cotação e negociação —
+  // sem esse padrão, leads no meio do funil regrediam pra "novos".
+  { valor: "cotacao", padroes: [/cota/, /orcamento/, /proposta/, /quote/, /visita/] },
   { valor: "contato", padroes: [/contato/, /contact/, /atendiment/] },
   { valor: "novos", padroes: [/novo/, /^new/, /entrada/, /aguardando/] },
 ];
