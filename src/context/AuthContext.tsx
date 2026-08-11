@@ -20,13 +20,23 @@ interface AuthCtx {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isManager: boolean;
+  // Chegou por link de convite / "definir senha": o app troca tudo pela tela
+  // de criar senha até a pessoa concluir (senão entraria sem senha própria).
+  definindoSenha: boolean;
+  concluirDefinicaoDeSenha: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
 
+// O link do convite/recuperação chega com os tokens no hash da URL.
+const HASH_DEFINIR_SENHA = /[#&]type=(invite|recovery|signup)/;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<TeamUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [definindoSenha, setDefinindoSenha] = useState(
+    typeof window !== "undefined" && HASH_DEFINIR_SENHA.test(window.location.hash)
+  );
 
   useEffect(() => {
     if (!SUPABASE_CONFIGURED || !supabase) {
@@ -37,12 +47,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) loadProfile(session.user.id, session.user.email ?? "");
       else setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Convite e "esqueci a senha" caem aqui: obriga a criar a senha antes de usar o CRM.
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && HASH_DEFINIR_SENHA.test(window.location.hash))) {
+        setDefinindoSenha(true);
+      }
       if (session?.user) loadProfile(session.user.id, session.user.email ?? "");
       else { setUser(null); setLoading(false); }
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Senha criada com sucesso: limpa o hash da URL, tira o flag de troca
+  // obrigatória e libera o CRM.
+  async function concluirDefinicaoDeSenha() {
+    try {
+      if (supabase && user?.id) {
+        await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
+      }
+    } catch { /* o acesso já está liberado — não bloquear por causa do flag */ }
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", window.location.pathname + window.location.search);
+    }
+    setDefinindoSenha(false);
+  }
 
   async function loadProfile(id: string, email: string) {
     if (!supabase) return;
@@ -102,10 +130,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     if (supabase) await supabase.auth.signOut();
     setUser(null);
+    setDefinindoSenha(false);
   }
 
   return (
-    <Ctx.Provider value={{ user, loading, login, logout, isManager: user?.role !== "vendedor" }}>
+    <Ctx.Provider value={{ user, loading, login, logout, isManager: user?.role !== "vendedor", definindoSenha, concluirDefinicaoDeSenha }}>
       {children}
     </Ctx.Provider>
   );

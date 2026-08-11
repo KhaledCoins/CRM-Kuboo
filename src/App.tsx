@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { can } from "./lib/permissoes";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
+import { DefinirSenha } from "./pages/DefinirSenha";
 import { SectionPage } from "./pages/SectionPage";
 // Dashboards usam recharts (~160KB gz) — lazy p/ não pesar quem não abre gráfico.
 const DashboardSeguros = lazy(() => import("./pages/seguros/DashboardSeguros").then((m) => ({ default: m.DashboardSeguros })));
@@ -59,7 +60,7 @@ function RequireConfig({ children }: { children: React.ReactNode }) {
 }
 
 function Shell() {
-  const { user, loading } = useAuth();
+  const { user, loading, definindoSenha } = useAuth();
   if (loading)
     return (
       <div className="min-h-screen grid place-items-center" style={{ background: "linear-gradient(135deg,#0A1628,#1873BA)" }}>
@@ -69,6 +70,9 @@ function Shell() {
         </div>
       </div>
     );
+  // Quem chega por convite/"definir senha" cria a senha ANTES de usar o CRM —
+  // senão entraria logado sem senha própria e ficaria trancado no próximo acesso.
+  if (definindoSenha && user) return <DefinirSenha />;
   if (!user) return <Login />;
 
   return (

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   UserCog, UserPlus, Mail, Phone, X, Check, Copy, KeyRound, Pencil,
-  Power, AlertTriangle, ShieldAlert, Info, Download,
+  Power, AlertTriangle, ShieldAlert, Info, Download, CheckCircle2, XCircle, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, Badge, EmptyState, Spinner, Select } from "../../components/ui";
@@ -56,6 +56,57 @@ async function tokenSessao(): Promise<string> {
   return token;
 }
 
+/* ─────────────────────────── Convidar equipe — parser ─────────────────────────── */
+// Aceita "Nome, email@dominio, papel" (papel opcional; ; ou tab também servem de
+// separador) e linhas só com e-mail (nome vira a parte antes do @, capitalizada).
+
+function normalizarTexto(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function papelDoTexto(s: string): Role | null {
+  const n = normalizarTexto(s);
+  if (!n) return null;
+  if (n.startsWith("admin")) return "admin";
+  if (n.startsWith("gestor") || n.startsWith("gerente")) return "gestor";
+  if (n.startsWith("vend") || n.startsWith("consult")) return "vendedor";
+  return null;
+}
+
+function capitalizar(s: string): string {
+  return s
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function parseLinhaConvite(rawLinha: string): { name: string; email: string; role: Role } {
+  const partes = rawLinha.split(/[,;\t]+/).map((p) => p.trim()).filter(Boolean);
+  if (!partes.length) return { name: "", email: "", role: "vendedor" };
+
+  const idxEmail = partes.findIndex((p) => p.includes("@"));
+  const email = idxEmail >= 0 ? partes[idxEmail] : "";
+  const resto = partes.filter((_, i) => i !== idxEmail);
+
+  let role: Role = "vendedor";
+  const nomeParts: string[] = [];
+  for (const p of resto) {
+    const papel = papelDoTexto(p);
+    if (papel) role = papel;
+    else nomeParts.push(p);
+  }
+
+  const name = nomeParts.join(" ").trim() || (email ? capitalizar(email.split("@")[0].replace(/[.\-_]+/g, " ")) : "");
+  return { name, email, role };
+}
+
+let uidSeq = 0;
+function uid(): string {
+  uidSeq += 1;
+  return `convite-${Date.now()}-${uidSeq}`;
+}
+
 function AvisoMigracao() {
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
@@ -87,8 +138,10 @@ export function Usuarios() {
   const [loading, setLoading] = useState(true);
   const [colunasFaltando, setColunasFaltando] = useState(false);
   const [novoAberto, setNovoAberto] = useState(false);
+  const [convidarAberto, setConvidarAberto] = useState(false);
   const [editando, setEditando] = useState<TeamRow | null>(null);
   const [desativando, setDesativando] = useState<TeamRow | null>(null);
+  const [reenviandoIds, setReenviandoIds] = useState<Set<string>>(new Set());
 
   async function carregar() {
     if (!supabase) { setLoading(false); return; }
@@ -162,6 +215,32 @@ export function Usuarios() {
     }
   }
 
+  async function reenviarConvite(u: TeamRow) {
+    if (!podeEditarUsuarios) return;
+    if (!u.email) { toast.error("Usuário sem e-mail cadastrado."); return; }
+    setReenviandoIds((s) => new Set(s).add(u.id));
+    try {
+      const token = await tokenSessao();
+      const r = await fetch("/api/convidar-equipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ pessoas: [{ name: u.name, email: u.email, role: u.role || "vendedor" }] }),
+      });
+      const json = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(json?.error || "Não foi possível reenviar o convite.");
+      const resultado = json?.resultados?.[0];
+      if (resultado?.ok) {
+        toast.success(resultado.criado ? `Convite enviado para ${u.name}.` : `Convite reenviado para ${u.name}.`);
+      } else {
+        toast.error(resultado?.erro || "Não foi possível reenviar o convite.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível reenviar o convite.");
+    } finally {
+      setReenviandoIds((s) => { const n = new Set(s); n.delete(u.id); return n; });
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -171,6 +250,7 @@ export function Usuarios() {
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             {podeExtrair && <Button variant="outline" icon={Download} onClick={exportar} disabled={!rows.length}>Exportar CSV</Button>}
+            {podeEditarUsuarios && <Button variant="outline" icon={Mail} onClick={() => setConvidarAberto(true)}>Convidar equipe</Button>}
             {podeEditarUsuarios && <Button icon={UserPlus} onClick={() => setNovoAberto(true)}>Novo Usuário</Button>}
           </div>
         }
@@ -207,6 +287,10 @@ export function Usuarios() {
                   <Td>{dateBR(u.created_at)}</Td>
                   <Td right>
                     <div className="flex items-center justify-end gap-1.5">
+                      {podeEditarUsuarios && (
+                        <button onClick={() => reenviarConvite(u)} disabled={reenviandoIds.has(u.id)} title="Reenviar convite" aria-label={`Reenviar convite para ${u.name}`}
+                          className="p-2 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 disabled:opacity-50"><Mail size={16} /></button>
+                      )}
                       {!podeEditarUsuarios ? (
                         <span className="text-xs text-muted">—</span>
                       ) : u.aprovado === false ? (
@@ -245,6 +329,10 @@ export function Usuarios() {
 
       {novoAberto && podeEditarUsuarios && (
         <NovoUsuarioModal onFechar={() => setNovoAberto(false)} onCriado={carregar} />
+      )}
+
+      {convidarAberto && podeEditarUsuarios && (
+        <ConvidarEquipeModal onFechar={() => setConvidarAberto(false)} onEnviado={carregar} />
       )}
 
       {editando && podeEditarUsuarios && (
@@ -383,6 +471,195 @@ function NovoUsuarioModal({ onFechar, onCriado }: { onFechar: () => void; onCria
             <Button type="submit" disabled={salvando}>{salvando ? "Criando…" : "Criar usuário"}</Button>
           </div>
         </form>
+      )}
+    </ModalShell>
+  );
+}
+
+/* ─────────────────────────── Convidar equipe ─────────────────────────── */
+
+interface LinhaConvite { id: string; name: string; email: string; role: Role }
+interface ResultadoConvite { email: string; ok: boolean; criado?: boolean; role?: string; erro?: string }
+
+const ROLE_OPCOES = [
+  { value: "vendedor", label: "Vendedor" },
+  { value: "gestor", label: "Gestor" },
+  { value: "admin", label: "Administrador" },
+];
+
+function ConvidarEquipeModal({ onFechar, onEnviado }: { onFechar: () => void; onEnviado: () => void }) {
+  const [texto, setTexto] = useState("");
+  const [linhas, setLinhas] = useState<LinhaConvite[]>([]);
+  const [enviando, setEnviando] = useState(false);
+  const [resultados, setResultados] = useState<ResultadoConvite[] | null>(null);
+
+  const contagemEmails = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of linhas) {
+      const k = l.email.trim().toLowerCase();
+      if (!k) continue;
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [linhas]);
+
+  function motivoInvalido(l: LinhaConvite): string | null {
+    if (!l.email.includes("@")) return "E-mail inválido";
+    if ((contagemEmails.get(l.email.trim().toLowerCase()) ?? 0) > 1) return "E-mail duplicado na lista";
+    if (!l.name.trim()) return "Nome obrigatório";
+    return null;
+  }
+
+  const temInvalida = linhas.some((l) => motivoInvalido(l) !== null);
+  const podeEnviar = linhas.length > 0 && linhas.length <= 40 && !temInvalida && !enviando;
+
+  function adicionarAlista() {
+    const brutas = texto.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!brutas.length) return;
+    const novas = brutas.map((raw) => {
+      const p = parseLinhaConvite(raw);
+      return { id: uid(), name: p.name, email: p.email, role: p.role };
+    });
+    setLinhas((prev) => [...prev, ...novas]);
+    setTexto("");
+  }
+
+  function removerLinha(id: string) {
+    setLinhas((prev) => prev.filter((l) => l.id !== id));
+  }
+
+  function mudarPapel(id: string, role: string) {
+    setLinhas((prev) => prev.map((l) => (l.id === id ? { ...l, role: role as Role } : l)));
+  }
+
+  async function enviar() {
+    if (!podeEnviar) return;
+    setEnviando(true);
+    try {
+      const token = await tokenSessao();
+      const r = await fetch("/api/convidar-equipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ pessoas: linhas.map((l) => ({ name: l.name, email: l.email, role: l.role })) }),
+      });
+      const json = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(json?.error || "Não foi possível enviar os convites.");
+      const lista: ResultadoConvite[] = json?.resultados ?? [];
+      const enviados: number = json?.enviados ?? 0;
+      const total: number = json?.total ?? lista.length;
+      setResultados(lista);
+      if (enviados === total && total > 0) {
+        toast.success(`${enviados} de ${total} convites enviados.`);
+        onEnviado();
+      } else if (enviados > 0) {
+        toast.warning(`${enviados} de ${total} convites enviados.`);
+      } else {
+        toast.error(`0 de ${total} convites enviados.`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível enviar os convites.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <ModalShell onClose={onFechar} label="Convidar equipe" className="bg-white rounded-2xl shadow-2xl w-[min(720px,94vw)] max-h-[90vh] overflow-y-auto">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+        <div className="flex items-center gap-2.5">
+          <span className="w-9 h-9 rounded-xl bg-brand-50 text-brand-500 grid place-items-center shrink-0"><Mail size={18} /></span>
+          <h3 className="font-extrabold text-ink text-lg">Convidar equipe</h3>
+        </div>
+        <button onClick={onFechar} aria-label="Fechar" className="text-slate-500 hover:text-slate-700"><X size={20} /></button>
+      </div>
+
+      {resultados ? (
+        <div className="p-6">
+          <p className="text-sm text-muted mb-4">Resultado do envio:</p>
+          <div className="space-y-2">
+            {resultados.map((r) => {
+              const linha = linhas.find((l) => l.email.trim().toLowerCase() === r.email.trim().toLowerCase());
+              return (
+                <div key={r.email} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  {r.ok ? <CheckCircle2 size={18} className="text-green-600 shrink-0" /> : <XCircle size={18} className="text-red-600 shrink-0" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-ink truncate">{linha?.name || r.email}</p>
+                    <p className="text-xs text-muted truncate">{r.email}</p>
+                  </div>
+                  <span className={`text-xs font-bold text-right shrink-0 max-w-[45%] ${r.ok ? "text-green-700" : "text-red-700"}`}>
+                    {r.ok ? (r.criado ? "Convite enviado" : "Reenviado (já tinha login)") : (r.erro || "Erro ao enviar")}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <Button onClick={onFechar}>Fechar</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-6 space-y-5">
+          <label className="block">
+            <span className={labelCls}>Colar equipe (uma pessoa por linha)</span>
+            <textarea
+              className={`${inputCls} min-h-[110px] resize-y font-mono text-xs`}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              placeholder={"Ex.:\nJoão Silva, joao@kubooseguros.com.br, vendedor\nmaria@kubooseguros.com.br"}
+            />
+            <p className="text-xs text-muted mt-1">
+              Formato livre: <code className="font-mono">Nome, e-mail, papel</code> (papel opcional, vírgula/ponto-e-vírgula/tab servem de separador). Linhas só com e-mail também valem.
+            </p>
+          </label>
+
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={adicionarAlista} disabled={!texto.trim()}>Adicionar à lista</Button>
+          </div>
+
+          {linhas.length > 0 && (
+            <div>
+              <span className={labelCls}>Prévia ({linhas.length})</span>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <Table head={<><Th>Nome</Th><Th>E-mail</Th><Th>Papel</Th><Th right>—</Th></>}>
+                  {linhas.map((l) => {
+                    const erro = motivoInvalido(l);
+                    return (
+                      <Tr key={l.id} className={erro ? "bg-red-50/70" : ""}>
+                        <Td>
+                          <span className={`text-sm font-bold ${erro ? "text-red-700" : "text-ink"}`}>{l.name || "—"}</span>
+                        </Td>
+                        <Td>
+                          <div className={`text-sm ${erro ? "text-red-700" : "text-ink"}`}>{l.email || "—"}</div>
+                          {erro && <div className="text-xs text-red-600 mt-0.5">{erro}</div>}
+                        </Td>
+                        <Td>
+                          <Select value={l.role} onChange={(v) => mudarPapel(l.id, v)} options={ROLE_OPCOES} />
+                        </Td>
+                        <Td right>
+                          <button type="button" onClick={() => removerLinha(l.id)} title="Remover" aria-label={`Remover ${l.name || l.email}`}
+                            className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </Table>
+              </div>
+              {linhas.length > 40 && (
+                <p className="text-xs text-red-600 mt-1.5">Máximo de 40 pessoas por envio — remova algumas linhas.</p>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs text-muted bg-slate-50 rounded-xl px-3 py-2">
+            Ninguém vê a senha de ninguém: a pessoa recebe um e-mail e define a própria senha.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={onFechar}>Cancelar</Button>
+            <Button onClick={enviar} disabled={!podeEnviar}>{enviando ? "Enviando…" : `Enviar convites (${linhas.length})`}</Button>
+          </div>
+        </div>
       )}
     </ModalShell>
   );
