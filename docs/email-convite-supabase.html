@@ -1,0 +1,90 @@
+<!--
+  TEMPLATE DE E-MAIL — CONVITE DE ACESSO AO CRM (Supabase)
+
+  Onde colar: Supabase → Authentication → Emails → Templates → "Invite user"
+  (cole no campo de mensagem; no Subject use:  Seu acesso ao CRM da Kuboo chegou)
+
+  A variável {{ .ConfirmationURL }} é do Supabase — é o link onde a pessoa
+  define a própria senha. NÃO troque por outra coisa.
+
+  Usar também em "Reset password" (trocando o texto de boas-vindas pelo de
+  redefinição) se quiser manter a identidade visual em todos os e-mails.
+-->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Seu acesso ao CRM Kuboo</title></head>
+<body style="margin:0;padding:0;background-color:#EEF4FA;font-family:Arial,Helvetica,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Crie sua senha e comece a usar o CRM da Kuboo — leva menos de um minuto.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#EEF4FA;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(13,79,138,0.12);">
+
+        <tr><td style="background:linear-gradient(135deg,#0A1628 0%,#0D4F8A 60%,#1873BA 100%);background-color:#0D4F8A;padding:32px 40px;text-align:center;">
+          <p style="margin:0 0 8px;color:#ffffff;font-size:26px;font-weight:bold;letter-spacing:2px;">KUBOO</p>
+          <p style="margin:0;color:#9FD0F0;font-size:13px;letter-spacing:2px;text-transform:uppercase;">CRM &mdash; Área da Equipe</p>
+        </td></tr>
+
+        <tr><td style="padding:36px 40px 8px;">
+          <h1 style="margin:0 0 14px;color:#0A1628;font-size:24px;line-height:1.3;">Seu acesso ao CRM está pronto</h1>
+          <p style="margin:0 0 16px;color:#4B5563;font-size:15px;line-height:1.65;">
+            Você foi cadastrado(a) no novo CRM da <strong>Kuboo Consórcios &amp; Seguros</strong> &mdash;
+            o sistema que substitui o Contact2Sale. É nele que o dia a dia acontece a partir de agora:
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 6px;">
+            <tr><td style="color:#1873BA;font-size:15px;padding:3px 8px 3px 0;">&#10004;</td><td style="color:#374151;font-size:14.5px;line-height:1.6;">Seus <strong>leads</strong> chegam e são distribuídos automaticamente</td></tr>
+            <tr><td style="color:#1873BA;font-size:15px;padding:3px 8px 3px 0;">&#10004;</td><td style="color:#374151;font-size:14.5px;line-height:1.6;"><strong>Funil, atividades e follow-ups</strong> num lugar só</td></tr>
+            <tr><td style="color:#1873BA;font-size:15px;padding:3px 8px 3px 0;">&#10004;</td><td style="color:#374151;font-size:14.5px;line-height:1.6;"><strong>Bolsão</strong>, metas, ranking e comissões em tempo real</td></tr>
+            <tr><td style="color:#1873BA;font-size:15px;padding:3px 8px 3px 0;">&#10004;</td><td style="color:#374151;font-size:14.5px;line-height:1.6;">Sinistros triados pelo <strong>Kubinho</strong> caem direto pra equipe</td></tr>
+          </table>
+        </td></tr>
+
+        <tr><td style="padding:26px 40px 10px;" align="center">
+          <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#1873BA,#1560A0);background-color:#1873BA;color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;padding:15px 42px;border-radius:999px;">Criar minha senha&nbsp;&nbsp;&#8594;</a>
+          <p style="margin:14px 0 0;color:#6B7280;font-size:13px;line-height:1.6;">
+            Você escolhe a senha que quiser &mdash; <strong>ninguém da equipe vê a sua senha</strong>.
+          </p>
+        </td></tr>
+
+        <tr><td style="padding:10px 40px 4px;">
+          <p style="margin:0 0 12px;color:#0A1628;font-size:16px;font-weight:bold;">Depois de criar a senha:</p>
+          <table role="presentation" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="vertical-align:top;padding:0 12px 12px 0;"><span style="display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;background-color:#1873BA;color:#ffffff;border-radius:50%;font-size:14px;font-weight:bold;">1</span></td>
+              <td style="color:#374151;font-size:14.5px;line-height:1.6;padding-bottom:12px;">Acesse <strong>crm-kuboo.vercel.app</strong> e entre com o seu e-mail</td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;padding:0 12px 12px 0;"><span style="display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;background-color:#1873BA;color:#ffffff;border-radius:50%;font-size:14px;font-weight:bold;">2</span></td>
+              <td style="color:#374151;font-size:14.5px;line-height:1.6;padding-bottom:12px;">Em <strong>Meu Perfil</strong>, ligue sua <strong>disponibilidade</strong> pra entrar no rodízio de leads</td>
+            </tr>
+            <tr>
+              <td style="vertical-align:top;padding:0 12px 0 0;"><span style="display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;background-color:#1873BA;color:#ffffff;border-radius:50%;font-size:14px;font-weight:bold;">3</span></td>
+              <td style="color:#374151;font-size:14.5px;line-height:1.6;">Salve o site no celular &mdash; funciona como app, sem instalar nada</td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <tr><td style="padding:22px 40px 30px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFF8EB;border:1.5px solid #F5DFAE;border-radius:12px;">
+            <tr><td style="padding:14px 20px;">
+              <p style="margin:0;color:#8A5A00;font-size:13px;line-height:1.6;">
+                <strong>Este link é pessoal e expira.</strong> Não repasse pra ninguém. Se ele vencer antes
+                de você usar, é só pedir um novo convite pra gestão &mdash; leva 5 segundos.
+              </p>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <tr><td style="background-color:#0A1628;padding:26px 40px;text-align:center;">
+          <p style="margin:0 0 6px;color:#9FD0F0;font-size:14px;font-weight:bold;">Kuboo Consórcios &amp; Seguros</p>
+          <p style="margin:0;color:#64748B;font-size:11.5px;line-height:1.6;">
+            Kuboo Seguros e Consórcios Ltda. &middot; CNPJ 51.898.758/0001-20 &middot; SUSEP 52D10J<br>
+            R. Irmã Maria Demétria Kfuri, 737 &mdash; Jardim Esplanada, São José dos Campos - SP
+          </p>
+        </td></tr>
+
+      </table>
+      <p style="margin:16px 0 0;color:#94A3B8;font-size:11px;text-align:center;">Você recebeu este e-mail porque a gestão da Kuboo criou seu acesso ao CRM.</p>
+    </td></tr>
+  </table>
+</body>
+</html>
