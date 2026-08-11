@@ -1,0 +1,1607 @@
+﻿[
+    {
+        "id":  "1f469768-c12b-4e7d-8a2c-09fd846b945a",
+        "sector_id":  "7ed5a723-518a-493d-a5ef-870035482b3e",
+        "name":  "Listar Estandes",
+        "method":  "GET",
+        "endpoint":  "/integration/sales_stand/stands",
+        "description":  "Lista os estandes de vendas (filas de distribuição com regra de estande) acessíveis pela hierarquia da empresa autenticada, com o formulário de atendimento associado a cada um.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer \u003ctoken\u003e",
+                            "description":  "Token de autenticação gerado no C2S"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "company_ids[]",
+                               "type":  "array de strings",
+                               "example":  "company_ids[]=abc123",
+                               "required":  false,
+                               "description":  "Filtra por empresas específicas da hierarquia. Se omitido, retorna estandes de toda a hierarquia."
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"data\": [\n    {\n      \"id\": 123,\n      \"name\": \"Nome do Estande\",\n      \"company_id\": \"\u003ccompany_id\u003e\",\n      \"company_name\": \"Nome da Empresa\",\n      \"custom_lead_form_id\": 456,\n      \"created_at\": \"2025-01-15T10:00:00.000-03:00\",\n      \"updated_at\": \"2025-01-16T14:30:00.000-03:00\"\n    }\n  ]\n}",
+        "position":  0,
+        "created_at":  "2026-04-15T17:06:12.718937+00:00",
+        "updated_at":  "2026-04-16T17:44:35.819544+00:00"
+    },
+    {
+        "id":  "11c3fe02-4d81-444f-841e-63d8e6080750",
+        "sector_id":  "bdfb5d8a-0e80-4fc3-8de1-54a541d0ec69",
+        "name":  "Informações da Empresa",
+        "method":  "GET",
+        "endpoint":  "/me",
+        "description":  "Retorna informações da empresa autenticada e suas sub-empresas.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"company_name\": \"Empresa Exemplo\",\n  \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n  \"sub_companies\": [\n    {\n      \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n      \"company_name\": \"Empresa Exemplo\"\n    },\n    {\n      \"company_id\": \"d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1\",\n      \"company_name\": \"Empresa Exemplo - Filial 2\"\n    }\n  ]\n}",
+        "position":  0,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:47:14.828541+00:00"
+    },
+    {
+        "id":  "e0d48716-d943-47b6-a26e-59d37b2121a2",
+        "sector_id":  "273d5225-f555-4aca-b42c-fb3f4398d201",
+        "name":  "Listar Empresas",
+        "method":  "GET",
+        "endpoint":  "/companies",
+        "description":  "Lista todas as empresas do grupo (filiais) da empresa autenticada.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "[\n  {\n    \"id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n    \"name\": \"Empresa Exemplo\"\n  },\n  {\n    \"id\": \"d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1\",\n    \"name\": \"Empresa Exemplo - Filial 2\"\n  },\n  {\n    \"id\": \"e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2\",\n    \"name\": \"Empresa Exemplo - Filial 3\"\n  }\n]",
+        "position":  0,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:48:15.788577+00:00"
+    },
+    {
+        "id":  "bdba2752-6798-4a4e-8bc4-51bdc0ca7207",
+        "sector_id":  "881338a7-ad6c-4983-b627-6d509281c03b",
+        "name":  "Listar Filas de Distribuição",
+        "method":  "GET",
+        "endpoint":  "/distribution_queues/list_queues",
+        "description":  "Lista as filas de distribuição da empresa pai. Retorna headers de paginação: Total-pages, Total-entries, Current-page.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "page",
+                               "type":  "integer",
+                               "example":  "1",
+                               "required":  false,
+                               "description":  "Número da página"
+                           },
+                           {
+                               "name":  "per_page",
+                               "type":  "integer",
+                               "example":  "25",
+                               "required":  false,
+                               "description":  "Itens por página"
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"distribution_queues\": [\n    {\n      \"id\": 12345,\n      \"name\": \"Fila Principal\",\n      \"priority\": 10,\n      \"status\": \"enabled\",\n      \"queue_type\": \"custom_queue\",\n      \"leads_count\": 0,\n      \"redistributable_leads_count\": null,\n      \"redistributable\": false,\n      \"check_in\": false,\n      \"check_in_qr_code\": false,\n      \"group_memory_lead\": false,\n      \"receptionist_enabled\": false,\n      \"today_working_time\": {\n        \"begin\": \"08:00\",\n        \"end\": \"18:00\",\n        \"enable\": true\n      },\n      \"sales_stand_form_id\": null,\n      \"advanced_queue_edit\": false,\n      \"rules\": [\n        {\n          \"field\": \"type_negotiation\",\n          \"operator\": \"equal\",\n          \"value\": \"Compra\"\n        }\n      ],\n      \"next_seller_index\": 1,\n      \"next_seller\": {\n        \"id\": 67890,\n        \"seller_id\": 11111,\n        \"seller_name\": \"Maria Vendedora\",\n        \"company_id\": 2776,\n        \"company_name\": \"Empresa Exemplo\",\n        \"priority\": 1,\n        \"status\": \"enabled\",\n        \"repeated_on_queue\": false,\n        \"count_on_queue\": 1,\n        \"first_check_in_at\": null,\n        \"last_check_out_at\": null,\n        \"checked_in_after_shuffle\": false,\n        \"own_hierarchy_name\": \"Empresa Exemplo\",\n        \"closest_parent_hierarchy_name\": null,\n        \"level_one_parent_hierarchy_name\": null\n      },\n      \"distribution_sellers_quantity\": 3\n    },\n    {\n      \"id\": 12346,\n      \"name\": \"Fila Check-in\",\n      \"priority\": 9,\n      \"status\": \"enabled\",\n      \"queue_type\": \"custom_queue\",\n      \"leads_count\": 0,\n      \"redistributable_leads_count\": null,\n      \"redistributable\": false,\n      \"check_in\": true,\n      \"check_in_qr_code\": true,\n      \"group_memory_lead\": false,\n      \"receptionist_enabled\": false,\n      \"today_working_time\": {\n        \"begin\": \"00:00\",\n        \"end\": \"23:59\",\n        \"enable\": true\n      },\n      \"sales_stand_form_id\": null,\n      \"advanced_queue_edit\": false,\n      \"rules\": [],\n      \"next_seller_index\": 0,\n      \"next_seller\": {},\n      \"distribution_sellers_quantity\": 0\n    }\n  ]\n}",
+        "position":  0,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:48:48.685969+00:00"
+    },
+    {
+        "id":  "43c512c2-8656-4692-9c2a-f0f1f8293f79",
+        "sector_id":  "84df686c-3f6b-4105-b417-cadc57b12ed5",
+        "name":  "Listar Regras de Distribuição",
+        "method":  "GET",
+        "endpoint":  "/distribution_rules",
+        "description":  "Lista todas as regras de distribuição (regiões) da empresa e suas filiais.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "[\n  {\n    \"cod_1\": \"ABC123\",\n    \"cod_2\": \"Empreendimento Centro\",\n    \"cod_3\": \"\",\n    \"priority\": 1,\n    \"type_rule\": \"distribution\",\n    \"seller_id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n    \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\"\n  },\n  {\n    \"cod_1\": \"DEF456\",\n    \"cod_2\": \"Empreendimento Sul\",\n    \"cod_3\": \"Compra\",\n    \"priority\": 1,\n    \"type_rule\": \"distribution\",\n    \"seller_id\": \"s2e3l4l5e6r7i8d9e0x1e2m3p4l5o6f7\",\n    \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\"\n  },\n  {\n    \"cod_1\": null,\n    \"cod_2\": null,\n    \"cod_3\": \"Compra\",\n    \"priority\": 1,\n    \"type_rule\": \"rotation\",\n    \"seller_id\": \"s3e4l5l6e7r8i9d0e1x2e3m4p5l6o7f8\",\n    \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\"\n  },\n  {\n    \"cod_1\": null,\n    \"cod_2\": null,\n    \"cod_3\": \"Aluguel\",\n    \"priority\": 1,\n    \"type_rule\": \"rotation\",\n    \"seller_id\": \"s3e4l5l6e7r8i9d0e1x2e3m4p5l6o7f8\",\n    \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\"\n  }\n]",
+        "position":  0,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:48:35.076585+00:00"
+    },
+    {
+        "id":  "324a0e6d-0d47-41fb-9129-120e6eefbeec",
+        "sector_id":  "ade2ffef-0ca4-4486-86a5-061ca16e0e0f",
+        "name":  "Listar Blocklist",
+        "method":  "GET",
+        "endpoint":  "/integration/hierarchy_blocklists",
+        "description":  "Lista todas as entradas da blocklist da hierarquia da empresa autenticada, ordenadas pela mais recente.\n\nO escopo é sempre a hierarquia da empresa autenticada (determinado via `top_hierarchy_company`).",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "\u003ctoken\u003e",
+                            "description":  "Token de autenticação gerado no C2S"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"blocklists\": [\n    {\n      \"id\": 789,\n      \"phone\": \"5511999999999\",\n      \"email\": null,\n      \"top_parent_company_id\": \"\u003ccompany_id\u003e\",\n      \"created_at\": \"2025-01-15T10:00:00.000-03:00\",\n      \"updated_at\": \"2025-01-15T10:00:00.000-03:00\"\n    },\n    {\n      \"id\": 788,\n      \"phone\": null,\n      \"email\": \"bloqueado@exemplo.com\",\n      \"top_parent_company_id\": \"\u003ccompany_id\u003e\",\n      \"created_at\": \"2025-01-14T10:00:00.000-03:00\",\n      \"updated_at\": \"2025-01-14T10:00:00.000-03:00\"\n    }\n  ]\n}",
+        "position":  0,
+        "created_at":  "2026-04-15T17:06:12.718937+00:00",
+        "updated_at":  "2026-04-16T17:44:35.819544+00:00"
+    },
+    {
+        "id":  "58d06a87-4b21-4990-8b5a-dcde8dc78e40",
+        "sector_id":  "4e082339-89b6-41fb-b69a-317d4c5887a1",
+        "name":  "Assinar Webhook",
+        "method":  "POST",
+        "endpoint":  "/api/subscribe",
+        "description":  "Assina eventos de webhook para leads. Ações disponíveis: **on_create_lead**, **on_update_lead**, **on_close_lead**.\n\n**Gatilhos disponíveis:**\n- **on_create_lead** — Envia as informações do lead no momento em que ele é criado.\n- **on_update_lead** — Envia as informações do lead quando é gerado um log de alteração dentro dele.\n- **on_close_lead** — Envia as informações do lead quando ele é arquivado ou o negócio é fechado com o cliente.\n\n⚠️ **Importante:** Só é possível cadastrar **1 endpoint por token** utilizado. Caso um segundo endpoint seja cadastrado, o primeiro será **automaticamente apagado**.\n\nÉ possível utilizar os **3 gatilhos em um mesmo endpoint** — basta enviar uma requisição de assinatura para cada ação desejada.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  "{\n  \"hook_action\": \"on_create_lead\",\n  \"hook_url\": \"https://seu-servidor.com/webhook\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"message\": \"Subscribed successfully\"\n}",
+        "position":  0,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:12.721472+00:00"
+    },
+    {
+        "id":  "7d834c74-5dd0-4344-936a-0d53be4ed74b",
+        "sector_id":  "637ff87d-b272-4470-8765-ed5f14a3e936",
+        "name":  "Listar Vendedores",
+        "method":  "GET",
+        "endpoint":  "/sellers",
+        "description":  "Lista todos os vendedores da empresa autenticada (incluindo empresas do grupo).",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "[\n  {\n    \"id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n    \"name\": \"Maria Vendedora\",\n    \"email\": \"maria@empresa.com\",\n    \"phone\": \"5511988888888\",\n    \"company\": \"Empresa Exemplo\",\n    \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n    \"is_recipient\": 1,\n    \"can_view_bucket\": true,\n    \"external_id\": \"\",\n    \"external_name\": \"\",\n    \"is_master\": true\n  },\n  {\n    \"id\": \"s2e3l4l5e6r7i8d9e0x1e2m3p4l5o6f7\",\n    \"name\": \"Carlos Corretor\",\n    \"email\": \"carlos@empresa.com\",\n    \"phone\": \"5511977777777\",\n    \"company\": \"Empresa Exemplo\",\n    \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n    \"is_recipient\": 0,\n    \"can_view_bucket\": true,\n    \"external_id\": null,\n    \"external_name\": null,\n    \"is_master\": false\n  },\n  {\n    \"id\": \"s3e4l5l6e7r8i9d0e1x2e3m4p5l6o7f8\",\n    \"name\": \"Ana Gestora\",\n    \"email\": \"ana@empresa.com\",\n    \"phone\": \"5511966666666\",\n    \"company\": \"Empresa Exemplo\",\n    \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n    \"is_recipient\": 4,\n    \"can_view_bucket\": true,\n    \"external_id\": \"12345\",\n    \"external_name\": \"Nome Externo\",\n    \"is_master\": false\n  }\n]",
+        "position":  0,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:48:13.160074+00:00"
+    },
+    {
+        "id":  "8e154ed5-3b09-418e-ba68-f0d34744940d",
+        "sector_id":  "368b60f7-e04d-43e2-bf26-199091b01342",
+        "name":  "Listar Tags",
+        "method":  "GET",
+        "endpoint":  "/tags",
+        "description":  "Lista as tags da empresa autenticada.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "name",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Filtrar pelo nome exato da tag"
+                           },
+                           {
+                               "name":  "autofill",
+                               "type":  "boolean",
+                               "example":  "false",
+                               "required":  false,
+                               "description":  "Filtrar pela flag de autofill"
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"data\": [\n    {\n      \"id\": \"t1a2g3i4d5e6x7e8m9p0l1o2f3o4r5m6\",\n      \"type\": \"tag\",\n      \"attributes\": {\n        \"id\": \"t1a2g3i4d5e6x7e8m9p0l1o2f3o4r5m6\",\n        \"name\": \"Quente\",\n        \"enabled\": true,\n        \"autofill\": false,\n        \"instructions\": null\n      }\n    },\n    {\n      \"id\": \"t2a3g4i5d6e7x8e9m0p1l2o3f4o5r6m7\",\n      \"type\": \"tag\",\n      \"attributes\": {\n        \"id\": \"t2a3g4i5d6e7x8e9m0p1l2o3f4o5r6m7\",\n        \"name\": \"Frio\",\n        \"enabled\": true,\n        \"autofill\": false,\n        \"instructions\": null\n      }\n    },\n    {\n      \"id\": \"t3a4g5i6d7e8x9e0m1p2l3o4f5o6r7m8\",\n      \"type\": \"tag\",\n      \"attributes\": {\n        \"id\": \"t3a4g5i6d7e8x9e0m1p2l3o4f5o6r7m8\",\n        \"name\": \"Investidor\",\n        \"enabled\": true,\n        \"autofill\": true,\n        \"instructions\": \"Aplicar quando o cliente demonstrar interesse em investimento\"\n      }\n    },\n    {\n      \"id\": \"t4a5g6i7d8e9x0e1m2p3l4o5f6o7r8m9\",\n      \"type\": \"tag\",\n      \"attributes\": {\n        \"id\": \"t4a5g6i7d8e9x0e1m2p3l4o5f6o7r8m9\",\n        \"name\": \"Financiamento\",\n        \"enabled\": true,\n        \"autofill\": false,\n        \"instructions\": null\n      }\n    }\n  ]\n}",
+        "position":  0,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:48:23.387619+00:00"
+    },
+    {
+        "id":  "7fcdb64e-4c9b-4d65-b1cf-9b98a6edd213",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Listar Leads",
+        "method":  "GET",
+        "endpoint":  "/leads",
+        "description":  "Lista leads da empresa autenticada com filtros e paginação.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "page",
+                               "type":  "integer",
+                               "example":  "1",
+                               "required":  false,
+                               "description":  "Número da página"
+                           },
+                           {
+                               "name":  "perpage",
+                               "type":  "integer",
+                               "example":  "25",
+                               "required":  false,
+                               "description":  "Itens por página (máximo 50)"
+                           },
+                           {
+                               "name":  "sort",
+                               "type":  "string",
+                               "example":  "-created_at",
+                               "required":  false,
+                               "description":  "Campo de ordenação. Aceita created_at, updated_at. Prefixo - para DESC"
+                           },
+                           {
+                               "name":  "last_update",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Filtro por datetime ISO 8601. Retorna leads atualizados desde esta data"
+                           },
+                           {
+                               "name":  "created_gte",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Leads criados a partir desta data (inclusive)"
+                           },
+                           {
+                               "name":  "created_lt",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Leads criados antes desta data"
+                           },
+                           {
+                               "name":  "updated_gte",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Leads atualizados a partir desta data (inclusive)"
+                           },
+                           {
+                               "name":  "updated_lt",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Leads atualizados antes desta data"
+                           },
+                           {
+                               "name":  "status",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Filtrar por status: novo, em_negociacao, convertido, negocio_fechado, arquivado, resgatado, pendente, recusado, finalizado"
+                           },
+                           {
+                               "name":  "tags",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Nomes de tags separados por vírgula"
+                           },
+                           {
+                               "name":  "phone",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Filtrar pelo telefone do cliente"
+                           },
+                           {
+                               "name":  "email",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Filtrar pelo email do cliente"
+                           },
+                           {
+                               "name":  "first_message",
+                               "type":  "boolean",
+                               "required":  false,
+                               "description":  "Incluir primeira mensagem na resposta"
+                           },
+                           {
+                               "name":  "custom_attributes",
+                               "type":  "boolean",
+                               "required":  false,
+                               "description":  "Incluir atributos customizados na resposta"
+                           },
+                           {
+                               "name":  "from_hierarchy_company",
+                               "type":  "boolean",
+                               "example":  "true",
+                               "required":  false,
+                               "description":  "Se true, inclui no lead o campo from_hierarchy_company com o nome da hierarquia (empresa) que gerou o lead. Retorna null caso a hierarquia que gerou seja a mesma que recebeu o lead, ou caso a empresa não utilize hierarquia."
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"data\": [\n    {\n      \"type\": \"lead\",\n      \"id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n      \"internal_id\": 12345678,\n      \"attributes\": {\n        \"description\": \"Apartamento 3 quartos\",\n        \"observation\": \"17 de Abril, 10:00 de 2026 - Retornar contato\",\n        \"is_favorite\": false,\n        \"product\": {\n          \"id\": \"p1r2o3d4u5c6t7i8d9e0x1e2m3p4l5o6\",\n          \"description\": \"[101] Apartamento 3 quartos\",\n          \"prop_ref\": \"101\",\n          \"price_float\": 350000.00,\n          \"price\": \"350.000,00\",\n          \"neighbourhood\": \"Centro\",\n          \"city\": \"São Paulo\",\n          \"real_estate_detail\": {\n            \"negotiation_name\": \"Compra\"\n          },\n          \"model\": null,\n          \"brand\": null,\n          \"year\": null,\n          \"version\": null,\n          \"license_plate\": null\n        },\n        \"customer\": {\n          \"id\": \"c1u2s3t4o5m6e7r8i9d0e1x2e3m4p5l6\",\n          \"name\": \"João Silva\",\n          \"email\": \"joao.silva@email.com\",\n          \"phone\": \"5511999999999\",\n          \"phone2\": null,\n          \"phone_global\": \"+5511999999999\"\n        },\n        \"seller\": {\n          \"id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n          \"name\": \"Maria Vendedora\",\n          \"email\": \"maria@empresa.com\",\n          \"phone\": \"5511988888888\",\n          \"company\": \"Empresa Exemplo\",\n          \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n          \"is_recipient\": 1,\n          \"can_view_bucket\": true,\n          \"external_id\": \"\",\n          \"external_name\": null\n        },\n        \"collaborators\": [],\n        \"created_by\": {\n          \"id\": \"c1r2e3a4t5e6d7b8y9i0d1e2x3e4m5p6\",\n          \"name\": \"Admin Sistema\",\n          \"email\": \"admin@empresa.com\",\n          \"phone\": \"5511977777777\",\n          \"company\": \"Empresa Exemplo\",\n          \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n          \"is_recipient\": 0,\n          \"can_view_bucket\": true,\n          \"external_id\": null,\n          \"external_name\": null\n        },\n        \"company\": {\n          \"id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n          \"name\": \"Empresa Exemplo\",\n          \"language\": \"pt-BR\"\n        },\n        \"lead_source\": {\n          \"id\": 542,\n          \"name\": \"Ação de Rua\"\n        },\n        \"channel\": {\n          \"id\": 2,\n          \"name\": \"Showroom\"\n        },\n        \"lost_reasons\": {\n          \"name\": null\n        },\n        \"lead_status\": {\n          \"id\": 1,\n          \"alias\": \"under_negotiation\",\n          \"name\": \"Em negociação\"\n        },\n        \"funnel_status\": {\n          \"status\": \"In attendance\"\n        },\n        \"done_details\": {\n          \"done\": false,\n          \"done_details\": null,\n          \"done_price\": null\n        },\n        \"archive_details\": {\n          \"archived\": false,\n          \"archive_notes\": null\n        },\n        \"tags\": [],\n        \"log\": [\n          {\n            \"body\": \"Lead marcado como interagido pelo WhatsApp pelo usuário Admin Sistema\",\n            \"created_at\": \"2026-04-16T11:41:53.608-03:00\"\n          },\n          {\n            \"body\": \"Lead criado por Admin Sistema para Maria Vendedora\",\n            \"created_at\": \"2026-04-16T11:40:27.227-03:00\"\n          }\n        ],\n        \"messages\": [],\n        \"schedulated_actions\": [],\n        \"created_at\": \"2026-04-16T11:40:26.000-03:00\",\n        \"updated_at\": \"2026-04-16T11:41:52.000-03:00\",\n        \"external_created_at\": null,\n        \"from_hierarchy_company\": \"Imobiliária Matriz SP\",\n        \"last_activity_date\": \"2026-04-17T10:00:00.000-03:00\",\n        \"read_at\": \"2026-04-16T11:41:52.000-03:00\",\n        \"replied_at\": null,\n        \"done_deal_at\": null,\n        \"url\": \"\",\n        \"demo_company\": false\n      },\n      \"schedulated_actions\": [\n        {\n          \"id\": \"a1c2t3i4o5n6i7d8e9x0e1m2p3l4o5f6\",\n          \"seller_id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n          \"seller_name\": \"Maria Vendedora\",\n          \"schedulated_action_type_id\": 6,\n          \"schedulated_action_type_alias\": \"first_contact\",\n          \"schedulated_action_name\": \"Primeiro contato\",\n          \"schedulated_action_date\": \"2026-04-16T11:50:26.000-03:00\",\n          \"description\": null,\n          \"created_at\": \"2026-04-16T11:40:26.000-03:00\",\n          \"status\": \"Finalizado sem informar\"\n        }\n      ],\n      \"messages\": [\n        {\n          \"id\": \"m1e2s3s4a5g6e7i8d9e0x1e2m3p4l5o6\",\n          \"sender_id\": \"c1r2e3a4t5e6d7b8y9i0d1e2x3e4m5p6\",\n          \"recipient_id\": \"c1u2s3t4o5m6e7r8i9d0e1x2e3m4p5l6\",\n          \"sender_type\": \"Seller\",\n          \"recipient_type\": \"Customer\",\n          \"body\": \"Bom dia! Como posso ajudar?\",\n          \"created_at\": \"2026-04-16T11:41:52.000-03:00\",\n          \"updated_at\": \"2026-04-16T11:41:52.000-03:00\",\n          \"read_at\": \"2026-04-16T11:41:52.000-03:00\"\n        }\n      ],\n      \"facebook_attributes\": {}\n    }\n  ],\n  \"pagination\": {\n    \"current_page\": 1,\n    \"per_page\": 50,\n    \"total_count\": 150,\n    \"total_pages\": 3\n  }\n}",
+        "position":  0,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T18:14:02.503125+00:00"
+    },
+    {
+        "id":  "fa688f41-6d4d-464f-b0d3-d39061743ecb",
+        "sector_id":  "637ff87d-b272-4470-8765-ed5f14a3e936",
+        "name":  "Criar Vendedor",
+        "method":  "POST",
+        "endpoint":  "/sellers",
+        "description":  "Cria um novo vendedor.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  "{\n  \"company_id\": \"\u003cencrypted_company_id\u003e\",\n  \"name\": \"Novo Vendedor\",\n  \"username\": \"novovendedor\",\n  \"email\": \"vendedor@exemplo.com\",\n  \"phone1\": \"11999999999\",\n  \"is_recipient\": true,\n  \"is_rescue\": false,\n  \"is_master\": false,\n  \"can_access_users\": false,\n  \"show_in_metrics\": true,\n  \"external_id\": \"EXT-001\",\n  \"own_captations_aux\": [\n    0,\n    1\n  ],\n  \"team\": [\n    0,\n    1,\n    2\n  ]\n}",
+        "response_code":  201,
+        "response_example":  "{\n  \"id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n  \"name\": \"Novo Vendedor\",\n  \"email\": \"vendedor@empresa.com\",\n  \"phone\": \"5511999999999\",\n  \"company\": \"Empresa Exemplo\",\n  \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n  \"is_recipient\": 1,\n  \"can_view_bucket\": true,\n  \"external_id\": \"EXT-001\",\n  \"external_name\": null,\n  \"is_master\": false\n}",
+        "position":  1,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:43.165477+00:00"
+    },
+    {
+        "id":  "e5e6b22c-de16-4f29-9a05-62da049a97f9",
+        "sector_id":  "368b60f7-e04d-43e2-bf26-199091b01342",
+        "name":  "Criar Tag",
+        "method":  "POST",
+        "endpoint":  "/tags",
+        "description":  "Cria uma nova tag. Se uma tag com os mesmos parâmetros já existir, retorna a tag existente com status 201 e uma chave errors.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  "{\n  \"tag\": {\n    \"name\": \"Nova Tag\",\n    \"autofill\": false,\n    \"instructions\": \"Instruções para IA de autofill\"\n  }\n}",
+        "response_code":  201,
+        "response_example":  "{\n  \"tag\": {\n    \"id\": \"t1a2g3i4d5e6x7e8m9p0l1o2f3o4r5m6\",\n    \"name\": \"Nova Tag\",\n    \"enabled\": true,\n    \"company_id\": 2776,\n    \"created_by_seller_id\": 12345,\n    \"edited_by_seller_id\": null,\n    \"created_at\": \"2026-04-16T12:00:00.000-03:00\",\n    \"updated_at\": \"2026-04-16T12:00:00.000-03:00\",\n    \"autofill\": false,\n    \"instructions\": null\n  }\n}",
+        "position":  1,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:55:46.68243+00:00"
+    },
+    {
+        "id":  "128c389b-dcbc-4f8a-97ec-16c1bd17d3e1",
+        "sector_id":  "881338a7-ad6c-4983-b627-6d509281c03b",
+        "name":  "Listar Vendedores da Fila",
+        "method":  "GET",
+        "endpoint":  "/distribution_queues/:id/sellers",
+        "description":  "Lista os vendedores de uma fila de distribuição. Inclui headers de paginação.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "integer",
+                               "required":  true,
+                               "description":  "ID da fila de distribuição"
+                           },
+                           {
+                               "name":  "page",
+                               "type":  "integer",
+                               "example":  "1",
+                               "required":  false,
+                               "description":  "Número da página"
+                           },
+                           {
+                               "name":  "per_page",
+                               "type":  "integer",
+                               "example":  "25",
+                               "required":  false,
+                               "description":  "Itens por página"
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"distribution_queue_sellers\": [\n    {\n      \"id\": 67890,\n      \"seller_id\": 11111,\n      \"seller_name\": \"Maria Vendedora\",\n      \"company_id\": 2776,\n      \"company_name\": \"Empresa Exemplo\",\n      \"priority\": 1,\n      \"status\": \"enabled\",\n      \"repeated_on_queue\": false,\n      \"count_on_queue\": 1,\n      \"first_check_in_at\": null,\n      \"last_check_out_at\": null,\n      \"checked_in_after_shuffle\": false,\n      \"own_hierarchy_name\": \"Empresa Exemplo\",\n      \"closest_parent_hierarchy_name\": null,\n      \"level_one_parent_hierarchy_name\": null\n    },\n    {\n      \"id\": 67891,\n      \"seller_id\": 22222,\n      \"seller_name\": \"Carlos Corretor\",\n      \"company_id\": 2776,\n      \"company_name\": \"Empresa Exemplo\",\n      \"priority\": 2,\n      \"status\": \"enabled\",\n      \"repeated_on_queue\": false,\n      \"count_on_queue\": 1,\n      \"first_check_in_at\": null,\n      \"last_check_out_at\": null,\n      \"checked_in_after_shuffle\": false,\n      \"own_hierarchy_name\": \"Empresa Exemplo\",\n      \"closest_parent_hierarchy_name\": null,\n      \"level_one_parent_hierarchy_name\": null\n    }\n  ]\n}",
+        "position":  1,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:48:52.24177+00:00"
+    },
+    {
+        "id":  "d7816e24-27ae-4857-b5cf-a269e20f1cad",
+        "sector_id":  "4e082339-89b6-41fb-b69a-317d4c5887a1",
+        "name":  "Cancelar Webhook",
+        "method":  "POST",
+        "endpoint":  "/api/unsubscribe",
+        "description":  "Cancela a assinatura de eventos de webhook.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  "{\n  \"hook_action\": \"on_create_lead\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"message\": \"Unsubscribed successfully\"\n}",
+        "position":  1,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:16.1074+00:00"
+    },
+    {
+        "id":  "2a38b700-cfd2-44b7-ac96-e52b3de14e72",
+        "sector_id":  "ade2ffef-0ca4-4486-86a5-061ca16e0e0f",
+        "name":  "Adicionar à Blocklist",
+        "method":  "POST",
+        "endpoint":  "/integration/hierarchy_blocklists",
+        "description":  "Adiciona um telefone e/ou e-mail à blocklist da hierarquia. Ao ser criada, a entrada impede que novos leads com esse contato sejam distribuídos dentro da hierarquia.\n\n**Campos do body:**\n- `phone` (condicional) — Telefone do contato. Será normalizado (formato E.164 com variações).\n- `email` (condicional) — E-mail do contato. Será normalizado (lowercase + trim).\n- `remove_leads` (opcional, default: false) — Se `true`, dispara worker assíncrono para remover/redistribuir leads existentes que correspondam ao contato bloqueado. Se `false`, apenas registra o audit log.\n\n*Pelo menos um dos dois (`phone` ou `email`) deve ser enviado.*\n\n**Verificação de duplicidade:** O sistema verifica se já existe uma entrada com o mesmo telefone (considerando variações de formatação) ou e-mail na hierarquia. Se existir, retorna **409 Conflict**.\n\n**Notas:**\n- O campo `phone` passa por normalização automática cobrindo variações de DDD/DDI.\n- Enviar `11999998888` ou `+5511999998888` produz o mesmo resultado de conflito.\n\n**Respostas possíveis:**\n- `201` — Entrada criada com sucesso.\n- `409` — Já existe um registro com esse telefone/e-mail na hierarquia.\n- `422` — Falha de validação ou erro inesperado.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "\u003ctoken\u003e",
+                            "description":  "Token de autenticação gerado no C2S"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json",
+                            "description":  "Tipo do conteúdo"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "phone",
+                               "type":  "string",
+                               "example":  "11999998888",
+                               "required":  false,
+                               "description":  "Telefone do contato. Pelo menos phone ou email deve ser enviado."
+                           },
+                           {
+                               "name":  "email",
+                               "type":  "string",
+                               "example":  "contato@empresa.com",
+                               "required":  false,
+                               "description":  "E-mail do contato. Pelo menos phone ou email deve ser enviado."
+                           },
+                           {
+                               "name":  "remove_leads",
+                               "type":  "boolean",
+                               "example":  "true",
+                               "required":  false,
+                               "description":  "Se true, remove/redistribui leads existentes com esse contato. Default: false."
+                           }
+                       ],
+        "body":  "{\"hierarchy_blocklist\": {\"phone\": \"11999998888\", \"email\": \"contato@empresa.com\", \"remove_leads\": true}}",
+        "response_code":  201,
+        "response_example":  "{\n  \"success\": true\n}",
+        "position":  1,
+        "created_at":  "2026-04-15T17:06:12.718937+00:00",
+        "updated_at":  "2026-04-16T17:44:35.819544+00:00"
+    },
+    {
+        "id":  "5594e2c6-3cee-4f13-aac8-494ca15f2446",
+        "sector_id":  "7ed5a723-518a-493d-a5ef-870035482b3e",
+        "name":  "Listar Leads do Estande",
+        "method":  "GET",
+        "endpoint":  "/integration/sales_stand/leads",
+        "description":  "Lista os leads capturados em estandes de vendas, com paginação de 50 registros por página.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer \u003ctoken\u003e",
+                            "description":  "Token de autenticação gerado no C2S"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "start_date",
+                               "type":  "string (YYYY-MM-DD)",
+                               "example":  "2024-01-01",
+                               "required":  false,
+                               "description":  "Início do período. Padrão: 1 mês atrás."
+                           },
+                           {
+                               "name":  "end_date",
+                               "type":  "string (YYYY-MM-DD)",
+                               "example":  "2024-12-31",
+                               "required":  false,
+                               "description":  "Fim do período. Padrão: hoje."
+                           },
+                           {
+                               "name":  "custom_lead_form_ids[]",
+                               "type":  "array de strings",
+                               "example":  "custom_lead_form_ids[]=abc123",
+                               "required":  false,
+                               "description":  "Filtra por formulário(s) de estande. Usar os custom_lead_form.id retornados por /stands."
+                           },
+                           {
+                               "name":  "company_ids[]",
+                               "type":  "array de strings",
+                               "example":  "company_ids[]=abc123",
+                               "required":  false,
+                               "description":  "Filtra por empresas específicas da hierarquia."
+                           },
+                           {
+                               "name":  "page",
+                               "type":  "integer",
+                               "example":  "1",
+                               "required":  false,
+                               "description":  "Página desejada. Padrão: 1."
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"data\": [\n    {\n      \"id\": \"\u003cencrypted_lead_id\u003e\",\n      \"customer_name\": \"Nome do Cliente\",\n      \"customer_email\": \"cliente@exemplo.com\",\n      \"customer_phone\": \"11999999999\",\n      \"seller_name\": \"Nome do Vendedor\",\n      \"status\": \"Em negociação\",\n      \"check_in_at\": \"2025-01-15T10:00:00.000-03:00\",\n      \"check_out_at\": \"2025-01-15T11:00:00.000-03:00\",\n      \"created_at\": \"2025-01-15T10:00:00.000-03:00\"\n    }\n  ],\n  \"pagination\": {\n    \"current_page\": 1,\n    \"per_page\": 50,\n    \"total_count\": 1,\n    \"total_pages\": 1\n  }\n}",
+        "position":  1,
+        "created_at":  "2026-04-15T17:06:12.718937+00:00",
+        "updated_at":  "2026-04-16T17:44:35.819544+00:00"
+    },
+    {
+        "id":  "ce1d1c01-188f-42e2-a90b-09a95cd0b229",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Buscar Lead por ID",
+        "method":  "GET",
+        "endpoint":  "/leads/:id",
+        "description":  "Retorna um lead pelo ID criptografado.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           },
+                           {
+                               "name":  "from_hierarchy_company",
+                               "type":  "boolean",
+                               "example":  "true",
+                               "required":  false,
+                               "description":  "Se true, inclui no lead o campo from_hierarchy_company com o nome da hierarquia (empresa) que gerou o lead. Retorna null caso a hierarquia que gerou seja a mesma que recebeu o lead, ou caso a empresa não utilize hierarquia."
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"data\": {\n    \"type\": \"lead\",\n    \"id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n    \"internal_id\": 12345678,\n    \"attributes\": {\n      \"description\": \"Apartamento 3 quartos\",\n      \"observation\": \"17 de Abril, 10:00 de 2026 - Retornar contato\",\n      \"is_favorite\": false,\n      \"product\": {\n        \"id\": \"p1r2o3d4u5c6t7i8d9e0x1e2m3p4l5o6\",\n        \"description\": \"[101] Apartamento 3 quartos\",\n        \"prop_ref\": \"101\",\n        \"price_float\": 350000.00,\n        \"price\": \"350.000,00\",\n        \"neighbourhood\": \"Centro\",\n        \"city\": \"São Paulo\",\n        \"real_estate_detail\": {\n          \"negotiation_name\": \"Compra\"\n        },\n        \"model\": null,\n        \"brand\": null,\n        \"year\": null,\n        \"version\": null,\n        \"license_plate\": null\n      },\n      \"customer\": {\n        \"id\": \"c1u2s3t4o5m6e7r8i9d0e1x2e3m4p5l6\",\n        \"name\": \"João Silva\",\n        \"email\": \"joao.silva@email.com\",\n        \"phone\": \"5511999999999\",\n        \"phone2\": null,\n        \"phone_global\": \"+5511999999999\"\n      },\n      \"seller\": {\n        \"id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n        \"name\": \"Maria Vendedora\",\n        \"email\": \"maria@empresa.com\",\n        \"phone\": \"5511988888888\",\n        \"company\": \"Empresa Exemplo\",\n        \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n        \"is_recipient\": 1,\n        \"can_view_bucket\": true,\n        \"external_id\": \"\",\n        \"external_name\": null\n      },\n      \"collaborators\": [],\n      \"created_by\": {\n        \"id\": \"c1r2e3a4t5e6d7b8y9i0d1e2x3e4m5p6\",\n        \"name\": \"Admin Sistema\",\n        \"email\": \"admin@empresa.com\",\n        \"phone\": \"5511977777777\",\n        \"company\": \"Empresa Exemplo\",\n        \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n        \"is_recipient\": 0,\n        \"can_view_bucket\": true,\n        \"external_id\": null,\n        \"external_name\": null\n      },\n      \"company\": {\n        \"id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n        \"name\": \"Empresa Exemplo\",\n        \"language\": \"pt-BR\"\n      },\n      \"lead_source\": {\n        \"id\": 542,\n        \"name\": \"Ação de Rua\"\n      },\n      \"channel\": {\n        \"id\": 2,\n        \"name\": \"Showroom\"\n      },\n      \"lost_reasons\": {\n        \"name\": null\n      },\n      \"lead_status\": {\n        \"id\": 1,\n        \"alias\": \"under_negotiation\",\n        \"name\": \"Em negociação\"\n      },\n      \"funnel_status\": {\n        \"status\": \"In attendance\"\n      },\n      \"done_details\": {\n        \"done\": false,\n        \"done_details\": null,\n        \"done_price\": null\n      },\n      \"archive_details\": {\n        \"archived\": false,\n        \"archive_notes\": null\n      },\n      \"tags\": [\n        {\n          \"id\": \"t1a2g3i4d5e6x7e8m9p0l1o2f3o4r5m6\",\n          \"name\": \"Quente\"\n        }\n      ],\n      \"log\": [\n        {\n          \"body\": \"Lead marcado como interagido pelo WhatsApp pelo usuário Admin Sistema\",\n          \"created_at\": \"2026-04-16T11:41:53.608-03:00\"\n        },\n        {\n          \"body\": \"Atividade criada | Retornar para o cliente | 17 de Abril, 10:00 de 2026 | Agendar visita\",\n          \"created_at\": \"2026-04-16T11:41:10.571-03:00\"\n        },\n        {\n          \"body\": \"Lead criado por Admin Sistema para Maria Vendedora\",\n          \"created_at\": \"2026-04-16T11:40:27.227-03:00\"\n        }\n      ],\n      \"messages\": [],\n      \"schedulated_actions\": [],\n      \"created_at\": \"2026-04-16T11:40:26.000-03:00\",\n      \"updated_at\": \"2026-04-16T11:41:52.000-03:00\",\n      \"external_created_at\": null,\n      \"from_hierarchy_company\": \"Imobiliária Matriz SP\",\n      \"last_activity_date\": \"2026-04-17T10:00:00.000-03:00\",\n      \"read_at\": \"2026-04-16T11:41:52.000-03:00\",\n      \"replied_at\": null,\n      \"done_deal_at\": null,\n      \"url\": \"\",\n      \"demo_company\": false\n    },\n    \"schedulated_actions\": [\n      {\n        \"id\": \"a1c2t3i4o5n6i7d8e9x0e1m2p3l4o5f6\",\n        \"seller_id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n        \"seller_name\": \"Maria Vendedora\",\n        \"schedulated_action_type_id\": 6,\n        \"schedulated_action_type_alias\": \"first_contact\",\n        \"schedulated_action_name\": \"Primeiro contato\",\n        \"schedulated_action_date\": \"2026-04-16T11:50:26.000-03:00\",\n        \"description\": null,\n        \"created_at\": \"2026-04-16T11:40:26.000-03:00\",\n        \"status\": \"Finalizado sem informar\"\n      },\n      {\n        \"id\": \"a2c3t4i5o6n7i8d9e0x1e2m3p4l5o6f7\",\n        \"seller_id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n        \"seller_name\": \"Maria Vendedora\",\n        \"schedulated_action_type_id\": 3,\n        \"schedulated_action_type_alias\": \"feedback_customer\",\n        \"schedulated_action_name\": \"Retornar para o cliente\",\n        \"schedulated_action_date\": \"2026-04-17T10:00:00.000-03:00\",\n        \"description\": \"Agendar visita\",\n        \"created_at\": \"2026-04-16T11:41:10.000-03:00\",\n        \"status\": \"Em aberto\"\n      }\n    ],\n    \"messages\": [\n      {\n        \"id\": \"m1e2s3s4a5g6e7i8d9e0x1e2m3p4l5o6\",\n        \"sender_id\": \"c1r2e3a4t5e6d7b8y9i0d1e2x3e4m5p6\",\n        \"recipient_id\": \"c1u2s3t4o5m6e7r8i9d0e1x2e3m4p5l6\",\n        \"sender_type\": \"Seller\",\n        \"recipient_type\": \"Customer\",\n        \"body\": \"Bom dia! Como posso ajudar?\",\n        \"created_at\": \"2026-04-16T11:41:52.000-03:00\",\n        \"updated_at\": \"2026-04-16T11:41:52.000-03:00\",\n        \"read_at\": \"2026-04-16T11:41:52.000-03:00\"\n      }\n    ],\n    \"facebook_attributes\": {}\n  }\n}",
+        "position":  1,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T18:14:02.503125+00:00"
+    },
+    {
+        "id":  "7602ed75-0006-477e-8744-accf2a3dfa59",
+        "sector_id":  "84df686c-3f6b-4105-b417-cadc57b12ed5",
+        "name":  "Criar Regra de Distribuição",
+        "method":  "POST",
+        "endpoint":  "/distribution_rules",
+        "description":  "Cria uma nova regra de distribuição.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  "{\n  \"cod_1\": \"SP\",\n  \"cod_2\": \"São Paulo\",\n  \"cod_3\": \"Centro\",\n  \"priority\": 1,\n  \"type_rule\": \"rotation\",\n  \"seller_id\": \"\u003cencrypted_seller_id\u003e\",\n  \"company_id\": \"\u003cencrypted_company_id\u003e\"\n}",
+        "response_code":  201,
+        "response_example":  "{\n  \"message\": \"Distribution rule created successfully\"\n}",
+        "position":  1,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:16.28998+00:00"
+    },
+    {
+        "id":  "7e1fba25-b695-4bde-b558-4d5c9b5cb64d",
+        "sector_id":  "7ed5a723-518a-493d-a5ef-870035482b3e",
+        "name":  "Resumo de Presenças",
+        "method":  "GET",
+        "endpoint":  "/integration/sales_stand/attendance_summaries",
+        "description":  "Lista o resumo de presenças por diretor/gerente/empresa com paginação de 50 registros por página.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer \u003ctoken\u003e",
+                            "description":  "Token de autenticação gerado no C2S"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "start_date",
+                               "type":  "string (YYYY-MM-DD)",
+                               "example":  "2024-01-01",
+                               "required":  true,
+                               "description":  "Início do período."
+                           },
+                           {
+                               "name":  "end_date",
+                               "type":  "string (YYYY-MM-DD)",
+                               "example":  "2024-12-31",
+                               "required":  true,
+                               "description":  "Fim do período."
+                           },
+                           {
+                               "name":  "sales_stand_ids[]",
+                               "type":  "array de strings",
+                               "example":  "sales_stand_ids[]=abc123",
+                               "required":  false,
+                               "description":  "Filtra por estande(s). Usar os id retornados por /stands."
+                           },
+                           {
+                               "name":  "company_ids[]",
+                               "type":  "array de strings",
+                               "example":  "company_ids[]=abc123",
+                               "required":  false,
+                               "description":  "Filtra por empresas específicas da hierarquia."
+                           },
+                           {
+                               "name":  "page",
+                               "type":  "integer",
+                               "example":  "1",
+                               "required":  false,
+                               "description":  "Página desejada. Padrão: 1."
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"data\": [\n    {\n      \"seller_id\": \"\u003cseller_id\u003e\",\n      \"seller_name\": \"Nome do Vendedor\",\n      \"total_attendances\": 15,\n      \"total_leads_received\": 10,\n      \"check_in_count\": 20,\n      \"check_out_count\": 20,\n      \"average_attendance_time_minutes\": 45\n    }\n  ]\n}",
+        "position":  2,
+        "created_at":  "2026-04-15T17:06:12.718937+00:00",
+        "updated_at":  "2026-04-16T17:44:35.819544+00:00"
+    },
+    {
+        "id":  "7eb6fab8-e556-4086-8343-9866768b2f2b",
+        "sector_id":  "881338a7-ad6c-4983-b627-6d509281c03b",
+        "name":  "Atualizar Prioridades dos Vendedores",
+        "method":  "POST",
+        "endpoint":  "/distribution_queues/:id/sellers_priorities",
+        "description":  "Atualiza as prioridades dos vendedores dentro de uma fila de distribuição.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "integer",
+                               "required":  true,
+                               "description":  "ID da fila de distribuição"
+                           }
+                       ],
+        "body":  "{\n  \"...\": \"Configuração de prioridades dos vendedores\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"distribution_queue_sellers\": [\n    {\n      \"id\": 67890,\n      \"seller_id\": 11111,\n      \"seller_name\": \"Maria Vendedora\",\n      \"priority\": 1,\n      \"status\": \"enabled\"\n    },\n    {\n      \"id\": 67891,\n      \"seller_id\": 22222,\n      \"seller_name\": \"Carlos Corretor\",\n      \"priority\": 2,\n      \"status\": \"enabled\"\n    }\n  ]\n}",
+        "position":  2,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:55:32.182846+00:00"
+    },
+    {
+        "id":  "9d3eeca9-f98b-4229-9e0f-197b2f6e9c4c",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Criar Lead",
+        "method":  "POST",
+        "endpoint":  "/leads",
+        "description":  "Cria um novo lead. É obrigatório enviar ao menos phone ou email (caso contrário retorna 423).",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "name",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Nome do cliente. Default: \"Não identificado\"."
+                           },
+                           {
+                               "name":  "email",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Email do cliente. Utilizado para deduplicação. Remove \".\" antes do @ automaticamente."
+                           },
+                           {
+                               "name":  "phone",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Telefone principal. Se vazio, usa \"customer_number\" como fallback."
+                           },
+                           {
+                               "name":  "phone2",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Telefone secundário (opcional)."
+                           },
+                           {
+                               "name":  "description",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Descrição principal do item, exibida no card do lead. Máximo: 250 caracteres."
+                           },
+                           {
+                               "name":  "prop_ref",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Código do imóvel. Obrigatório para empresas do tipo IMOBILIÁRIA. Valores especiais: \"Sem código\", \"Não localizado\", \"Nenhum\", \"ignore\"."
+                           },
+                           {
+                               "name":  "brand",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Marca do veículo. Apenas empresas de CARROS ou MOTOS."
+                           },
+                           {
+                               "name":  "model",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Modelo do veículo. Apenas empresas de CARROS ou MOTOS."
+                           },
+                           {
+                               "name":  "version",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Versão do veículo. Apenas empresas de CARROS ou MOTOS."
+                           },
+                           {
+                               "name":  "year",
+                               "type":  "integer",
+                               "required":  false,
+                               "description":  "Ano do veículo. Se igual ao ano atual, pode virar \"Novo\"."
+                           },
+                           {
+                               "name":  "price",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Valor do produto/imóvel/veículo. Aceita \"R$ 250.000,00\", \"250000\" ou \"250000.00\"."
+                           },
+                           {
+                               "name":  "color",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Cor do veículo. Apenas empresas de CARROS ou MOTOS."
+                           },
+                           {
+                               "name":  "km",
+                               "type":  "integer",
+                               "required":  false,
+                               "description":  "Quilometragem. Se 0 força vehicle_type = \"Novo\". Apenas empresas de CARROS ou MOTOS."
+                           },
+                           {
+                               "name":  "license_plate",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Placa do veículo. Removida automaticamente da descrição. Apenas empresas de CARROS ou MOTOS."
+                           },
+                           {
+                               "name":  "type_negotiation_string",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Texto livre da negociação. Faz parser automático de palavras-chave. Evite usar junto com \"type_negotiation\"."
+                           },
+                           {
+                               "name":  "type_negotiation",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Tipo de negociação. Apenas IMOBILIÁRIAS. Exemplos: \"Comprar\", \"Alugar\", \"Lançamento\"."
+                           },
+                           {
+                               "name":  "vehicle_type",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Tipo do veículo. Valores comuns: \"Novo\", \"Usado\". Apenas empresas de CARROS ou MOTOS."
+                           },
+                           {
+                               "name":  "city",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Cidade do imóvel. Utilizada na distribuição."
+                           },
+                           {
+                               "name":  "neighbourhood",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Bairro do imóvel. Utilizado na distribuição."
+                           },
+                           {
+                               "name":  "channel_id",
+                               "type":  "integer",
+                               "required":  false,
+                               "description":  "ID do canal. Valores possíveis: [1,2,3,4,5]. Default: 1 (Internet)."
+                           },
+                           {
+                               "name":  "channel_abbrev",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Abreviação do canal. Exemplos: \"internet\", \"whatsapp\", \"telefone\", \"showroom\"."
+                           },
+                           {
+                               "name":  "url",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "URL do anúncio/origem. Se vazio e existir prop_ref + custom_link, a URL pode ser gerada automaticamente."
+                           },
+                           {
+                               "name":  "sourcerUrl",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Campo legado de URL. Alguns parceiros ainda enviam aqui."
+                           },
+                           {
+                               "name":  "body",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Primeira mensagem do lead. Máximo: 15.000 caracteres. Aceita HTML."
+                           },
+                           {
+                               "name":  "observation",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Observação interna."
+                           },
+                           {
+                               "name":  "external_id",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "ID externo do parceiro. Pode ser usado em distribuições específicas."
+                           },
+                           {
+                               "name":  "custom_created_at",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Sobrescreve o created_at do lead. Timezone da empresa é respeitada. Formato ISO 8601."
+                           },
+                           {
+                               "name":  "pending",
+                               "type":  "boolean",
+                               "required":  false,
+                               "description":  "Define lead como pendente (status = 5)."
+                           },
+                           {
+                               "name":  "closed",
+                               "type":  "boolean",
+                               "required":  false,
+                               "description":  "Define lead como fechado (status = 7). Já marca como lido."
+                           },
+                           {
+                               "name":  "already_interacted",
+                               "type":  "boolean",
+                               "required":  false,
+                               "description":  "Marca o lead como já interagido/lido."
+                           },
+                           {
+                               "name":  "skip_on_interaction",
+                               "type":  "boolean",
+                               "required":  false,
+                               "description":  "Impede marcação automática de interação."
+                           },
+                           {
+                               "name":  "source",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Origem do lead. Normalmente lowercase + underscore. Exemplo: \"google_ads\", \"olx\"."
+                           },
+                           {
+                               "name":  "real_state_keywords",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Keywords para distribuição personalizada. Apenas IMOBILIÁRIAS."
+                           },
+                           {
+                               "name":  "tags",
+                               "type":  "array",
+                               "required":  false,
+                               "description":  "Lista de tags. Aceita array ou string única."
+                           },
+                           {
+                               "name":  "tag_name",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Tag individual. Faz merge automático com \"tags\"."
+                           },
+                           {
+                               "name":  "wpp_username",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Username/número do WhatsApp."
+                           },
+                           {
+                               "name":  "bsuid",
+                               "type":  "string",
+                               "required":  false,
+                               "description":  "Business Account UID do WhatsApp."
+                           }
+                       ],
+        "body":  "{\n  \"data\": {\n    \"type\": \"lead\",\n    \"attributes\": {\n\n      // ============================================================\n      // IDENTIFICAÇÃO DO CLIENTE (Customer)\n      // ============================================================\n\n      // Nome do cliente.\n      // Default: \"Não identificado\"\n      \"name\": \"Pedro Silva\",\n\n      // Email do cliente.\n      // Utilizado para deduplicação.\n      // Remove \".\" antes do @ automaticamente.\n      \"email\": \"pedro@teste.com\",\n\n      // Telefone principal.\n      // Se vazio, usa \"customer_number\" como fallback.\n      \"phone\": \"+55 11 99999-9999\",\n\n      // Telefone secundário (opcional).\n      \"phone2\": \"+55 11 99999-9999\",\n\n\n      // ============================================================\n      // PRODUTO / IMÓVEL / VEÍCULO (Product)\n      // ============================================================\n\n      // Descrição principal do item.\n      // Exibida no card do lead.\n      // Máximo: 250 caracteres.\n      \"description\": \"Apartamento 2 quartos no Botafogo\",\n\n      // Código do imóvel.\n      // Obrigatório para empresas do tipo IMOBILIÁRIA.\n      // Valores especiais:\n      // \"Sem código\", \"Não localizado\", \"Nenhum\", \"ignore\"\n      \"prop_ref\": \"AP12345\",\n\n      // Marca do veículo.\n      // Apenas empresas de CARROS ou MOTOS.\n      \"brand\": \"Volkswagen\",\n\n      // Modelo do veículo.\n      // Apenas empresas de CARROS ou MOTOS.\n      \"model\": \"Polo\",\n\n      // Versão do veículo.\n      // Apenas empresas de CARROS ou MOTOS.\n      \"version\": \"Comfortline 1.6\",\n\n      // Ano do veículo.\n      // Se igual ao ano atual, pode virar \"Novo\".\n      \"year\": 2024,\n\n      // Valor do produto/imóvel/veículo.\n      // Aceita:\n      // \"R$ 250.000,00\"\n      // \"250000\"\n      // \"250000.00\"\n      \"price\": \"R$ 250.000,00\",\n\n      // Cor do veículo.\n      // Apenas empresas de CARROS ou MOTOS.\n      \"color\": \"Prata\",\n\n      // Quilometragem.\n      // Se 0 =\u003e força vehicle_type = \"Novo\"\n      // Apenas empresas de CARROS ou MOTOS.\n      \"km\": 35000,\n\n      // Placa do veículo.\n      // Removida automaticamente da descrição.\n      // Apenas empresas de CARROS ou MOTOS.\n      \"license_plate\": \"ABC1D23\",\n\n      // Texto livre da negociação.\n      // Faz parser automático de palavras-chave.\n      // Evite usar junto com \"type_negotiation\".\n      \"type_negotiation_string\": \"Apartamento para Aluguel por R$ 1.200,00\",\n\n      // Tipo de negociação.\n      // Apenas IMOBILIÁRIAS.\n      // Exemplos:\n      // \"Comprar\"\n      // \"Alugar\"\n      // \"Lançamento\"\n      \"type_negotiation\": \"Comprar\",\n\n      // Tipo do veículo.\n      // Valores comuns:\n      // \"Novo\"\n      // \"Usado\"\n      // Apenas empresas de CARROS ou MOTOS.\n      \"vehicle_type\": \"Usado\",\n\n      // Cidade do imóvel.\n      // Utilizada na distribuição.\n      \"city\": \"Campinas\",\n\n      // Bairro do imóvel.\n      // Utilizado na distribuição.\n      \"neighbourhood\": \"Botafogo\",\n\n\n      // ============================================================\n      // LEAD\n      // ============================================================\n\n      // ID do canal.\n      // Valores possíveis:\n      // [1,2,3,4,5]\n      // Default: 1 (Internet)\n      \"channel_id\": 1,\n\n      // Abreviação do canal.\n      // Exemplos:\n      // \"internet\"\n      // \"whatsapp\"\n      // \"telefone\"\n      // \"showroom\"\n      \"channel_abbrev\": \"internet\",\n\n      // URL do anúncio/origem.\n      // Se vazio e existir prop_ref + custom_link,\n      // a URL pode ser gerada automaticamente.\n      \"url\": \"https://exemplo.com.br/imovel/12345\",\n\n      // Campo legado de URL.\n      // Alguns parceiros ainda enviam aqui.\n      \"sourcerUrl\": \"https://exemplo.com.br/imovel/12345\",\n\n      // Primeira mensagem do lead.\n      // Máximo: 15.000 caracteres.\n      // Aceita HTML.\n      \"body\": \"Olá, tenho interesse no imóvel.\",\n\n      // Observação interna.\n      \"observation\": \"Cliente VIP, retornar com prioridade\",\n\n      // ID externo do parceiro.\n      // Pode ser usado em distribuições específicas.\n      \"external_id\": \"EXT-99887\",\n\n      // Sobrescreve o created_at do lead.\n      // Timezone da empresa é respeitada.\n      \"custom_created_at\": \"2026-05-08T14:30:00\",\n\n\n      // ============================================================\n      // ORIGEM / DISTRIBUIÇÃO\n      // ============================================================\n\n      // Estado do lead.\n      // true  =\u003e pendente (distribuível)\n      // false =\u003e já distribuído ou fechado\n      \"pending\": true,\n\n      // Lead já fechado.\n      \"closed\": false,\n\n      // Já houve interação com o lead.\n      \"already_interacted\": false,\n\n      // Pular na distribuição se já interagido.\n      \"skip_on_interaction\": false,\n\n      // Fonte primária da origem.\n      // Exemplos:\n      // \"portal_zap\"\n      // \"facebook\"\n      // \"google_ads\"\n      \"source\": \"portal_zap\",\n\n      // Palavras-chave para imobiliárias.\n      // Exemplos:\n      // \"aluguel\"\n      // \"venda\"\n      // \"lançamento\"\n      \"real_state_keywords\": [\"aluguel\", \"venda\"],\n\n      // IDs das tags do lead.\n      // Exemplo: [\"tag-uuid-1\", \"tag-uuid-2\"]\n      \"tags\": [\"tag-uuid-1\"],\n\n      // Nome da tag (usado em integrações legadas).\n      // Exemplo: \"imoveis\", \"premium\"\n      \"tag_name\": \"imoveis\",\n\n\n      // ============================================================\n      // WHATSAPP / EXTRAS\n      // ============================================================\n\n      // Username/número do WhatsApp.\n      \"wpp_username\": \"5511903873417\",\n\n      // Business Account UID do WhatsApp.\n      \"bsuid\": \"1234567890\"\n    }\n  }\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"lead_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n  \"received_by\": {\n    \"id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n    \"name\": \"Maria Vendedora\",\n    \"email\": \"maria@empresa.com\",\n    \"phone\": \"5511988888888\"\n  },\n  \"company\": \"Empresa Exemplo\",\n  \"info\": {\n    \"name\": \"João Silva\",\n    \"email\": \"joao.silva@email.com\",\n    \"phone\": \"5511999999999\",\n    \"channel_id\": 1,\n    \"lead_source_id\": 1,\n    \"message\": \"Interesse no imóvel X\"\n  }\n}",
+        "position":  2,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-05-08T17:32:51.5941+00:00"
+    },
+    {
+        "id":  "5c7fbd67-dc8b-4b6c-8ca8-24a6e4537349",
+        "sector_id":  "637ff87d-b272-4470-8765-ed5f14a3e936",
+        "name":  "Atualizar Vendedor",
+        "method":  "PUT",
+        "endpoint":  "/sellers/:id",
+        "description":  "Atualiza um vendedor existente. O :id é o ID criptografado do vendedor. Aceita os mesmos campos do POST além de recipient_rotation, recipient_distribution, recipient_memory e can_view_bucket.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do vendedor"
+                           }
+                       ],
+        "body":  "{\n  \"name\": \"Vendedor Atualizado\",\n  \"email\": \"vendedor.novo@empresa.com\",\n  \"is_recipient\": true,\n  \"can_view_bucket\": true\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n  \"name\": \"Maria Vendedora Atualizada\",\n  \"email\": \"maria.nova@empresa.com\",\n  \"phone\": \"5511988888888\",\n  \"company\": \"Empresa Exemplo\",\n  \"company_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n  \"is_recipient\": 1,\n  \"can_view_bucket\": true,\n  \"external_id\": \"\",\n  \"external_name\": \"\",\n  \"is_master\": true\n}",
+        "position":  2,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:37.70117+00:00"
+    },
+    {
+        "id":  "2debd61c-10cc-43a9-9380-0f9b6afbc132",
+        "sector_id":  "881338a7-ad6c-4983-b627-6d509281c03b",
+        "name":  "Redistribuir Lead",
+        "method":  "POST",
+        "endpoint":  "/distribution_queues/:id/redistribute_lead",
+        "description":  "Redistribui um lead pela fila de distribuição.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "integer",
+                               "required":  true,
+                               "description":  "ID da fila de distribuição"
+                           }
+                       ],
+        "body":  "{\n  \"id\": \"\u003cencrypted_lead_id\u003e\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"lead_id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n  \"new_seller\": {\n    \"id\": 22222,\n    \"name\": \"Carlos Corretor\",\n    \"company_name\": \"Empresa Exemplo\"\n  }\n}",
+        "position":  3,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:55:34.842518+00:00"
+    },
+    {
+        "id":  "66788c85-a465-466f-b8fe-4f9c9c4ddaa9",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Atualizar Lead",
+        "method":  "PUT",
+        "endpoint":  "/leads/:id",
+        "description":  "Atualiza um lead existente. O :id é o ID criptografado do lead. Suporta 3 formatos de body: via data.attributes (legado), reset de created_at, ou atualização completa (cliente + produto + mensagem).",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  "{\n  \"lead\": {\n    \"channel_id\": 1,\n    \"lead_source_id\": 2,\n    \"url\": \"https://...\",\n    \"customer\": {\n      \"name\": \"Nome Atualizado\",\n      \"email\": \"novo@email.com\",\n      \"phone\": \"11999999999\",\n      \"phone2\": \"11888888888\",\n      \"city\": \"São Paulo\"\n    },\n    \"product\": {\n      \"brand\": \"Toyota\",\n      \"model\": \"Corolla\",\n      \"year\": \"2024\",\n      \"color\": \"Branco\",\n      \"km\": \"0\",\n      \"price\": \"150000\",\n      \"description\": \"...\",\n      \"prop_ref\": \"REF123\"\n    },\n    \"type_negotiation\": 0,\n    \"body\": \"Mensagem opcional a anexar ao lead\"\n  }\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"lead\": {\n    \"customer_id\": 12345678,\n    \"product_id\": 87654321,\n    \"description\": \"Apartamento 3 quartos\",\n    \"updated_at\": \"2026-04-16T12:53:09.000-03:00\",\n    \"company_id\": 2776,\n    \"id\": 12345678,\n    \"lead_source_id\": 349,\n    \"channel_id\": 1,\n    \"seller_id\": 11111,\n    \"read_at\": null,\n    \"is_favorite\": false,\n    \"status\": 0,\n    \"created_at\": \"2026-04-16T12:52:52.000-03:00\",\n    \"is_rescued\": false,\n    \"activity_date\": \"2026-04-16T13:02:52.000-03:00\",\n    \"replied_at\": null,\n    \"num_unread_msg_to_seller\": 0,\n    \"messages\": [],\n    \"related_leads\": [],\n    \"lead_status\": {\n      \"id\": 0,\n      \"name\": \"Novo\",\n      \"alias\": \"new\",\n      \"color_hex\": \"#0000FF\",\n      \"sort\": 0,\n      \"restrict_change\": false,\n      \"manual_change\": true\n    },\n    \"seller\": {\n      \"id\": 11111,\n      \"name\": \"Maria Vendedora\",\n      \"company_id\": 2776,\n      \"company_name\": \"Empresa Exemplo\",\n      \"username\": \"mariavendedora\",\n      \"email\": \"maria@empresa.com\"\n    },\n    \"product\": {\n      \"id\": 87654321,\n      \"description\": \"Apartamento 3 quartos\",\n      \"prop_ref\": \"101\",\n      \"brand\": null,\n      \"model\": null,\n      \"version\": null,\n      \"year\": null,\n      \"price\": \"350.000,00\",\n      \"type_negotiation_string\": \"Compra\"\n    },\n    \"customer\": {\n      \"id\": 12345678,\n      \"name\": \"João Silva\",\n      \"email\": \"joao.silva@email.com\",\n      \"phone\": \"11999999999\",\n      \"phone2\": null,\n      \"phone_formatted\": \"(11) 99999-9999\",\n      \"whatsapp_number\": \"5511999999999\"\n    },\n    \"company_name\": \"Empresa Exemplo\",\n    \"source_name\": \"API / Internet\",\n    \"channel_name\": \"Internet\"\n  }\n}",
+        "position":  3,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:28.967412+00:00"
+    },
+    {
+        "id":  "1a328103-d878-439a-afcf-733c335c3f9f",
+        "sector_id":  "637ff87d-b272-4470-8765-ed5f14a3e936",
+        "name":  "Batch Update Timeshift",
+        "method":  "PUT",
+        "endpoint":  "/sellers/batch_update_timeshift",
+        "description":  "Atualiza em lote a configuração de timeshift de múltiplos vendedores. Os vendedores são processados em ordem reversa e o last_lead_received_at é escalonado em 1 segundo para estabelecer ordem de prioridade.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+
+                       ],
+        "body":  "{\n  \"seller_ids\": [\n    \"\u003cencrypted_id_1\u003e\",\n    \"\u003cencrypted_id_2\u003e\"\n  ],\n  \"recipient_rotation\": \"...\",\n  \"recipient_distribution\": \"...\",\n  \"recipient_memory\": \"...\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true\n}",
+        "position":  3,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:43.550108+00:00"
+    },
+    {
+        "id":  "1f60a733-e96d-48c4-a431-984fe7199295",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Encaminhar Lead",
+        "method":  "PATCH",
+        "endpoint":  "/leads/:id/forward",
+        "description":  "Encaminha um lead para outro vendedor.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  "{\n  \"seller_from_id\": \"\u003cencrypted_seller_id\u003e\",\n  \"seller_to_id\": \"\u003cencrypted_seller_id\u003e\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"lead\": {\n    \"seller_id\": 22222,\n    \"company_id\": 2776,\n    \"id\": 12345678,\n    \"lead_source_id\": 349,\n    \"channel_id\": 1,\n    \"read_at\": \"2026-04-16T12:53:23.000-03:00\",\n    \"is_favorite\": false,\n    \"status\": 1,\n    \"description\": \"Apartamento 3 quartos\",\n    \"created_at\": \"2026-04-16T12:52:52.000-03:00\",\n    \"updated_at\": \"2026-04-16T12:53:30.000-03:00\",\n    \"activity_date\": \"2026-04-20T11:00:00.000-03:00\",\n    \"replied_at\": null,\n    \"num_unread_msg_to_seller\": 0\n  }\n}",
+        "position":  4,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:46.951257+00:00"
+    },
+    {
+        "id":  "e1ec74ef-8eac-4d41-9582-e6cef3ddaeda",
+        "sector_id":  "881338a7-ad6c-4983-b627-6d509281c03b",
+        "name":  "Definir Próximo Vendedor",
+        "method":  "POST",
+        "endpoint":  "/distribution_queues/:id/next_seller",
+        "description":  "Define o próximo vendedor na rotação da fila de distribuição. O vendedor deve estar habilitado na fila.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "integer",
+                               "required":  true,
+                               "description":  "ID da fila de distribuição"
+                           }
+                       ],
+        "body":  "{\n  \"next_queue_seller_id\": 123\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"next_seller\": {\n    \"id\": 67890,\n    \"distribution_queue_id\": 12345,\n    \"seller_id\": 11111,\n    \"priority\": 1,\n    \"last_lead_received_at\": null,\n    \"status\": \"enabled\",\n    \"created_at\": \"2026-04-15T15:03:40.000-03:00\",\n    \"updated_at\": \"2026-04-15T15:03:40.000-03:00\",\n    \"lead_skipped_at\": null\n  }\n}",
+        "position":  4,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:55:28.997437+00:00"
+    },
+    {
+        "id":  "1b3ad93d-0656-4b7f-a1dc-5a3c9605c673",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Listar Tags do Lead",
+        "method":  "GET",
+        "endpoint":  "/leads/:id/tags",
+        "description":  "Retorna todas as tags de um lead.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"tags\": [\n    {\n      \"id\": \"t1a2g3i4d5e6x7e8m9p0l1o2f3o4r5m6\",\n      \"name\": \"Quente\"\n    },\n    {\n      \"id\": \"t2a3g4i5d6e7x8e9m0p1l2o3f4o5r6m7\",\n      \"name\": \"Investidor\"\n    }\n  ]\n}",
+        "position":  5,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:48:05.826261+00:00"
+    },
+    {
+        "id":  "8622cfbd-9cfc-4e51-aa7e-8223d91f74cb",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Adicionar Tag ao Lead",
+        "method":  "POST",
+        "endpoint":  "/leads/:id/create_tag",
+        "description":  "Adiciona uma tag a um lead.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  "{\n  \"tag_id\": \"\u003cencrypted_tag_id\u003e\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"tags\": [\n    {\n      \"id\": 5646064,\n      \"lead_id\": 12345678,\n      \"created_at\": \"2026-04-16T12:53:13.000-03:00\",\n      \"updated_at\": \"2026-04-16T12:53:13.000-03:00\",\n      \"tag_id\": 48437,\n      \"created_by_seller_id\": null\n    }\n  ]\n}",
+        "position":  6,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:51.376444+00:00"
+    },
+    {
+        "id":  "ff4d0035-f92c-4b82-a9be-daf8ff5ce8e6",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Remover Tag do Lead",
+        "method":  "POST",
+        "endpoint":  "/leads/:id/remove_tag",
+        "description":  "Remove uma ou mais tags de um lead. Aceita tag_id como string (única) ou array (múltiplas).",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  "{\n  \"tag_id\": \"\u003cencrypted_tag_id\u003e\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"tags\": []\n}",
+        "position":  7,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:51.78237+00:00"
+    },
+    {
+        "id":  "9d97b540-449b-459a-9f70-34e45e630611",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Marcar Lead como Lido",
+        "method":  "POST",
+        "endpoint":  "/leads/:id/mark_as_interacted",
+        "description":  "Marca um lead como lido/interagido.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  null,
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"lead\": {\n    \"num_unread_msg_to_seller\": 0,\n    \"read_at\": \"2026-04-16T12:53:23.000-03:00\",\n    \"id\": 12345678,\n    \"status\": 0,\n    \"created_at\": \"2026-04-16T12:52:52.000-03:00\",\n    \"updated_at\": \"2026-04-16T12:53:23.000-03:00\"\n  }\n}",
+        "position":  8,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:54:54.863273+00:00"
+    },
+    {
+        "id":  "1952a8a8-ea50-4e41-9555-d7939d5c881a",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Criar Mensagem no Lead",
+        "method":  "POST",
+        "endpoint":  "/leads/:id/create_message",
+        "description":  "Cria uma mensagem em um lead.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  "{\n  \"body\": \"Texto da mensagem\",\n  \"from\": \"bot\",\n  \"url\": \"https://...\",\n  \"external_id\": \"msg-ext-123\",\n  \"created_at\": \"2025-01-15T10:00:00Z\",\n  \"origin\": \"whatsapp\",\n  \"message_type\": \"text\",\n  \"sender_name\": \"João\",\n  \"parent_message_id\": \"msg-parent-456\",\n  \"tags\": [\n    \"\u003cencrypted_tag_id_1\u003e\",\n    \"\u003cencrypted_tag_id_2\u003e\"\n  ]\n}",
+        "response_code":  201,
+        "response_example":  "{\n  \"data\": {\n    \"type\": \"lead\",\n    \"id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n    \"internal_id\": 12345678,\n    \"attributes\": {\n      \"description\": \"Apartamento 3 quartos\",\n      \"lead_status\": {\n        \"id\": 0,\n        \"alias\": \"new\",\n        \"name\": \"Novo\"\n      },\n      \"messages\": [],\n      \"created_at\": \"2026-04-16T12:52:52.000-03:00\",\n      \"updated_at\": \"2026-04-16T12:53:25.000-03:00\"\n    },\n    \"messages\": [\n      {\n        \"id\": \"m1e2s3s4a5g6e7i8d9e0x1e2m3p4l5o6\",\n        \"sender_id\": \"s1e2n3d4e5r6i7d8e9x0e1m2p3l4o5f6\",\n        \"recipient_id\": \"r1e2c3i4p5i6e7n8t9i0d1e2x3e4m5p6\",\n        \"sender_type\": \"SysUser\",\n        \"recipient_type\": \"Customer\",\n        \"body\": \"Mensagem enviada via API\",\n        \"created_at\": \"2026-04-16T12:53:25.000-03:00\",\n        \"updated_at\": \"2026-04-16T12:53:25.000-03:00\",\n        \"read_at\": null\n      }\n    ]\n  }\n}",
+        "position":  9,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:55:06.616974+00:00"
+    },
+    {
+        "id":  "3aa5f1e0-6662-49fe-b902-83893fc0bea9",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Criar Atividade no Lead",
+        "method":  "POST",
+        "endpoint":  "/leads/:id/create_activity",
+        "description":  "Cria uma atividade em um lead.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  "{\n  \"date\": \"2025-01-20T14:00:00Z\",\n  \"type\": {\n    \"activity\": true\n  },\n  \"body\": \"Descrição da atividade\",\n  \"send_push\": true,\n  \"title\": \"Título da notificação\"\n}",
+        "response_code":  201,
+        "response_example":  "{\n  \"data\": {\n    \"type\": \"lead\",\n    \"id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n    \"internal_id\": 12345678,\n    \"attributes\": {\n      \"description\": \"Apartamento 3 quartos\",\n      \"lead_status\": {\n        \"id\": 1,\n        \"alias\": \"under_negotiation\",\n        \"name\": \"Em negociação\"\n      },\n      \"log\": [\n        {\n          \"body\": \"Atividade criada | Retornar para o cliente | 20 de Abril, 14:00 de 2026 | Agendar visita ao imóvel\",\n          \"created_at\": \"2026-04-16T12:53:28.101-03:00\"\n        }\n      ],\n      \"created_at\": \"2026-04-16T12:52:52.000-03:00\",\n      \"updated_at\": \"2026-04-16T12:53:28.000-03:00\",\n      \"last_activity_date\": \"2026-04-20T14:00:00.000-03:00\"\n    },\n    \"schedulated_actions\": [\n      {\n        \"id\": \"a1c2t3i4o5n6i7d8e9x0e1m2p3l4o5f6\",\n        \"seller_id\": \"s1e2l3l4e5r6i7d8e9x0e1m2p3l4o5f6\",\n        \"seller_name\": \"Maria Vendedora\",\n        \"schedulated_action_type_id\": 3,\n        \"schedulated_action_type_alias\": \"feedback_customer\",\n        \"schedulated_action_name\": \"Retornar para o cliente\",\n        \"schedulated_action_date\": \"2026-04-20T14:00:00.000-03:00\",\n        \"description\": \"Agendar visita ao imóvel\",\n        \"created_at\": \"2026-04-16T12:53:27.000-03:00\",\n        \"status\": \"Em aberto\"\n      }\n    ]\n  }\n}",
+        "position":  10,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:55:15.863061+00:00"
+    },
+    {
+        "id":  "40e1a097-8f7a-40d3-86d9-c02217c54145",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Atualizar Status do Lead",
+        "method":  "POST",
+        "endpoint":  "/leads/:id/update_status",
+        "description":  "Atualiza o status de um lead. Quando status = 3, o lead é marcado como perdido.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  "{\n  \"status\": 3,\n  \"message\": \"Cliente não tem interesse\",\n  \"lost_reason_ids\": [\n    12\n  ]\n}",
+        "response_code":  201,
+        "response_example":  "{\n  \"data\": {\n    \"type\": \"lead\",\n    \"id\": \"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6\",\n    \"internal_id\": 12345678,\n    \"attributes\": {\n      \"description\": \"Apartamento 3 quartos\",\n      \"lead_status\": {\n        \"id\": 3,\n        \"alias\": \"lost\",\n        \"name\": \"Arquivado\"\n      },\n      \"archive_details\": {\n        \"archived\": true,\n        \"archive_notes\": \"Cliente não tem interesse\"\n      },\n      \"lost_reasons\": {\n        \"name\": \"inactive\"\n      },\n      \"log\": [\n        {\n          \"body\": \"O status foi alterado para Arquivado por Integração. | Detalhes: Cliente não tem interesse\",\n          \"created_at\": \"2026-04-16T12:53:32.000-03:00\"\n        }\n      ],\n      \"created_at\": \"2026-04-16T12:52:52.000-03:00\",\n      \"updated_at\": \"2026-04-16T12:53:32.000-03:00\"\n    }\n  }\n}",
+        "position":  11,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:55:20.457204+00:00"
+    },
+    {
+        "id":  "939ab23c-d80c-42f7-9d21-f5dbf2f2b3ad",
+        "sector_id":  "b66c1cfa-b8ab-4fe2-84d1-6e7a9264414e",
+        "name":  "Fechar Negócio do Lead",
+        "method":  "POST",
+        "endpoint":  "/leads/:id/done_deal",
+        "description":  "Registra o fechamento de negócio de um lead.",
+        "headers":  [
+                        {
+                            "key":  "Authorization",
+                            "value":  "Bearer {token}",
+                            "description":  "Token de autenticação (preferencial)"
+                        },
+                        {
+                            "key":  "Authentication",
+                            "value":  "{token}",
+                            "description":  "Header alternativo para o mesmo token"
+                        },
+                        {
+                            "key":  "Content-Type",
+                            "value":  "application/json"
+                        }
+                    ],
+        "parameters":  [
+                           {
+                               "name":  "id",
+                               "type":  "string",
+                               "required":  true,
+                               "description":  "ID criptografado do lead"
+                           }
+                       ],
+        "body":  "{\n  \"prop_ref\": \"PROP-123\",\n  \"done_type_negotiation\": \"sale\",\n  \"info\": \"Detalhes do negócio\",\n  \"date\": \"2025-01-15\",\n  \"value\": \"500000\"\n}",
+        "response_code":  200,
+        "response_example":  "{\n  \"success\": true,\n  \"tags\": {\n    \"id\": 80123751,\n    \"done_deal_at\": null,\n    \"lead_id\": 12345678,\n    \"created_at\": \"2026-04-16T12:52:52.000-03:00\",\n    \"updated_at\": \"2026-04-16T12:53:32.000-03:00\",\n    \"done_details\": null,\n    \"received_by_seller_id\": 11111,\n    \"done_extra_vehicle\": null,\n    \"done_extra_immobile\": null,\n    \"done_price\": null,\n    \"done_type_negotiation\": null,\n    \"archieve_details\": \"Detalhes do arquivamento\"\n  }\n}",
+        "position":  12,
+        "created_at":  "2026-02-16T14:06:08.491909+00:00",
+        "updated_at":  "2026-04-16T15:55:25.494249+00:00"
+    }
+]
