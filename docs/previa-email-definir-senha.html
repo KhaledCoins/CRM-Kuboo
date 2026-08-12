@@ -1,0 +1,140 @@
+<!--
+  TEMPLATE — DEFINIR / REDEFINIR SENHA (Supabase)  ·  v2
+
+  Onde colar: Supabase → Authentication → Emails → Templates → "Reset Password"
+  Subject:    Kuboo CRM — defina a sua senha
+
+  Serve para dois casos (texto propositalmente neutro):
+    1. Pessoa que já tinha login e foi (re)convidada para a equipe
+    2. Alguém que clicou em "Esqueci minha senha"
+
+  https://crm-kuboo.vercel.app/seguros/perfil#exemplo-do-link é a variável do Supabase — é ela que vira o link.
+  NÃO trocar por URL fixa.
+
+  Decisões de design (não mexer sem saber o efeito):
+  - Logo real hospedado em kubooseguros.com.br (só entrou depois que o domínio
+    saiu do ar da DreamHost e ganhou HTTPS). Tem alt e cor de fundo, então se a
+    imagem for bloqueada — Outlook e Gmail bloqueiam por padrão — o cabeçalho
+    continua legível.
+  - color-scheme light: sem isso o Gmail/Apple Mail no escuro inverte as cores e
+    o texto azul-escuro some no fundo escuro.
+  - Botão com fallback VML: o Outlook (Word engine) ignora border-radius e
+    padding em <a>, e o botão viraria um link solto.
+  - Tudo em tabelas com CSS inline: é o que sobrevive a Gmail, Outlook e Yahoo.
+-->
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Defina a sua senha — Kuboo</title>
+  <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#EEF4FA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Um link seguro para você criar a sua senha do CRM da Kuboo. Expira em 1 hora.</div>
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF4FA;">
+    <tr><td align="center" style="padding:28px 12px;">
+
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 12px 34px rgba(10,22,40,0.14);">
+
+        <!-- Cabeçalho -->
+        <tr><td style="background-color:#0D4F8A;background-image:linear-gradient(135deg,#0A1628 0%,#0D4F8A 58%,#1873BA 100%);padding:34px 40px 30px;text-align:center;">
+          <img src="https://kubooseguros.com.br/kuboo-logo-white.png" width="132" alt="Kuboo Consórcios &amp; Seguros" style="display:block;margin:0 auto 12px;width:132px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;">
+          <p style="margin:0;color:#9FD0F0;font-size:12px;letter-spacing:2.5px;text-transform:uppercase;font-weight:bold;">CRM &middot; Área da Equipe</p>
+        </td></tr>
+
+        <!-- Chamada -->
+        <tr><td style="padding:38px 40px 0;">
+          <h1 style="margin:0 0 14px;color:#0A1628;font-size:25px;line-height:1.28;font-weight:bold;">Defina a sua senha</h1>
+          <p style="margin:0;color:#4B5563;font-size:15.5px;line-height:1.68;">
+            Recebemos um pedido para criar ou trocar a senha do seu acesso ao
+            <strong style="color:#0A1628;">CRM da Kuboo</strong>. Clique no botão abaixo e escolha a sua —
+            leva menos de um minuto.
+          </p>
+        </td></tr>
+
+        <!-- Botão (com fallback pro Outlook) -->
+        <tr><td align="center" style="padding:28px 40px 10px;">
+          <!--[if mso]>
+          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://crm-kuboo.vercel.app/seguros/perfil#exemplo-do-link" style="height:52px;v-text-anchor:middle;width:270px;" arcsize="50%" stroke="f" fillcolor="#1873BA">
+            <w:anchorlock/>
+            <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Criar minha senha</center>
+          </v:roundrect>
+          <![endif]-->
+          <!--[if !mso]><!-- -->
+          <a href="https://crm-kuboo.vercel.app/seguros/perfil#exemplo-do-link" target="_blank" style="display:inline-block;background-color:#1873BA;background-image:linear-gradient(135deg,#1F86D4,#1560A0);color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;line-height:1;padding:18px 46px;border-radius:999px;box-shadow:0 8px 20px rgba(24,115,186,0.34);">Criar minha senha&nbsp;&nbsp;&#8594;</a>
+          <!--<![endif]-->
+        </td></tr>
+
+        <!-- Link alternativo -->
+        <tr><td align="center" style="padding:6px 40px 0;">
+          <p style="margin:0;color:#9CA3AF;font-size:12px;line-height:1.65;">
+            O botão não abriu? Copie e cole no navegador:<br>
+            <span style="color:#1873BA;word-break:break-all;">https://crm-kuboo.vercel.app/seguros/perfil#exemplo-do-link</span>
+          </p>
+        </td></tr>
+
+        <!-- Passo a passo -->
+        <tr><td style="padding:26px 40px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F2F8FE;border:1px solid #D3E6F8;border-radius:14px;">
+            <tr><td style="padding:20px 24px;">
+              <p style="margin:0 0 14px;color:#0A1628;font-size:15px;font-weight:bold;">Como funciona</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="34" style="vertical-align:top;padding:0 12px 12px 0;"><span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;background-color:#1873BA;color:#ffffff;border-radius:50%;font-size:12px;font-weight:bold;">1</span></td>
+                  <td style="color:#374151;font-size:14.5px;line-height:1.6;padding-bottom:12px;">Escolha a senha que quiser &mdash; mínimo de <strong>8 caracteres</strong>, com letras e números</td>
+                </tr>
+                <tr>
+                  <td width="34" style="vertical-align:top;padding:0 12px 12px 0;"><span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;background-color:#1873BA;color:#ffffff;border-radius:50%;font-size:12px;font-weight:bold;">2</span></td>
+                  <td style="color:#374151;font-size:14.5px;line-height:1.6;padding-bottom:12px;">Você entra direto no CRM &mdash; sem precisar fazer login de novo</td>
+                </tr>
+                <tr>
+                  <td width="34" style="vertical-align:top;padding:0 12px 0 0;"><span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;background-color:#1873BA;color:#ffffff;border-radius:50%;font-size:12px;font-weight:bold;">3</span></td>
+                  <td style="color:#374151;font-size:14.5px;line-height:1.6;">Em <strong>Meu Perfil</strong>, ligue a sua <strong>disponibilidade</strong> para entrar no rodízio de leads</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Segurança -->
+        <tr><td style="padding:18px 40px 34px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFF8EB;border:1px solid #F5DFAE;border-radius:14px;">
+            <tr><td style="padding:15px 22px;">
+              <p style="margin:0;color:#8A5A00;font-size:13px;line-height:1.65;">
+                <strong>Este link é pessoal e expira em 1 hora.</strong> Não repasse para ninguém.
+                A Kuboo <strong>nunca</strong> pede sua senha por telefone, WhatsApp ou e-mail.
+                Se você não pediu isso, é só ignorar &mdash; nada muda na sua conta.
+              </p>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Rodapé -->
+        <tr><td style="background-color:#0A1628;padding:28px 40px;text-align:center;">
+          <p style="margin:0 0 8px;color:#9FD0F0;font-size:14px;font-weight:bold;">Kuboo Consórcios &amp; Seguros</p>
+          <p style="margin:0 0 10px;color:#64748B;font-size:11.5px;line-height:1.65;">
+            Kuboo Seguros e Consórcios Ltda. &middot; CNPJ 51.898.758/0001-20 &middot; SUSEP 52D10J<br>
+            R. Irmã Maria Demétria Kfuri, 737 &mdash; Jardim Esplanada, São José dos Campos - SP
+          </p>
+          <p style="margin:0;font-size:11.5px;">
+            <a href="https://kubooseguros.com.br" style="color:#5BC4F5;text-decoration:none;">kubooseguros.com.br</a>
+          </p>
+        </td></tr>
+
+      </table>
+
+      <p style="margin:16px 0 0;color:#94A3B8;font-size:11px;text-align:center;line-height:1.6;">
+        Você recebeu este e-mail porque existe um acesso ao CRM vinculado a este endereço.
+      </p>
+
+    </td></tr>
+  </table>
+</body>
+</html>
