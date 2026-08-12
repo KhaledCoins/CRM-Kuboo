@@ -94,8 +94,12 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
           const isManager = ["gestor", "admin"].includes((perfil as any)?.role ?? "");
           const maxDegrau = Math.max(0, ...alertas.map((a) => a.minutos));
 
+          // profiles PRECISA do vínculo explícito: lead_atividades, lead_observacoes
+          // e lead_favoritos também apontam para profiles, então "profiles(name)"
+          // fica ambíguo e o PostgREST devolve 300/PGRST201 — a consulta falhava
+          // calada e o sino dizia "tudo em dia" mesmo com SLA estourando.
           let semAtQ = supabase.from("leads")
-            .select("id,nome,vendedor_id,created_at,modulo,profiles(name)")
+            .select("id,nome,vendedor_id,created_at,modulo,profiles!leads_vendedor_id_fkey(name)")
             .not("vendedor_id", "is", null).is("primeiro_contato_em", null).is("interagido_em", null)
             .eq("descartado", false).limit(300);
           semAtQ = seguros ? semAtQ.or("modulo.eq.seguros,modulo.is.null") : semAtQ.eq("modulo", "consorcios");
