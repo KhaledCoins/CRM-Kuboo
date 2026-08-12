@@ -8,7 +8,7 @@
     1. Pessoa que já tinha login e foi (re)convidada para a equipe
     2. Alguém que clicou em "Esqueci minha senha"
 
-  https://crm-kuboo.vercel.app/seguros/perfil#exemplo-do-link é a variável do Supabase — é ela que vira o link.
+  https://crm-kuboo.vercel.app/seguros/perfil#exemplo é a variável do Supabase — é ela que vira o link.
   NÃO trocar por URL fixa.
 
   Decisões de design (não mexer sem saber o efeito):
@@ -45,7 +45,10 @@
 
         <!-- Cabeçalho -->
         <tr><td style="background-color:#0D4F8A;background-image:linear-gradient(135deg,#0A1628 0%,#0D4F8A 58%,#1873BA 100%);padding:34px 40px 30px;text-align:center;">
-          <img src="https://kubooseguros.com.br/kuboo-logo-white.png" width="132" alt="Kuboo Consórcios &amp; Seguros" style="display:block;margin:0 auto 12px;width:132px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;">
+          <!-- O style do <img> também formata o ALT quando a imagem é bloqueada
+               (Outlook e Gmail bloqueiam por padrão): vira um wordmark branco
+               em vez de um ícone quebrado. -->
+          <img src="https://kubooseguros.com.br/kuboo-logo-white.png" width="132" alt="KUBOO" style="display:block;margin:0 auto 12px;width:132px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:26px;font-weight:bold;letter-spacing:3px;line-height:1.2;">
           <p style="margin:0;color:#9FD0F0;font-size:12px;letter-spacing:2.5px;text-transform:uppercase;font-weight:bold;">CRM &middot; Área da Equipe</p>
         </td></tr>
 
@@ -62,13 +65,13 @@
         <!-- Botão (com fallback pro Outlook) -->
         <tr><td align="center" style="padding:28px 40px 10px;">
           <!--[if mso]>
-          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://crm-kuboo.vercel.app/seguros/perfil#exemplo-do-link" style="height:52px;v-text-anchor:middle;width:270px;" arcsize="50%" stroke="f" fillcolor="#1873BA">
+          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://crm-kuboo.vercel.app/seguros/perfil#exemplo" style="height:52px;v-text-anchor:middle;width:270px;" arcsize="50%" stroke="f" fillcolor="#1873BA">
             <w:anchorlock/>
             <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Criar minha senha</center>
           </v:roundrect>
           <![endif]-->
           <!--[if !mso]><!-- -->
-          <a href="https://crm-kuboo.vercel.app/seguros/perfil#exemplo-do-link" target="_blank" style="display:inline-block;background-color:#1873BA;background-image:linear-gradient(135deg,#1F86D4,#1560A0);color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;line-height:1;padding:18px 46px;border-radius:999px;box-shadow:0 8px 20px rgba(24,115,186,0.34);">Criar minha senha&nbsp;&nbsp;&#8594;</a>
+          <a href="https://crm-kuboo.vercel.app/seguros/perfil#exemplo" target="_blank" style="display:inline-block;background-color:#1873BA;background-image:linear-gradient(135deg,#1F86D4,#1560A0);color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;line-height:1;padding:18px 46px;border-radius:999px;box-shadow:0 8px 20px rgba(24,115,186,0.34);">Criar minha senha&nbsp;&nbsp;&#8594;</a>
           <!--<![endif]-->
         </td></tr>
 
@@ -76,7 +79,7 @@
         <tr><td align="center" style="padding:6px 40px 0;">
           <p style="margin:0;color:#9CA3AF;font-size:12px;line-height:1.65;">
             O botão não abriu? Copie e cole no navegador:<br>
-            <span style="color:#1873BA;word-break:break-all;">https://crm-kuboo.vercel.app/seguros/perfil#exemplo-do-link</span>
+            <span style="color:#1873BA;word-break:break-all;">https://crm-kuboo.vercel.app/seguros/perfil#exemplo</span>
           </p>
         </td></tr>
 
