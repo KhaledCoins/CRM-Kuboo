@@ -110,3 +110,39 @@ create policy endossos_del on public.endossos for delete to authenticated
 alter table public.leads add column if not exists c2s_lead_id text;
 create unique index if not exists leads_c2s_lead_id_uidx
   on public.leads (c2s_lead_id) where c2s_lead_id is not null;
+
+-- ─── 7. Tabelas filhas do lead seguem a visibilidade do lead pai ────────────
+-- Tinham "FOR ALL USING (is_team())": um vendedor lia as OBSERVAÇÕES e
+-- ATIVIDADES dos leads dos colegas pela API, mesmo sem enxergar o lead.
+-- O EXISTS abaixo roda sob a MESMA RLS de leads, então a visibilidade fica
+-- automaticamente idêntica à do lead — sem duplicar regra nem risco de
+-- divergirem depois. Verificado ao vivo: vendedor vê a observação do próprio
+-- lead e não vê a do lead de colega.
+do $$
+declare t text;
+begin
+  foreach t in array array['lead_atividades','lead_etiquetas','lead_observacoes'] loop
+    execute format('drop policy if exists %I_team on public.%I', t, t);
+    execute format('drop policy if exists %I_segue_lead on public.%I', t, t);
+    execute format($f$
+      create policy %1$I_segue_lead on public.%1$I for all to authenticated
+        using (exists (select 1 from public.leads l where l.id = %1$I.lead_id))
+        with check (exists (select 1 from public.leads l where l.id = %1$I.lead_id))
+    $f$, t);
+  end loop;
+end $$;
+
+-- Favoritos são pessoais: cada um só vê e mexe nos próprios.
+drop policy if exists lead_favoritos_team on public.lead_favoritos;
+drop policy if exists lead_favoritos_proprio on public.lead_favoritos;
+create policy lead_favoritos_proprio on public.lead_favoritos for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- tarefas não tem coluna de dono (só responsavel_nome, texto livre) — segue
+-- team-wide, mas restrito a authenticated em vez de public.
+drop policy if exists tarefas_team on public.tarefas;
+create policy tarefas_team on public.tarefas for all to authenticated
+  using (public.is_team()) with check (public.is_team());
+
+-- MANTIDAS team-wide de propósito: grupos, produtos, seguradoras — são
+-- catálogos compartilhados, não têm dono e todo mundo precisa consultar.
