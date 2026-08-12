@@ -80,10 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let nivel: string | null = null;
     let aprovado = true;
     let permissoes: Record<string, boolean> | null = null;
+    let precisaTrocarSenha = false;
     try {
       const { data } = await supabase
         .from("profiles")
-        .select("name, role, nivel, aprovado, permissoes")
+        .select("name, role, nivel, aprovado, permissoes, must_change_password")
         .eq("id", id)
         .single();
       if (data) {
@@ -92,10 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nivel = (data as any).nivel ?? null;
         if (typeof (data as any).aprovado === "boolean") aprovado = (data as any).aprovado;
         if ((data as any).permissoes && typeof (data as any).permissoes === "object") permissoes = (data as any).permissoes;
+        precisaTrocarSenha = (data as any).must_change_password === true;
       }
     } catch {
       role = null; // falha na leitura do perfil = sem acesso (nunca assumir papel)
     }
+
+    // Trava PERSISTENTE: o hash do convite é apagado pelo supabase-js assim que
+    // a sessão é criada, então depender só dele deixava um F5 na tela de criar
+    // senha entrar direto no CRM sem senha definida. O flag no banco não some.
+    if (precisaTrocarSenha) setDefinindoSenha(true);
 
     // Segurança: só entra quem é EQUIPE e está APROVADO. Perfil ausente,
     // role 'cliente' ou falha de leitura => nega acesso (nada de default admin).
@@ -108,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       await supabase.auth.signOut();
       setUser(null);
+      setDefinindoSenha(false); // não deixa o flag preso e contaminar o próximo login
       setLoading(false);
       return;
     }

@@ -40,7 +40,9 @@ function formatarTelefone(bruto) {
   if (d.startsWith("55") && d.length >= 12) d = d.slice(2);
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return d || null;
+  // Menos de 10 dígitos não é telefone ("0", "999", lixo de formulário) — vira
+  // null pra nunca virar chave de deduplicação e fundir leads distintos.
+  return null;
 }
 
 // lead_status.alias do C2S → etapa do funil do CRM
@@ -138,14 +140,16 @@ export default async function handler(req, res) {
       interagido_em: at.read_at || at.replied_at || null,
     };
 
-    // Já existe? (por id do C2S; senão por telefone)
+    // Já existe? SEMPRE pelo id do C2S quando ele vier. O fallback por telefone
+    // só vale para payload sem id — casar por telefone quando o id é conhecido
+    // funde leads de pessoas diferentes que dividem o número (casal, família) e
+    // faz os dois ficarem disputando a mesma linha.
     let existente = null;
     if (c2sId) {
-      const { data } = await admin.from("leads").select("id").eq("c2s_lead_id", c2sId).limit(1);
+      const { data } = await admin.from("leads").select("id, etapa, descartado").eq("c2s_lead_id", c2sId).limit(1);
       existente = data?.[0] ?? null;
-    }
-    if (!existente && telefone) {
-      const { data } = await admin.from("leads").select("id").eq("telefone", telefone).limit(1);
+    } else if (telefone) {
+      const { data } = await admin.from("leads").select("id, etapa, descartado").eq("telefone", telefone).limit(1);
       existente = data?.[0] ?? null;
     }
 
@@ -156,6 +160,16 @@ export default async function handler(req, res) {
       for (const [k, v] of Object.entries(linha)) {
         if (v !== null && v !== undefined && k !== "status" && k !== "urgencia") patch[k] = v;
       }
+      // O funil do CRM é a fonte da verdade depois que o lead existe: um evento
+      // atrasado do C2S não pode rebaixar quem a equipe já avançou aqui, nem
+      // reabrir o que foi fechado. Só deixamos AVANÇAR.
+      const RANK = { novos: 0, contato: 1, cotacao: 2, negociacao: 3, perdido: 4, ganho: 5 };
+      if ((RANK[patch.etapa] ?? 0) <= (RANK[existente.etapa] ?? 0)) {
+        delete patch.etapa;
+      }
+      // Idem para o arquivamento: pode arquivar, nunca desarquivar sozinho.
+      if (patch.descartado === false && existente.descartado === true) delete patch.descartado;
+
       const { error } = await admin.from("leads").update(patch).eq("id", existente.id);
       if (error) throw new Error(error.message);
       return res.status(200).json({ ok: true, acao: "atualizado", id: existente.id });

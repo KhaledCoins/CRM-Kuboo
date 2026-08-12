@@ -191,27 +191,53 @@ export default async function handler(req, res) {
       const { data: jaTem } = await admin.from("profiles").select("id, role").eq("email", email).limit(1);
       const existente = jaTem?.[0] ?? null;
 
-      // generateLink cria o usuário (quando novo) e devolve o link SEM enviar
-      // e-mail — assim o envio fica por nossa conta (Resend) ou, sem ele, pelo
-      // próprio Supabase logo abaixo.
-      const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink(
-        existente
-          ? { type: "recovery", email, options: { redirectTo } }
-          : { type: "invite", email, options: { redirectTo, data: { name } } }
-      );
-      if (linkErr) throw new Error(linkErr.message);
+      // Promover um CLIENTE do portal a usuário de equipe por engano daria a ele
+      // acesso ao CRM inteiro. profiles é compartilhado entre portal e CRM, então
+      // esse caso exige ação consciente — não acontece por um convite digitado errado.
+      if (existente?.role === "cliente") {
+        resultados.push({
+          email, ok: false,
+          erro: "Este e-mail já é de um CLIENTE do portal. Convidar aqui daria acesso de equipe a ele — mude o papel manualmente em Usuários se for mesmo a intenção.",
+        });
+        continue;
+      }
 
-      const actionLink = linkData?.properties?.action_link;
-      const userId = existente?.id || linkData?.user?.id;
-      if (!actionLink || !userId) throw new Error("Supabase não devolveu o link de convite.");
+      // ATENÇÃO ao fluxo abaixo: generateLink CRIA o usuário e NÃO envia e-mail.
+      // Por isso ele só pode ser usado quando nós mesmos enviamos (Resend).
+      // Sem Resend, quem cria E envia é o inviteUserByEmail — chamar os dois
+      // faz o segundo responder "already registered" e NINGUÉM receber nada.
+      let actionLink = null;
+      let userId = existente?.id ?? null;
+
+      if (resendKey) {
+        const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink(
+          existente
+            ? { type: "recovery", email, options: { redirectTo } }
+            : { type: "invite", email, options: { redirectTo, data: { name } } }
+        );
+        if (linkErr) throw new Error(linkErr.message);
+        actionLink = linkData?.properties?.action_link;
+        userId = existente?.id || linkData?.user?.id;
+        if (!actionLink || !userId) throw new Error("Supabase não devolveu o link de convite.");
+      } else if (!existente) {
+        // Cria e envia numa tacada só, pelo SMTP configurado no Supabase.
+        const { data: invData, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
+          redirectTo, data: { name },
+        });
+        if (invErr) throw new Error(`${invErr.message} — verifique o SMTP e o limite de e-mails/hora no Supabase.`);
+        userId = invData?.user?.id;
+        if (!userId) throw new Error("Supabase não devolveu o usuário criado.");
+      }
 
       // Garante o perfil de equipe correto (papel, nome, aprovado).
       // Não rebaixa quem já é admin/gestor por engano.
-      const patch = { name, email, aprovado: true };
-      const ordem = { vendedor: 1, gestor: 2, admin: 3 };
-      if (!existente || (ordem[role] ?? 0) >= (ordem[existente.role] ?? 0)) patch.role = role;
-      const { error: upErr } = await admin.from("profiles").update(patch).eq("id", userId);
-      if (upErr) throw new Error(`Convite gerado, mas falhou ao salvar o perfil: ${upErr.message}`);
+      if (userId) {
+        const patch = { name, email, aprovado: true };
+        const ordem = { vendedor: 1, gestor: 2, admin: 3 };
+        if (!existente || (ordem[role] ?? 0) >= (ordem[existente.role] ?? 0)) patch.role = role;
+        const { error: upErr } = await admin.from("profiles").update(patch).eq("id", userId);
+        if (upErr) throw new Error(`Convite gerado, mas falhou ao salvar o perfil: ${upErr.message}`);
+      }
 
       if (resendKey) {
         // Caminho preferido: e-mail da marca, sem limite prático de volume.
@@ -231,35 +257,26 @@ export default async function handler(req, res) {
           resultados.push({ email, ok: false, criado: !existente, erro: `E-mail não enviado: ${sendD?.message || sendR.status}` });
           continue;
         }
-        resultados.push({ email, ok: true, criado: !existente, via: "resend", role: patch.role ?? existente?.role });
-      } else {
-        // Fallback sem Resend: o próprio Supabase manda o e-mail padrão dele.
-        // Funciona sem nenhuma env extra, mas tem limite de poucos envios por
-        // hora — por isso reportamos 'via' pra UI poder avisar.
-        let sendErr = null;
-        if (existente) {
-          if (!anonKey) sendErr = "VITE_SUPABASE_ANON_KEY ausente no servidor";
-          else {
-            const r = await fetch(`${supaUrl}/auth/v1/recover`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", apikey: anonKey },
-              body: JSON.stringify({ email, gotrue_meta_security: {} }),
-            });
-            if (!r.ok) sendErr = `Supabase recusou o envio (${r.status}) — pode ser limite de e-mails por hora.`;
-          }
-        } else {
-          const { error: invErr } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo, data: { name } });
-          // O usuário já foi criado pelo generateLink acima; "already registered"
-          // aqui significa só que o convite nativo não repetiu a criação.
-          if (invErr && !/already|registered|exists/i.test(String(invErr.message))) {
-            sendErr = `${invErr.message} — pode ser limite de e-mails por hora do Supabase.`;
-          }
-        }
-        if (sendErr) {
-          resultados.push({ email, ok: false, criado: !existente, erro: sendErr });
+        resultados.push({ email, ok: true, criado: !existente, via: "resend", role });
+      } else if (existente) {
+        // Reenvio sem Resend: link de "definir senha" pelo SMTP do Supabase.
+        // (usuário novo já foi criado E notificado pelo inviteUserByEmail acima)
+        if (!anonKey) {
+          resultados.push({ email, ok: false, erro: "VITE_SUPABASE_ANON_KEY ausente no servidor" });
           continue;
         }
-        resultados.push({ email, ok: true, criado: !existente, via: "supabase", role: patch.role ?? existente?.role });
+        const r = await fetch(`${supaUrl}/auth/v1/recover`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: anonKey },
+          body: JSON.stringify({ email, gotrue_meta_security: {} }),
+        });
+        if (!r.ok) {
+          resultados.push({ email, ok: false, erro: `Supabase recusou o envio (${r.status}) — verifique o limite de e-mails por hora.` });
+          continue;
+        }
+        resultados.push({ email, ok: true, criado: false, via: "supabase", role });
+      } else {
+        resultados.push({ email, ok: true, criado: true, via: "supabase", role });
       }
     } catch (err) {
       resultados.push({ email, ok: false, erro: err instanceof Error ? err.message : "Falha ao convidar" });
