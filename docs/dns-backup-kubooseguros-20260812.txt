@@ -1,0 +1,19 @@
+﻿SNAPSHOT DNS de kubooseguros.com.br  —  2026-08-12 08:02
+NAMESERVERS: ns1/ns2/ns3.dreamhost.com
+
+kubooseguros.com.br              A      67.205.40.180
+kubooseguros.com.br              MX     0 mx1.mailchannels.net
+kubooseguros.com.br              MX     0 mx2.mailchannels.net
+kubooseguros.com.br              TXT    v=spf1 mx include:netblocks.dreamhost.com include:relay.mailchannels.net -all
+www.kubooseguros.com.br          A      67.205.40.180
+mail.kubooseguros.com.br         A      64.90.62.162
+mail.kubooseguros.com.br         MX     0 mx1.mailchannels.net
+mail.kubooseguros.com.br         MX     0 mx2.mailchannels.net
+mailboxes.kubooseguros.com.br    A      69.163.136.97
+webmail.kubooseguros.com.br      A      69.163.136.138
+www.mailboxes.kubooseguros.com.br A      69.163.136.97
+www.webmail.kubooseguros.com.br  A      69.163.136.138
+ftp.kubooseguros.com.br          A      67.205.40.180
+ssh.kubooseguros.com.br          A      67.205.40.180
+autoconfig.kubooseguros.com.br   A      64.90.62.167
+autoconfig.kubooseguros.com.br   CNAME  autoconfig.dreamhost.com
