@@ -9,3 +9,8 @@ dist-ssr
 .DS_Store
 .vercel
 *.log
+
+# Backup do C2S: contem nome/telefone/e-mail/conversas de clientes reais.
+# Nunca versionar dados pessoais.
+backup-c2s/
+
