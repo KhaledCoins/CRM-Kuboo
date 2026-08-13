@@ -60,6 +60,45 @@ function mapearEtapa(a) {
   return { etapa: "novos", descartado: false };
 }
 
+// Entre os leads sem c2s_lead_id que dividem o telefone, qual é ESTE lead do
+// C2S. Nome idêntico ganha; senão, o mais recente (a lista já vem ordenada).
+// Exportada para teste — ver api/__tests__/c2s-webhook.test.mjs.
+export function escolherExistente(candidatos, nomeC2S) {
+  const lista = candidatos || [];
+  const alvo = nomeC2S?.toLowerCase();
+  return (alvo && lista.find((c) => String(c.nome).toLowerCase() === alvo)) || lista[0] || null;
+}
+
+// Campos que o C2S NUNCA pode reescrever num lead que já existe aqui:
+//   modulo   — deduzido por regex ("seguro" no texto), então um lead de seguros
+//              classificado pela equipe voltaria pra consórcios a cada evento.
+//              Quem manda no funil é o CRM.
+//   mensagem — nos 818 importados, o rodapé dessa coluna é a ÚNICA cópia da
+//              data original e do motivo de arquivamento do C2S. Sobrescrever
+//              apaga o histórico pra sempre.
+//   origem   — 'webhook' passaria por cima de 'formulario'/'chatbot' de um lead
+//              que na verdade nasceu no site.
+const NAO_SOBRESCREVER = new Set(["status", "urgencia", "modulo", "mensagem", "origem"]);
+const RANK = { novos: 0, contato: 1, cotacao: 2, negociacao: 3, perdido: 4, ganho: 5 };
+
+// O que de fato vai pro UPDATE. Exportada para teste.
+export function montarPatch(linha, existente, nomeC2S) {
+  const patch = {};
+  for (const [k, v] of Object.entries(linha)) {
+    if (v !== null && v !== undefined && !NAO_SOBRESCREVER.has(k)) patch[k] = v;
+  }
+  // Nome só entra se o C2S mandou um de verdade — o fallback
+  // "Sem nome — (12) 99999-9999" não pode apagar um nome já cadastrado.
+  if (!nomeC2S) delete patch.nome;
+  // O funil do CRM é a fonte da verdade depois que o lead existe: um evento
+  // atrasado do C2S não pode rebaixar quem a equipe já avançou aqui, nem
+  // reabrir o que foi fechado. Só deixamos AVANÇAR.
+  if ((RANK[patch.etapa] ?? 0) <= (RANK[existente.etapa] ?? 0)) delete patch.etapa;
+  // Idem para o arquivamento: pode arquivar, nunca desarquivar sozinho.
+  if (patch.descartado === false && existente.descartado === true) delete patch.descartado;
+  return patch;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -119,11 +158,12 @@ export default async function handler(req, res) {
       4000
     );
 
+    const nomeC2S = txt(cliente.name, 200);
     const linha = {
-      nome: txt(cliente.name, 200) || `Sem nome — ${telefone || email}`,
+      nome: nomeC2S || `Sem nome — ${telefone || email}`,
       telefone,
       email,
-      origem: ORIGENS_VALIDAS.includes("webhook") ? "webhook" : "formulario",
+      origem: ORIGENS_VALIDAS.includes("webhook") ? "webhook" : "formulario", // CHECK do banco
       modulo: /seguro/i.test(`${campanha ?? ""} ${fonte ?? ""} ${primeiraMsg ?? ""}`) ? "seguros" : "consorcios",
       fonte,
       canal,
@@ -140,36 +180,34 @@ export default async function handler(req, res) {
       interagido_em: at.read_at || at.replied_at || null,
     };
 
-    // Já existe? SEMPRE pelo id do C2S quando ele vier. O fallback por telefone
-    // só vale para payload sem id — casar por telefone quando o id é conhecido
-    // funde leads de pessoas diferentes que dividem o número (casal, família) e
-    // faz os dois ficarem disputando a mesma linha.
+    // Já existe? SEMPRE pelo id do C2S quando ele vier.
     let existente = null;
     if (c2sId) {
       const { data } = await admin.from("leads").select("id, etapa, descartado").eq("c2s_lead_id", c2sId).limit(1);
       existente = data?.[0] ?? null;
-    } else if (telefone) {
-      const { data } = await admin.from("leads").select("id, etapa, descartado").eq("telefone", telefone).limit(1);
-      existente = data?.[0] ?? null;
+    }
+
+    // COSTURA DA MIGRAÇÃO — sem isto a base dobra de tamanho no primeiro dia.
+    // Os 818 leads que vieram da importação em massa do C2S entraram SEM
+    // c2s_lead_id (a RPC de importação não gravou o campo). Como o C2S manda o
+    // id em todo evento, a busca acima nunca acha esses leads e o primeiro
+    // on_update_lead de cada um criaria uma DUPLICATA.
+    // Só adotamos quem ainda não tem dono do lado do C2S (c2s_lead_id null):
+    // um lead já carimbado pertence a OUTRO id e não pode ser roubado — é o que
+    // impede a fusão de pessoas diferentes que dividem o telefone (casal,
+    // família), que era o motivo do fallback antigo ter sido restringido.
+    if (!existente && telefone) {
+      const { data } = await admin.from("leads")
+        .select("id, etapa, descartado, nome")
+        .eq("telefone", telefone).is("c2s_lead_id", null)
+        .order("created_at", { ascending: false }).limit(5);
+      existente = escolherExistente(data, nomeC2S);
     }
 
     if (existente) {
       // Atualização (on_update/on_close): não sobrescreve o dono já definido no
       // CRM nem apaga campos que o C2S mandou vazios.
-      const patch = {};
-      for (const [k, v] of Object.entries(linha)) {
-        if (v !== null && v !== undefined && k !== "status" && k !== "urgencia") patch[k] = v;
-      }
-      // O funil do CRM é a fonte da verdade depois que o lead existe: um evento
-      // atrasado do C2S não pode rebaixar quem a equipe já avançou aqui, nem
-      // reabrir o que foi fechado. Só deixamos AVANÇAR.
-      const RANK = { novos: 0, contato: 1, cotacao: 2, negociacao: 3, perdido: 4, ganho: 5 };
-      if ((RANK[patch.etapa] ?? 0) <= (RANK[existente.etapa] ?? 0)) {
-        delete patch.etapa;
-      }
-      // Idem para o arquivamento: pode arquivar, nunca desarquivar sozinho.
-      if (patch.descartado === false && existente.descartado === true) delete patch.descartado;
-
+      const patch = montarPatch(linha, existente, nomeC2S);
       const { error } = await admin.from("leads").update(patch).eq("id", existente.id);
       if (error) throw new Error(error.message);
       return res.status(200).json({ ok: true, acao: "atualizado", id: existente.id });
