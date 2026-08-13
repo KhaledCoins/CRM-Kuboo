@@ -163,8 +163,23 @@ export default async function handler(req, res) {
   // chance de cair em spam — por isso o Resend é o caminho preferido)
   // env() apara espaço invisível: chave colada do painel do Resend costuma vir
   // com espaço no fim, e o que volta é um 401 genérico da API deles.
-  const resendKey = env("RESEND_API_KEY");
+  const resendKeyBruta = env("RESEND_API_KEY");
   const anonKey = env("VITE_SUPABASE_ANON_KEY");
+
+  // QUEM ENVIA O E-MAIL. Ter a chave do Resend não basta: se o domínio estiver
+  // pendente de verificação lá, TODA tentativa volta 401 e o convidado não
+  // recebe nada. E não dá pra tentar o Resend e cair pro Supabase depois,
+  // porque o generateLink (necessário pro caminho Resend) já queima a trava de
+  // 1 e-mail por endereço a cada 59s do GoTrue — o segundo envio leva 429.
+  //
+  // Então a escolha é explícita e feita ANTES de gerar qualquer link:
+  //   EMAIL_PROVIDER=resend    -> e-mail da marca pelo Resend (exige domínio
+  //                               verificado lá: DKIM + SPF/MX do subdomínio)
+  //   qualquer outro / ausente -> SMTP do Supabase (DreamHost), que é o que
+  //                               já entregou os convites da equipe
+  // Trocar de caminho é mudar uma env, sem deploy de código.
+  const usarResend = !!resendKeyBruta && env("EMAIL_PROVIDER", "supabase").toLowerCase() === "resend";
+  const resendKey = usarResend ? resendKeyBruta : "";
 
   const admin = createClient(supaUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const crmUrl = env("CRM_URL", "https://crm-kuboo.vercel.app").replace(/\/$/, "");

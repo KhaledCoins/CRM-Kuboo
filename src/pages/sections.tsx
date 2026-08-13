@@ -108,7 +108,7 @@ const optStatusConsorcio: FormField["options"] = [
 ];
 
 const camposImportApolices: CampoImport[] = [
-  { key: "cliente_cpf", label: "CPF do cliente", obrigatorio: true, tipo: "texto" },
+  { key: "cliente_cpf", label: "CPF / CNPJ do cliente", obrigatorio: true, tipo: "texto" },
   { key: "tipo", label: "Tipo", obrigatorio: true, tipo: "texto", opcoes: soValores(optTipoApolice) },
   { key: "seguradora", label: "Seguradora", tipo: "texto" },
   { key: "numero_apolice", label: "Nº da apólice", tipo: "texto" },
@@ -161,7 +161,7 @@ export const Apolices = () => (
 );
 
 const camposImportConsorcios: CampoImport[] = [
-  { key: "cliente_cpf", label: "CPF do cliente", obrigatorio: true, tipo: "texto" },
+  { key: "cliente_cpf", label: "CPF / CNPJ do cliente", obrigatorio: true, tipo: "texto" },
   { key: "administradora", label: "Administradora", tipo: "texto", opcoes: soValores(optAdministradora) },
   { key: "tipo", label: "Tipo", obrigatorio: true, tipo: "texto", opcoes: soValores(optTipoConsorcio) },
   { key: "grupo", label: "Grupo", tipo: "texto" },

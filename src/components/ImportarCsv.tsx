@@ -5,6 +5,7 @@ import { Button } from "./ui";
 import { ModalShell } from "./ModalShell";
 import { supabase } from "../lib/supabase";
 import { paraNumero } from "../lib/num";
+import { formatarDocumento } from "../lib/format";
 
 export type TipoCampo = "texto" | "moeda" | "data" | "numero";
 export interface CampoImport {
@@ -371,13 +372,17 @@ export function ImportarCsv({ aberto, onFechar, tabela, titulo, campos, onConclu
     if (resolverCpf && supabase) {
       const cpfs = Array.from(new Set(registros.map((r) => soDigitos(r[resolverCpf.origem])).filter(Boolean)));
       const mapa = new Map<string, string>();
-      // Consulta SÓ os CPFs do arquivo (nas duas formas: dígitos e formatado xxx.xxx.xxx-xx),
-      // em blocos — não baixa a tabela inteira de profiles (não escala) nem estoura a URL.
-      const fmtCpf = (d: string) => (d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : d);
+      // Consulta SÓ os documentos do arquivo (nas duas formas: dígitos e
+      // formatado), em blocos — não baixa a tabela inteira de profiles (não
+      // escala) nem estoura a URL.
+      // formatarDocumento cobre CPF **e CNPJ**: antes a máscara aqui só sabia
+      // formatar 11 dígitos, então um CNPJ salvo formatado no banco
+      // (28.618.902/0001-05) nunca casava e a apólice da transportadora era
+      // pulada em silêncio. Metade da carteira de RCO é PJ.
       const BUSCA = 150;
       for (let i = 0; i < cpfs.length; i += BUSCA) {
         const bloco = cpfs.slice(i, i + BUSCA);
-        const variantes = bloco.flatMap((d) => [d, fmtCpf(d)]);
+        const variantes = bloco.flatMap((d) => [d, formatarDocumento(d)]);
         const { data: perfis } = await supabase.from("profiles").select("id, cpf").in("cpf", variantes);
         for (const p of (perfis as any[]) || []) {
           const d = soDigitos(p.cpf);
