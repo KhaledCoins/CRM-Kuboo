@@ -8,7 +8,7 @@ import { PageHeader, Button, Card, Table, Th, Td, Tr, Badge, EmptyState, Spinner
 import { ModalShell } from "../../components/ModalShell";
 import { supabase } from "../../lib/supabase";
 import { useAuth, type Role } from "../../context/AuthContext";
-import { can } from "../../lib/permissoes";
+import { can, permissaoEfetiva } from "../../lib/permissoes";
 import { dateBR, initials } from "../../lib/format";
 import { exportarCsv } from "../../lib/csv";
 
@@ -733,7 +733,11 @@ function EditarUsuarioModal({ usuario, colunasFaltando, callerRole, podeDesativa
   const [assinatura, setAssinatura] = useState(usuario.assinatura ?? "");
   const [permissoes, setPermissoes] = useState<Record<string, boolean>>(() => {
     const base: Record<string, boolean> = {};
-    for (const p of PERMISSOES) base[p.chave] = usuario.permissoes?.[p.chave] === true;
+    // permissaoEfetiva é a MESMA função que o resto do app usa pra decidir
+    // acesso. Antes aqui era `usuario.permissoes?.[chave] === true`, que ignora
+    // o padrão do papel: admin/gestor sem nada salvo aparecia com tudo "NÃO"
+    // mesmo tendo tudo liberado de verdade.
+    for (const p of PERMISSOES) base[p.chave] = permissaoEfetiva(usuario.role, usuario.permissoes, p.chave);
     return base;
   });
   const [salvando, setSalvando] = useState(false);
