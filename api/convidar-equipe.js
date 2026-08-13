@@ -194,6 +194,9 @@ export default async function handler(req, res) {
     const name = String(bruto?.name || "").trim().slice(0, 200);
     const email = String(bruto?.email || "").trim().toLowerCase().slice(0, 200);
     const role = ["vendedor", "gestor", "admin"].includes(bruto?.role) ? bruto.role : "vendedor";
+    // CARGO (profiles.nivel) — só rótulo, NÃO concede permissão. "Consultor" é
+    // um vendedor que se chama diferente na tela. Whitelist fechada.
+    const nivel = role === "vendedor" && ["Consultor", "Vendedor"].includes(String(bruto?.nivel || "")) ? String(bruto.nivel) : null;
 
     if (!name || !email.includes("@")) {
       resultados.push({ email: email || "(sem e-mail)", ok: false, erro: "Nome e e-mail válidos são obrigatórios." });
@@ -252,7 +255,10 @@ export default async function handler(req, res) {
       if (userId) {
         const patch = { name, email, aprovado: true };
         const ordem = { vendedor: 1, gestor: 2, admin: 3 };
-        if (!existente || (ordem[role] ?? 0) >= (ordem[existente.role] ?? 0)) patch.role = role;
+        if (!existente || (ordem[role] ?? 0) >= (ordem[existente.role] ?? 0)) {
+          patch.role = role;
+          patch.nivel = nivel;
+        }
         const { error: upErr } = await admin.from("profiles").update(patch).eq("id", userId);
         if (upErr) throw new Error(`Convite gerado, mas falhou ao salvar o perfil: ${upErr.message}`);
       }

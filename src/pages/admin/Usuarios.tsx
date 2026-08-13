@@ -34,6 +34,19 @@ interface TeamRow {
 const roleTone = (r?: string | null) => (r === "admin" ? "violet" : r === "gestor" ? "blue" : "slate") as any;
 // `nivel` é o CARGO de exibição: quem é vendedor pode se chamar "Consultor" na
 // tela sem que isso mude uma permissão sequer. Ver OPCOES_CARGO mais abaixo.
+// Papel + cargo num valor só ("vendedor|Consultor"), porque as três telas
+// (criar, convidar e editar) precisam oferecer exatamente as mesmas opções.
+// Consultor e Vendedor são o MESMO papel (role='vendedor'): mudam de nome, não
+// de permissão. Criar um papel de verdade obrigaria a mexer em is_team() na
+// RLS, no rodízio do Bolsão (filtra role='vendedor') e em toda checagem —
+// risco alto para uma diferença de nomenclatura.
+export const PAPEIS_COM_CARGO: { valor: string; rotulo: string; role: string; nivel: string | null }[] = [
+  { valor: "vendedor|Consultor", rotulo: "Consultor", role: "vendedor", nivel: "Consultor" },
+  { valor: "vendedor|",          rotulo: "Vendedor",  role: "vendedor", nivel: null },
+  { valor: "gestor|",            rotulo: "Gestor",    role: "gestor",   nivel: null },
+  { valor: "admin|",             rotulo: "Administrador", role: "admin", nivel: null },
+];
+
 const roleLabel = (r?: string | null, nivel?: string | null) =>
   r === "admin" ? "Administrador"
   : r === "gestor" ? "Gestor"
@@ -87,15 +100,15 @@ function capitalizar(s: string): string {
     .join(" ");
 }
 
-function parseLinhaConvite(rawLinha: string): { name: string; email: string; role: Role } {
+function parseLinhaConvite(rawLinha: string): { name: string; email: string; role: string } {
   const partes = rawLinha.split(/[,;\t]+/).map((p) => p.trim()).filter(Boolean);
-  if (!partes.length) return { name: "", email: "", role: "vendedor" };
+  if (!partes.length) return { name: "", email: "", role: "vendedor|Consultor" };
 
   const idxEmail = partes.findIndex((p) => p.includes("@"));
   const email = idxEmail >= 0 ? partes[idxEmail] : "";
   const resto = partes.filter((_, i) => i !== idxEmail);
 
-  let role: Role = "vendedor";
+  let role = "vendedor|Consultor";
   const nomeParts: string[] = [];
   for (const p of resto) {
     const papel = papelDoTexto(p);
@@ -230,7 +243,9 @@ export function Usuarios() {
       const r = await fetch("/api/convidar-equipe", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ pessoas: [{ name: u.name, email: u.email, role: u.role || "vendedor" }] }),
+        // Passa o cargo junto, senão reenviar convite rebaixaria um Consultor
+        // pra "Vendedor" sem ninguém pedir.
+        body: JSON.stringify({ pessoas: [{ name: u.name, email: u.email, role: u.role || "vendedor", nivel: u.nivel ?? null }] }),
       });
       const json = await r.json().catch(() => null);
       if (!r.ok) throw new Error(json?.error || "Não foi possível reenviar o convite.");
@@ -380,7 +395,9 @@ export function Usuarios() {
 interface ResultadoCriacao { id: string; loginEmail: string; tempPassword: string; role: string }
 
 function NovoUsuarioModal({ onFechar, onCriado }: { onFechar: () => void; onCriado: () => void }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "vendedor" });
+  const [form, setForm] = useState<{ name: string; email: string; phone: string; role: string; nivel: string | null }>(
+    { name: "", email: "", phone: "", role: "vendedor", nivel: "Consultor" }
+  );
   const [salvando, setSalvando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoCriacao | null>(null);
 
@@ -471,11 +488,19 @@ function NovoUsuarioModal({ onFechar, onCriado }: { onFechar: () => void; onCria
           </label>
           <label className="block">
             <span className={labelCls}>Papel *</span>
-            <select className={inputCls} value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}>
-              <option value="vendedor">Vendedor</option>
-              <option value="gestor">Gestor</option>
-              <option value="admin">Administrador</option>
+            <select
+              className={inputCls}
+              value={`${form.role}|${form.nivel ?? ""}`}
+              onChange={(e) => {
+                const [papel, cargo] = e.target.value.split("|");
+                setForm((p) => ({ ...p, role: papel, nivel: cargo || null }));
+              }}
+            >
+              {PAPEIS_COM_CARGO.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
             </select>
+            {form.role === "vendedor" && (
+              <p className="text-xs text-muted mt-1">Consultor e Vendedor têm as mesmas permissões — muda só o nome.</p>
+            )}
           </label>
 
           <p className="text-xs text-muted bg-slate-50 rounded-xl px-3 py-2">
@@ -494,7 +519,9 @@ function NovoUsuarioModal({ onFechar, onCriado }: { onFechar: () => void; onCria
 
 /* ─────────────────────────── Convidar equipe ─────────────────────────── */
 
-interface LinhaConvite { id: string; name: string; email: string; role: Role }
+// O campo "role" aqui guarda o valor COMPOSTO do seletor ("vendedor|Consultor").
+// Ele é separado em papel + cargo na hora de montar o payload do convite.
+interface LinhaConvite { id: string; name: string; email: string; role: string }
 // actionLink/aviso: quando o envio automático falha (Resend com o domínio
 // pendente, por exemplo), o servidor devolve o LINK do convite em vez de um
 // erro seco — ele é válido e quem convidou repassa por WhatsApp.
@@ -504,11 +531,8 @@ interface ResultadoConvite {
   via?: string; actionLink?: string; aviso?: string;
 }
 
-const ROLE_OPCOES = [
-  { value: "vendedor", label: "Vendedor" },
-  { value: "gestor", label: "Gestor" },
-  { value: "admin", label: "Administrador" },
-];
+// Mesmas opções das telas de criar e editar — o valor carrega papel e cargo.
+const ROLE_OPCOES = PAPEIS_COM_CARGO.map((o) => ({ value: o.valor, label: o.rotulo }));
 
 function ConvidarEquipeModal({ onFechar, onEnviado }: { onFechar: () => void; onEnviado: () => void }) {
   const [texto, setTexto] = useState("");
@@ -552,7 +576,7 @@ function ConvidarEquipeModal({ onFechar, onEnviado }: { onFechar: () => void; on
   }
 
   function mudarPapel(id: string, role: string) {
-    setLinhas((prev) => prev.map((l) => (l.id === id ? { ...l, role: role as Role } : l)));
+    setLinhas((prev) => prev.map((l) => (l.id === id ? { ...l, role } : l)));
   }
 
   async function enviar() {
@@ -563,7 +587,7 @@ function ConvidarEquipeModal({ onFechar, onEnviado }: { onFechar: () => void; on
       const r = await fetch("/api/convidar-equipe", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ pessoas: linhas.map((l) => ({ name: l.name, email: l.email, role: l.role })) }),
+        body: JSON.stringify({ pessoas: linhas.map((l) => { const [papel, cargo] = l.role.split("|"); return { name: l.name, email: l.email, role: papel, nivel: cargo || null }; }) }),
       });
       const json = await r.json().catch(() => null);
       if (!r.ok) throw new Error(json?.error || "Não foi possível enviar os convites.");
@@ -758,12 +782,7 @@ function EditarUsuarioModal({ usuario, colunasFaltando, callerRole, podeDesativa
   // Bolsão (que filtra role='vendedor') e em toda checagem de papel; risco alto
   // para uma diferença de nomenclatura. O valor do <select> carrega os dois:
   // "vendedor|Consultor" => role vendedor + cargo Consultor.
-  const OPCOES_CARGO: { valor: string; rotulo: string }[] = [
-    { valor: "vendedor|Consultor", rotulo: "Consultor" },
-    { valor: "vendedor|", rotulo: "Vendedor" },
-    { valor: "gestor|", rotulo: "Gestor" },
-    ...(callerRole === "admin" ? [{ valor: "admin|", rotulo: "Administrador" }] : []),
-  ];
+  const OPCOES_CARGO = PAPEIS_COM_CARGO.filter((o) => o.role !== "admin" || callerRole === "admin");
   const cargoAtual = `${role}|${role === "vendedor" && nivel === "Consultor" ? "Consultor" : ""}`;
   const permissoesRelevantes = role === "vendedor";
 

@@ -58,6 +58,10 @@ export default async function handler(req, res) {
   const email = String(b.email || "").trim().toLowerCase().slice(0, 200);
   const phone = String(b.phone || "").trim().slice(0, 30) || null;
   const role = ["vendedor", "gestor", "admin"].includes(b.role) ? b.role : "vendedor";
+  // CARGO (profiles.nivel) — só rótulo, NÃO concede permissão. "Consultor" é um
+  // vendedor que se chama diferente na tela. Whitelist fechada de propósito:
+  // campo livre aqui viraria papel inventado circulando pela interface.
+  const nivel = role === "vendedor" && ["Consultor", "Vendedor"].includes(String(b.nivel || "")) ? String(b.nivel) : null;
   if (!name || !email.includes("@")) return res.status(400).json({ error: "Nome e e-mail válidos são obrigatórios." });
   if (role === "admin" && auth.callerRole !== "admin") {
     return res.status(403).json({ error: "Só um admin pode criar outro admin." });
@@ -86,7 +90,7 @@ export default async function handler(req, res) {
 
     // handle_new_user criou profile mínimo — promove pra equipe com os dados reais
     const { error: upErr } = await admin.from("profiles").update({
-      name, email, phone, role, aprovado: true,
+      name, email, phone, role, nivel, aprovado: true,
     }).eq("id", userId);
     if (upErr) throw new Error(`Login criado mas falhou ao salvar o perfil: ${upErr.message}`);
 
