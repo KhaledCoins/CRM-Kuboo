@@ -25,6 +25,13 @@ const optStatusVenda: FormField["options"] = [
 ];
 const optModulo: FormField["options"] = [{ value: "seguros", label: "Seguros" }, { value: "consorcios", label: "Consórcios" }];
 
+// Valores que o banco aceita (CHECK constraint) — entregues ao importador de
+// CSV para ele encaixar "imovel"/"ANCORA"/"em renovacao" no rótulo certo e
+// avisar antes de importar quando não houver equivalente. Reaproveita a lista
+// do formulário de propósito: se divergissem, form e planilha aceitariam
+// coisas diferentes na mesma coluna.
+const soValores = (o: FormField["options"]) => (o ?? []).map((x) => x.value);
+
 // Picker de cliente reutilizável (Apólices, Consórcios...): carrega da base real de clientes.
 async function carregarClientes(): Promise<{ value: string; label: string }[]> {
   if (!supabase) return [];
@@ -42,7 +49,7 @@ const camposImportVendas: CampoImport[] = [
   { key: "comissao_valor", label: "Comissão (R$)", tipo: "moeda" },
   { key: "data_venda", label: "Data da venda", tipo: "data" },
   { key: "vigencia_fim", label: "Fim da vigência", tipo: "data" },
-  { key: "status", label: "Status", tipo: "texto" },
+  { key: "status", label: "Status", tipo: "texto", opcoes: soValores(optStatusVenda) },
   { key: "vendedor_nome", label: "Vendedor", tipo: "texto" },
   { key: "parcelas", label: "Parcelas", tipo: "numero" },
 ];
@@ -102,14 +109,14 @@ const optStatusConsorcio: FormField["options"] = [
 
 const camposImportApolices: CampoImport[] = [
   { key: "cliente_cpf", label: "CPF do cliente", obrigatorio: true, tipo: "texto" },
-  { key: "tipo", label: "Tipo", obrigatorio: true, tipo: "texto" },
+  { key: "tipo", label: "Tipo", obrigatorio: true, tipo: "texto", opcoes: soValores(optTipoApolice) },
   { key: "seguradora", label: "Seguradora", tipo: "texto" },
   { key: "numero_apolice", label: "Nº da apólice", tipo: "texto" },
   { key: "vigencia_inicio", label: "Início da vigência", tipo: "data" },
   { key: "vigencia_fim", label: "Fim da vigência", tipo: "data" },
   { key: "premio_mensal", label: "Prêmio mensal", tipo: "moeda" },
   { key: "premio_anual", label: "Prêmio anual", tipo: "moeda" },
-  { key: "status", label: "Status", tipo: "texto" },
+  { key: "status", label: "Status", tipo: "texto", opcoes: soValores(optStatusApolice) },
 ];
 
 // Apólices — a fonte real que o Portal do Cliente exibe (coberturas, vigência,
@@ -155,8 +162,8 @@ export const Apolices = () => (
 
 const camposImportConsorcios: CampoImport[] = [
   { key: "cliente_cpf", label: "CPF do cliente", obrigatorio: true, tipo: "texto" },
-  { key: "administradora", label: "Administradora", tipo: "texto" },
-  { key: "tipo", label: "Tipo", obrigatorio: true, tipo: "texto" },
+  { key: "administradora", label: "Administradora", tipo: "texto", opcoes: soValores(optAdministradora) },
+  { key: "tipo", label: "Tipo", obrigatorio: true, tipo: "texto", opcoes: soValores(optTipoConsorcio) },
   { key: "grupo", label: "Grupo", tipo: "texto" },
   { key: "numero_cota", label: "Cota", tipo: "texto" },
   { key: "valor_credito", label: "Carta de crédito", tipo: "moeda" },
@@ -166,7 +173,7 @@ const camposImportConsorcios: CampoImport[] = [
   { key: "taxa_admin", label: "Taxa de administração (%)", tipo: "numero" },
   { key: "forma_pagamento", label: "Forma de pagamento", tipo: "texto" },
   { key: "data_assembleia", label: "Próxima assembleia", tipo: "data" },
-  { key: "status", label: "Status", tipo: "texto" },
+  { key: "status", label: "Status", tipo: "texto", opcoes: soValores(optStatusConsorcio) },
 ];
 
 // Consórcios do cliente — a fonte real que o Portal do Cliente exibe (carta de
