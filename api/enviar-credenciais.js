@@ -9,10 +9,11 @@
 //
 // ENVS necessárias (Vercel):
 //   RESEND_API_KEY  — chave da conta Resend (resend.com)
-//   EMAIL_FROM      — opcional; ex.: "Kuboo <acesso@kuboo.com.br>" (domínio
-//                     verificado no Resend). Sem ela usa onboarding@resend.dev,
-//                     que SÓ entrega pro e-mail do dono da conta (modo teste).
-//   SITE_URL        — opcional; default https://kuboo-site.vercel.app
+//   EMAIL_FROM      — opcional; ex.: "Kuboo Seguros <acesso@kubooseguros.com.br>"
+//                     (domínio verificado no Resend). Sem ela usa
+//                     onboarding@resend.dev, que SÓ entrega pro e-mail do dono
+//                     da conta (modo teste).
+//   SITE_URL        — opcional; default https://kubooseguros.com.br
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -202,7 +203,10 @@ export default async function handler(req, res) {
     const { error: upProfErr } = await admin.from("profiles").update({ must_change_password: true }).eq("id", clientId);
     if (upProfErr) throw new Error(`Senha gerada, mas falhou ao marcar a troca obrigatória: ${upProfErr.message}`);
 
-    const siteUrl = (process.env.SITE_URL || "https://kuboo-site.vercel.app").replace(/\/$/, "");
+    // Domínio próprio desde 12/08/2026. O default importa: é o endereço que o
+    // CLIENTE recebe pra entrar no Portal, e um link "kuboo-site.vercel.app"
+    // num e-mail sobre senha parece golpe.
+    const siteUrl = (process.env.SITE_URL || "https://kubooseguros.com.br").replace(/\/$/, "");
     const portalUrl = `${siteUrl}/portal`;
     const html = emailHtml({ nome: prof.name, loginEmail: email, tempPassword, portalUrl, siteUrl });
 
