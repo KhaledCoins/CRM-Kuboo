@@ -257,7 +257,27 @@ export default async function handler(req, res) {
         });
         const sendD = await sendR.json().catch(() => ({}));
         if (!sendR.ok) {
-          resultados.push({ email, ok: false, criado: !existente, erro: `E-mail não enviado: ${sendD?.message || sendR.status}` });
+          // O Resend recusou (domínio pendente de verificação, cota, chave sem
+          // permissão...). Nesse ponto o generateLink JÁ criou o usuário, então
+          // desistir aqui deixa o pior estado possível: conta existindo e
+          // ninguém avisado. Cai pro SMTP do Supabase, que é o mesmo caminho
+          // que já entregou os convites da equipe antes do Resend existir.
+          const motivoResend = sendD?.message || `HTTP ${sendR.status}`;
+          if (!anonKey) {
+            resultados.push({ email, ok: false, criado: !existente, erro: `Resend recusou (${motivoResend}) e não há VITE_SUPABASE_ANON_KEY para o envio alternativo.` });
+            continue;
+          }
+          const alt = await fetch(`${supaUrl}/auth/v1/recover`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: anonKey },
+            body: JSON.stringify({ email, gotrue_meta_security: {} }),
+          });
+          if (!alt.ok) {
+            resultados.push({ email, ok: false, criado: !existente, erro: `Resend recusou (${motivoResend}) e o envio alternativo pelo Supabase também falhou (${alt.status}).` });
+            continue;
+          }
+          console.warn(JSON.stringify({ level: "warn", fn: "convidar-equipe", msg: "resend recusou, enviado pelo supabase", motivoResend }));
+          resultados.push({ email, ok: true, criado: !existente, via: "supabase (Resend recusou)", role });
           continue;
         }
         resultados.push({ email, ok: true, criado: !existente, via: "resend", role });
