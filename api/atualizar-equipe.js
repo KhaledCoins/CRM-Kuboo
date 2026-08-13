@@ -124,6 +124,20 @@ export default async function handler(req, res) {
       if (p.assinatura !== undefined) {
         patch.assinatura = String(p.assinatura || "").slice(0, 2000) || null;
       }
+      // CARGO (profiles.nivel) — só rótulo, NÃO dá permissão nenhuma.
+      // "Consultor" e "Vendedor" são a mesma coisa pro sistema: ambos têm
+      // role='vendedor'. Criar um papel 'consultor' de verdade no banco exigiria
+      // mexer em is_team()/is_manager() na RLS, no rodízio do Bolsão (que filtra
+      // role='vendedor') e em toda checagem de papel — risco alto para uma
+      // diferença que é de nomenclatura. Whitelist fechada de propósito: campo
+      // livre aqui viraria papel inventado circulando pela tela.
+      if (p.nivel !== undefined) {
+        const cargo = String(p.nivel || "").trim();
+        if (cargo && !["Consultor", "Vendedor"].includes(cargo)) {
+          return res.status(400).json({ error: "Cargo inválido." });
+        }
+        patch.nivel = cargo || null;
+      }
       // Check-in de plantão: a RLS profiles_self_update só deixa o próprio dono
       // mexer, então marcar alguém como ausente (férias, saiu mais cedo) só é
       // possível por aqui, com service role e JWT de gestor/admin.

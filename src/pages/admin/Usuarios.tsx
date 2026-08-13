@@ -32,7 +32,13 @@ interface TeamRow {
 }
 
 const roleTone = (r?: string | null) => (r === "admin" ? "violet" : r === "gestor" ? "blue" : "slate") as any;
-const roleLabel = (r?: string | null) => (r === "admin" ? "Administrador" : r === "gestor" ? "Gestor" : "Vendedor");
+// `nivel` é o CARGO de exibição: quem é vendedor pode se chamar "Consultor" na
+// tela sem que isso mude uma permissão sequer. Ver OPCOES_CARGO mais abaixo.
+const roleLabel = (r?: string | null, nivel?: string | null) =>
+  r === "admin" ? "Administrador"
+  : r === "gestor" ? "Gestor"
+  : nivel === "Consultor" ? "Consultor"
+  : "Vendedor";
 
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none text-ink focus:border-brand-400 transition-colors";
 const labelCls = "text-xs font-bold text-muted uppercase tracking-wide block mb-1.5";
@@ -181,7 +187,7 @@ export function Usuarios() {
       nome: u.name,
       email: u.email || "",
       telefone: u.phone || "",
-      papel: roleLabel(u.role),
+      papel: roleLabel(u.role, u.nivel),
       status: u.aprovado === false ? "Desativado" : "Ativo",
     }));
     exportarCsv(
@@ -291,7 +297,7 @@ export function Usuarios() {
                     </div>
                   </Td>
                   <Td>
-                    <Badge tone={roleTone(u.role)}>{roleLabel(u.role)}{u.nivel ? ` · ${u.nivel}` : ""}</Badge>
+                    <Badge tone={roleTone(u.role)}>{roleLabel(u.role, u.nivel)}</Badge>
                   </Td>
                   <Td>{u.aprovado === false ? <Badge tone="red">Desativado</Badge> : <Badge tone="green">Ativo</Badge>}</Td>
                   <Td>{dateBR(u.created_at)}</Td>
@@ -730,6 +736,8 @@ function EditarUsuarioModal({ usuario, colunasFaltando, callerRole, podeDesativa
   const [name, setName] = useState(usuario.name ?? "");
   const [phone, setPhone] = useState(usuario.phone ?? "");
   const [role, setRole] = useState(usuario.role ?? "vendedor");
+  // Cargo é só rótulo (profiles.nivel). Não confere permissão nenhuma.
+  const [nivel, setNivel] = useState<string | null>(usuario.nivel ?? null);
   const [assinatura, setAssinatura] = useState(usuario.assinatura ?? "");
   const [permissoes, setPermissoes] = useState<Record<string, boolean>>(() => {
     const base: Record<string, boolean> = {};
@@ -744,7 +752,19 @@ function EditarUsuarioModal({ usuario, colunasFaltando, callerRole, podeDesativa
 
   const alvoEraAdmin = usuario.role === "admin";
   const travaPapel = alvoEraAdmin && callerRole !== "admin";
-  const opcoesPapel = callerRole === "admin" ? ["vendedor", "gestor", "admin"] : ["vendedor", "gestor"];
+  // "Consultor" e "Vendedor" são o MESMO papel pro sistema (role='vendedor') —
+  // mudam só de nome na tela, que é o que foi pedido. Criar um papel de verdade
+  // no banco obrigaria a mexer em is_team()/is_manager() na RLS, no rodízio do
+  // Bolsão (que filtra role='vendedor') e em toda checagem de papel; risco alto
+  // para uma diferença de nomenclatura. O valor do <select> carrega os dois:
+  // "vendedor|Consultor" => role vendedor + cargo Consultor.
+  const OPCOES_CARGO: { valor: string; rotulo: string }[] = [
+    { valor: "vendedor|Consultor", rotulo: "Consultor" },
+    { valor: "vendedor|", rotulo: "Vendedor" },
+    { valor: "gestor|", rotulo: "Gestor" },
+    ...(callerRole === "admin" ? [{ valor: "admin|", rotulo: "Administrador" }] : []),
+  ];
+  const cargoAtual = `${role}|${role === "vendedor" && nivel === "Consultor" ? "Consultor" : ""}`;
   const permissoesRelevantes = role === "vendedor";
 
   function setPerm(chave: string, valor: boolean) {
@@ -757,7 +777,11 @@ function EditarUsuarioModal({ usuario, colunasFaltando, callerRole, podeDesativa
     try {
       const token = await tokenSessao();
       const payload: Record<string, unknown> = { name: name.trim(), phone: phone.trim() || null };
-      if (!travaPapel) payload.role = role;
+      if (!travaPapel) {
+        payload.role = role;
+        // Cargo só faz sentido em vendedor; gestor/admin não carregam rótulo.
+        payload.nivel = role === "vendedor" ? nivel : null;
+      }
       if (!colunasFaltando) {
         payload.assinatura = assinatura;
         payload.permissoes = permissoes;
@@ -808,9 +832,22 @@ function EditarUsuarioModal({ usuario, colunasFaltando, callerRole, podeDesativa
                 <p className="text-xs text-muted mt-1">Só um admin muda o papel de/para administrador.</p>
               </>
             ) : (
-              <select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>
-                {opcoesPapel.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
-              </select>
+              <>
+                <select
+                  className={inputCls}
+                  value={cargoAtual}
+                  onChange={(e) => {
+                    const [novoPapel, novoCargo] = e.target.value.split("|");
+                    setRole(novoPapel);
+                    setNivel(novoCargo || null);
+                  }}
+                >
+                  {OPCOES_CARGO.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+                </select>
+                {role === "vendedor" && (
+                  <p className="text-xs text-muted mt-1">Consultor e Vendedor têm exatamente as mesmas permissões — muda só o nome.</p>
+                )}
+              </>
             )}
           </label>
         </div>

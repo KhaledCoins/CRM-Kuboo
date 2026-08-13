@@ -141,8 +141,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setDefinindoSenha(false);
   }
 
+  // Lista EXPLÍCITA de quem é gestão. Antes era `role !== "vendedor"` — uma
+  // checagem invertida, que trata QUALQUER papel novo como gestor por omissão.
+  // Bastaria criar um papel no banco (um 'consultor', por exemplo) para toda
+  // essa gente virar gestora sem ninguém pedir: Usuários, Configurações,
+  // redistribuição do Bolsão, "ver como" nos Dashboards. Aqui, papel
+  // desconhecido NÃO é gestor.
+  const isManager = user?.role === "gestor" || user?.role === "admin";
+
   return (
-    <Ctx.Provider value={{ user, loading, login, logout, isManager: user?.role !== "vendedor", definindoSenha, concluirDefinicaoDeSenha }}>
+    <Ctx.Provider value={{ user, loading, login, logout, isManager, definindoSenha, concluirDefinicaoDeSenha }}>
       {children}
     </Ctx.Provider>
   );
