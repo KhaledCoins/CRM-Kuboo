@@ -229,7 +229,17 @@ export function Usuarios() {
       const json = await r.json().catch(() => null);
       if (!r.ok) throw new Error(json?.error || "Não foi possível reenviar o convite.");
       const resultado = json?.resultados?.[0];
-      if (resultado?.ok) {
+      if (resultado?.actionLink) {
+        // O e-mail automático falhou, mas o convite é válido. Dizer "reenviado"
+        // aqui seria mentira: ninguém receberia nada. Copia o link direto pra
+        // área de transferência, que é o que a pessoa precisa fazer em seguida.
+        try {
+          await navigator.clipboard.writeText(resultado.actionLink);
+          toast.warning(`O e-mail não saiu, mas copiei o link de acesso de ${u.name}. Cole no WhatsApp dele(a) — expira em 1 hora.`, { duration: 12000 });
+        } catch {
+          toast.warning(`O e-mail não saiu. Link de acesso de ${u.name}: ${resultado.actionLink}`, { duration: 30000 });
+        }
+      } else if (resultado?.ok) {
         toast.success(resultado.criado ? `Convite enviado para ${u.name}.` : `Convite reenviado para ${u.name}.`);
       } else {
         toast.error(resultado?.erro || "Não foi possível reenviar o convite.");
@@ -479,7 +489,14 @@ function NovoUsuarioModal({ onFechar, onCriado }: { onFechar: () => void; onCria
 /* ─────────────────────────── Convidar equipe ─────────────────────────── */
 
 interface LinhaConvite { id: string; name: string; email: string; role: Role }
-interface ResultadoConvite { email: string; ok: boolean; criado?: boolean; role?: string; erro?: string }
+// actionLink/aviso: quando o envio automático falha (Resend com o domínio
+// pendente, por exemplo), o servidor devolve o LINK do convite em vez de um
+// erro seco — ele é válido e quem convidou repassa por WhatsApp.
+// Ver api/convidar-equipe.js.
+interface ResultadoConvite {
+  email: string; ok: boolean; criado?: boolean; role?: string; erro?: string;
+  via?: string; actionLink?: string; aviso?: string;
+}
 
 const ROLE_OPCOES = [
   { value: "vendedor", label: "Vendedor" },
@@ -580,15 +597,49 @@ function ConvidarEquipeModal({ onFechar, onEnviado }: { onFechar: () => void; on
             {resultados.map((r) => {
               const linha = linhas.find((l) => l.email.trim().toLowerCase() === r.email.trim().toLowerCase());
               return (
-                <div key={r.email} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                  {r.ok ? <CheckCircle2 size={18} className="text-green-600 shrink-0" /> : <XCircle size={18} className="text-red-600 shrink-0" />}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-ink truncate">{linha?.name || r.email}</p>
-                    <p className="text-xs text-muted truncate">{r.email}</p>
+                <div key={r.email} className={`px-3 py-2.5 rounded-xl border ${r.actionLink ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"}`}>
+                  <div className="flex items-center gap-3">
+                    {r.ok
+                      ? (r.actionLink ? <AlertTriangle size={18} className="text-amber-600 shrink-0" /> : <CheckCircle2 size={18} className="text-green-600 shrink-0" />)
+                      : <XCircle size={18} className="text-red-600 shrink-0" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-ink truncate">{linha?.name || r.email}</p>
+                      <p className="text-xs text-muted truncate">{r.email}</p>
+                    </div>
+                    <span className={`text-xs font-bold text-right shrink-0 max-w-[45%] ${!r.ok ? "text-red-700" : r.actionLink ? "text-amber-800" : "text-green-700"}`}>
+                      {r.ok
+                        ? (r.actionLink ? "Envie o link à mão" : r.criado ? "Convite enviado" : "Reenviado (já tinha login)")
+                        : (r.erro || "Erro ao enviar")}
+                    </span>
                   </div>
-                  <span className={`text-xs font-bold text-right shrink-0 max-w-[45%] ${r.ok ? "text-green-700" : "text-red-700"}`}>
-                    {r.ok ? (r.criado ? "Convite enviado" : "Reenviado (já tinha login)") : (r.erro || "Erro ao enviar")}
-                  </span>
+
+                  {/* O e-mail automático falhou, mas o convite existe e é válido.
+                      Mostrar o link é o que evita perder o convite — a conta já
+                      foi criada do lado do Supabase. */}
+                  {r.actionLink && (
+                    <div className="mt-2.5 pt-2.5 border-t border-amber-200">
+                      <p className="text-xs text-amber-900 leading-relaxed mb-2">{r.aviso}</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 min-w-0 truncate text-[11px] bg-white border border-amber-200 rounded-lg px-2.5 py-2 text-slate-700">
+                          {r.actionLink}
+                        </code>
+                        <Button
+                          variant="outline"
+                          icon={Copy}
+                          onClick={() => {
+                            navigator.clipboard.writeText(r.actionLink!)
+                              .then(() => toast.success("Link copiado — cole no WhatsApp da pessoa."))
+                              .catch(() => toast.error("Não consegui copiar. Selecione o link e copie manualmente."));
+                          }}
+                        >
+                          Copiar
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-amber-700 mt-2">
+                        O link é pessoal e expira em 1 hora. Mande só para {r.email}.
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })}
