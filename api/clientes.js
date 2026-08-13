@@ -3,10 +3,15 @@
 // não existe forma seguro de criar login de cliente a partir do CRM.
 //
 // SEGURANÇA: exige JWT válido do Supabase + papel de equipe (mesmo padrão do
-// api/trello.js). Rate limit por usuário. CPF é único (dedup) — se já existe
-// profile com o mesmo CPF, retorna 409 em vez de criar duplicata.
+// api/trello.js). Rate limit por usuário. O DOCUMENTO é único (dedup) — se já
+// existe profile com o mesmo CPF/CNPJ, retorna 409 em vez de criar duplicata.
+//
+// PF e PJ: a coluna profiles.cpf guarda CPF (11) ou CNPJ (14); profiles.tipo_pessoa
+// diz qual é. Empresa é caso comum aqui — RCO é seguro de ônibus/van de
+// passageiros, logo o cliente é transportadora.
 
 import { createClient } from "@supabase/supabase-js";
+import { analisarDocumento } from "./_documento.js";
 
 const BUCKET = new Map();
 function rateLimited(id) {
@@ -71,23 +76,26 @@ export default async function handler(req, res) {
   const state = String(body.state || "").trim().slice(0, 2).toUpperCase() || null;
   const cep = soDigitos(body.cep) || null;
 
-  if (!name || !cpf || cpf.length !== 11) {
-    return res.status(400).json({ error: "Nome e CPF (11 dígitos) são obrigatórios." });
-  }
+  // analisarDocumento confere o DÍGITO VERIFICADOR — só contar dígitos deixaria
+  // "11111111111" entrar e envenenar a deduplicação e a vinculação de apólice
+  // por planilha (que casa cliente pelo documento).
+  if (!name) return res.status(400).json({ error: "O nome (ou a razão social) é obrigatório." });
+  const doc = analisarDocumento(cpf);
+  if (!doc.ok) return res.status(400).json({ error: doc.erro });
+  const tipoPessoa = doc.tipo;
 
   try {
     // Dedup: já existe cliente com esse CPF? O banco pode ter o CPF em DÍGITOS
     // (novos cadastros) OU FORMATADO (dados legados/importados) — checa as duas
     // formas pra o anti-duplicata nunca deixar passar duplicata por formatação.
-    const cpfFmt = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    const { data: existentes } = await admin.from("profiles").select("id, name").in("cpf", [cpf, cpfFmt]);
+    const { data: existentes } = await admin.from("profiles").select("id, name").in("cpf", [doc.digitos, doc.formatado]);
     const existente = (existentes || [])[0];
     if (existente) {
-      return res.status(409).json({ error: `Já existe um cliente com este CPF: ${existente.name}.` });
+      return res.status(409).json({ error: `Já existe um cliente com este ${tipoPessoa === "PJ" ? "CNPJ" : "CPF"}: ${existente.name}.` });
     }
 
     const temEmailReal = emailInformado.includes("@");
-    const emailParaLogin = temEmailReal ? emailInformado : `${cpf}@sememail.kuboo.com.br`;
+    const emailParaLogin = temEmailReal ? emailInformado : `${doc.digitos}@sememail.kuboo.com.br`;
 
     // SEMPRE senha temporária + troca obrigatória no 1º login (o portal força).
     // Com e-mail real, a UI chama /api/enviar-credenciais na sequência — o
@@ -104,7 +112,10 @@ export default async function handler(req, res) {
 
     // O trigger handle_new_user já criou um profile mínimo — atualiza com os dados reais.
     const { error: upErr } = await admin.from("profiles").update({
-      name, cpf, phone: phone || null, birth_date, address, city, state, cep,
+      name, cpf: doc.digitos, tipo_pessoa: tipoPessoa,
+      // PJ não tem data de nascimento; se vier preenchida por engano, ignora.
+      phone: phone || null, birth_date: tipoPessoa === "PJ" ? null : birth_date,
+      address, city, state, cep,
       email: temEmailReal ? emailParaLogin : null,
       must_change_password: true,
     }).eq("id", userId);

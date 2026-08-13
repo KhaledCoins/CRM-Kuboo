@@ -5,7 +5,7 @@ import { PageHeader, Button, Card, Table, Th, Td, Tr, FilterBar, SearchInput, Em
 import { TimelineCliente, type ClienteResumo } from "../components/TimelineCliente";
 import { NovoClienteModal } from "../components/NovoClienteModal";
 import { supabase } from "../lib/supabase";
-import { dateBR, initials } from "../lib/format";
+import { dateBR, initials, formatarDocumento } from "../lib/format";
 
 interface Cliente {
   id: string; name: string; cpf?: string | null; phone?: string | null;
@@ -103,7 +103,7 @@ export function Clientes() {
                       <span className="font-bold text-ink">{c.name}</span>
                     </div>
                   </Td>
-                  <Td>{c.cpf || "—"}</Td>
+                  <Td>{c.cpf ? formatarDocumento(c.cpf) : "—"}</Td>
                   <Td>
                     <div className="text-xs text-muted space-y-0.5">
                       {c.phone && <span className="flex items-center gap-1"><Phone size={11} /> {c.phone}</span>}

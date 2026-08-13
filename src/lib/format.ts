@@ -27,3 +27,14 @@ export const initials = (name?: string | null) =>
     .join("");
 
 export const onlyDigits = (s: string) => s.replace(/\D/g, "");
+
+// Documento do cliente para EXIBIÇÃO: 11 dígitos vira CPF, 14 vira CNPJ.
+// A validação de verdade (dígito verificador) é do servidor, em
+// api/_documento.js — aqui é só máscara. Valor legado já formatado, ou de
+// tamanho estranho, volta como veio em vez de ganhar uma máscara errada.
+export function formatarDocumento(valor?: string | null): string {
+  const d = onlyDigits(String(valor ?? ""));
+  if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  return String(valor ?? "");
+}

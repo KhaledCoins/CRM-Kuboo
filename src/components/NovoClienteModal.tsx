@@ -15,7 +15,13 @@ interface Resultado { id: string; loginEmail: string; tempPassword: string | nul
 
 export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void; onCriado: () => void }) {
   const [form, setForm] = useState({ name: "", cpf: "", email: "", phone: "", birth_date: "", address: "", city: "São José dos Campos", state: "SP", cep: "" });
+  const [pessoa, setPessoa] = useState<"PF" | "PJ">("PF");
+  const [semEmail, setSemEmail] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const ehPJ = pessoa === "PJ";
+  const digitosDoc = onlyDigits(form.cpf);
+  // Só acusa depois que a pessoa começou a digitar, pra não nascer em vermelho.
+  const docInvalido = digitosDoc.length > 0 && digitosDoc.length !== (ehPJ ? 14 : 11);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [enviandoEmail, setEnviandoEmail] = useState(false);
   const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
@@ -64,6 +70,11 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
           ...form,
           cpf: onlyDigits(form.cpf),
           cep: onlyDigits(form.cep),
+          // Marcado "sem e-mail" => manda vazio, e o servidor cria o login
+          // técnico <documento>@sememail.kuboo.com.br. Empresa não tem
+          // data de nascimento.
+          email: semEmail ? "" : form.email,
+          birth_date: ehPJ ? "" : form.birth_date,
         }),
       });
       const json = await r.json().catch(() => null);
@@ -147,26 +158,81 @@ export function NovoClienteModal({ onFechar, onCriado }: { onFechar: () => void;
           </div>
         ) : (
           <form onSubmit={salvar} className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Empresa é caso comum na carteira: RCO é seguro de ônibus e van de
+                passageiros, então o cliente é transportadora, com CNPJ. */}
+            <div className="sm:col-span-2">
+              <span className={labelCls}>Tipo de cliente</span>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de cliente">
+                {([["PF", "Pessoa física", "CPF"], ["PJ", "Empresa", "CNPJ"]] as const).map(([valor, rotulo, doc]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    role="radio"
+                    aria-checked={pessoa === valor}
+                    onClick={() => setPessoa(valor)}
+                    className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors ${
+                      pessoa === valor
+                        ? "border-brand-400 bg-brand-50 text-brand-700"
+                        : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300"
+                    }`}
+                  >
+                    {rotulo}
+                    <span className="block text-[11px] font-semibold opacity-70">{doc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <label className="block sm:col-span-2">
-              <span className={labelCls}>Nome completo *</span>
-              <input className={inputCls} required value={form.name} onChange={set("name")} placeholder="Nome do cliente" />
+              <span className={labelCls}>{ehPJ ? "Razão social *" : "Nome completo *"}</span>
+              <input className={inputCls} required value={form.name} onChange={set("name")}
+                placeholder={ehPJ ? "Nome da empresa como no cartão CNPJ" : "Nome do cliente"} />
             </label>
             <label className="block">
-              <span className={labelCls}>CPF *</span>
-              <input className={inputCls} required value={form.cpf} onChange={set("cpf")} placeholder="000.000.000-00" />
+              <span className={labelCls}>{ehPJ ? "CNPJ *" : "CPF *"}</span>
+              <input
+                className={`${inputCls} ${docInvalido ? "border-red-300 bg-red-50" : ""}`}
+                required inputMode="numeric" value={form.cpf} onChange={set("cpf")}
+                placeholder={ehPJ ? "00.000.000/0000-00" : "000.000.000-00"}
+                aria-invalid={docInvalido}
+              />
+              {docInvalido && (
+                <span className="text-[11px] text-red-600 mt-1 block">
+                  {ehPJ ? "CNPJ" : "CPF"} incompleto — faltam {(ehPJ ? 14 : 11) - digitosDoc.length} dígito(s).
+                </span>
+              )}
             </label>
             <label className="block">
               <span className={labelCls}>Telefone/WhatsApp</span>
               <input className={inputCls} value={form.phone} onChange={set("phone")} placeholder="(12) 90000-0000" />
             </label>
-            <label className="block sm:col-span-2">
+
+            <div className="block sm:col-span-2">
               <span className={labelCls}>E-mail</span>
-              <input className={inputCls} type="email" value={form.email} onChange={set("email")} placeholder="Deixe em branco se o cliente não tiver e-mail" />
-            </label>
-            <label className="block">
-              <span className={labelCls}>Data de nascimento</span>
-              <input className={inputCls} type="date" value={form.birth_date} onChange={set("birth_date")} />
-            </label>
+              <input
+                className={`${inputCls} ${semEmail ? "opacity-50" : ""}`}
+                type="email" value={semEmail ? "" : form.email} onChange={set("email")}
+                disabled={semEmail}
+                placeholder={semEmail ? "Acesso será repassado por WhatsApp" : "email@exemplo.com.br"}
+              />
+              {/* Marcar é melhor que "deixe em branco": deixa claro que foi uma
+                  decisão, não um campo esquecido. Muita apólice de RCO é assim. */}
+              <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                <input
+                  type="checkbox" checked={semEmail}
+                  onChange={(e) => { setSemEmail(e.target.checked); if (e.target.checked) setForm((p) => ({ ...p, email: "" })); }}
+                  className="w-4 h-4 rounded border-slate-300 text-brand-500 focus:ring-brand-400"
+                />
+                <span className="text-xs text-muted">Este cliente não tem e-mail</span>
+              </label>
+            </div>
+
+            {!ehPJ && (
+              <label className="block">
+                <span className={labelCls}>Data de nascimento</span>
+                <input className={inputCls} type="date" value={form.birth_date} onChange={set("birth_date")} />
+              </label>
+            )}
             <label className="block">
               <span className={labelCls}>CEP</span>
               <input className={inputCls} value={form.cep} onChange={set("cep")} placeholder="00000-000" />
