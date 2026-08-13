@@ -24,6 +24,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env, segredoConfere } from "./_env.js";
+import { decidirModulo } from "./_modulo.js";
 
 const ORIGENS_VALIDAS = ["chatbot", "formulario", "whatsapp", "indicacao", "portal", "manual", "webhook"];
 const ETAPAS_VALIDAS = ["novos", "contato", "cotacao", "negociacao", "ganho", "perdido"];
@@ -166,7 +167,12 @@ export default async function handler(req, res) {
       telefone,
       email,
       origem: ORIGENS_VALIDAS.includes("webhook") ? "webhook" : "formulario", // CHECK do banco
-      modulo: /seguro/i.test(`${campanha ?? ""} ${fonte ?? ""} ${primeiraMsg ?? ""}`) ? "seguros" : "consorcios",
+      // Mesma regra do lead-inbound (api/_modulo.js) — antes cada receptor
+      // decidia sozinho e os dois discordavam.
+      modulo: decidirModulo({
+        campanha, fonte, mensagem: primeiraMsg, produto: produto.description,
+        fb_anuncio: fb.ad_name, fb_formulario: fb.form_name,
+      }),
       fonte,
       canal,
       campanha,

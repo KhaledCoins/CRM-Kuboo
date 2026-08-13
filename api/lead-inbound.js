@@ -20,6 +20,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env, segredoConfere } from "./_env.js";
+import { decidirModulo } from "./_modulo.js";
 
 const BUCKET = new Map();
 function rateLimited(ip) {
@@ -78,7 +79,15 @@ export default async function handler(req, res) {
     email: String(b.email || "").trim().toLowerCase().slice(0, 200) || null,
     produto_interesse: String(b.produto_interesse || "").trim().slice(0, 120) || null,
     mensagem,
-    modulo: b.modulo === "consorcios" ? "consorcios" : "seguros",
+    // Antes: `b.modulo === 'consorcios' ? 'consorcios' : 'seguros'` — todo lead
+    // do Meta caía em Seguros a menos que o Make mandasse o campo certo. Agora a
+    // decisão é do decidirModulo() (mesma regra do c2s-webhook), e `b.modulo`
+    // explícito continua ganhando de tudo.
+    modulo: decidirModulo({
+      modulo: b.modulo, campanha: b.campanha, fonte, mensagem,
+      produto: b.produto_interesse, formulario,
+      fb_anuncio: b.fb_anuncio || b.ad_name, fb_formulario: b.fb_formulario || b.form_name,
+    }),
     origem,
     fonte,                                                          // ex.: Instagram Leads
     canal: String(b.canal || "Internet").trim().slice(0, 60),
