@@ -23,6 +23,7 @@
 // cai no bolsão para alguém pegar — que é o comportamento correto.
 
 import { createClient } from "@supabase/supabase-js";
+import { env, segredoConfere } from "./_env.js";
 
 const ORIGENS_VALIDAS = ["chatbot", "formulario", "whatsapp", "indicacao", "portal", "manual", "webhook"];
 const ETAPAS_VALIDAS = ["novos", "contato", "cotacao", "negociacao", "ganho", "perdido"];
@@ -103,16 +104,17 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   // Segredo na query (o C2S não permite header customizado)
-  const esperado = process.env.C2S_WEBHOOK_TOKEN;
+  const esperado = env("C2S_WEBHOOK_TOKEN");
   if (!esperado) {
     console.error(JSON.stringify({ level: "error", fn: "c2s-webhook", msg: "C2S_WEBHOOK_TOKEN ausente" }));
     return res.status(500).json({ error: "Webhook não configurado" });
   }
-  const recebido = String(req.query?.token || "");
-  if (recebido !== esperado) return res.status(401).json({ error: "Token inválido" });
+  // segredoConfere normaliza os dois lados: env gravada por pipe do PowerShell
+  // carrega um "\r" invisível e a comparação crua devolvia 401 pra sempre.
+  if (!segredoConfere(req.query?.token, esperado)) return res.status(401).json({ error: "Token inválido" });
 
-  const supaUrl = process.env.VITE_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supaUrl = env("VITE_SUPABASE_URL");
+  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
   if (!supaUrl || !serviceKey) return res.status(500).json({ error: "Supabase não configurado no servidor" });
   const admin = createClient(supaUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 

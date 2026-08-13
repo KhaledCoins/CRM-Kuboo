@@ -19,6 +19,7 @@
 // pelo motor de filas (fila_regras_match) como critério de regra.
 
 import { createClient } from "@supabase/supabase-js";
+import { env, segredoConfere } from "./_env.js";
 
 const BUCKET = new Map();
 function rateLimited(ip) {
@@ -34,16 +35,17 @@ function rateLimited(ip) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const token = req.headers["x-webhook-token"];
-  const expected = process.env.LEAD_WEBHOOK_TOKEN;
+  const expected = env("LEAD_WEBHOOK_TOKEN");
   if (!expected) return res.status(503).json({ error: "LEAD_WEBHOOK_TOKEN não configurado no Vercel" });
-  if (!token || token !== expected) return res.status(401).json({ error: "Token inválido" });
+  // Normaliza os dois lados: env com "\r" invisível (grava por pipe) ou header
+  // com espaço sobrando (Make/Zapier) davam 401 sem explicação.
+  if (!segredoConfere(req.headers["x-webhook-token"], expected)) return res.status(401).json({ error: "Token inválido" });
 
   const ip = (req.headers["x-forwarded-for"] || "").split(",")[0] || "anon";
   if (rateLimited(ip)) return res.status(429).json({ error: "Rate limit" });
 
-  const supaUrl = process.env.VITE_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supaUrl = env("VITE_SUPABASE_URL");
+  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
   if (!supaUrl || !serviceKey) return res.status(500).json({ error: "Supabase env ausente" });
   const admin = createClient(supaUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 

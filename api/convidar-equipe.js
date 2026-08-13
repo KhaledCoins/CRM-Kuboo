@@ -21,6 +21,7 @@
 // Site URL padrão.
 
 import { createClient } from "@supabase/supabase-js";
+import { env } from "./_env.js";
 
 const BUCKET = new Map();
 function rateLimited(id) {
@@ -34,8 +35,8 @@ function rateLimited(id) {
 }
 
 async function authCaller(req) {
-  const supaUrl = process.env.VITE_SUPABASE_URL;
-  const anon = process.env.VITE_SUPABASE_ANON_KEY;
+  const supaUrl = env("VITE_SUPABASE_URL");
+  const anon = env("VITE_SUPABASE_ANON_KEY");
   if (!supaUrl || !anon) return { error: 500, msg: "Supabase env ausente no servidor" };
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!token) return { error: 401, msg: "Não autenticado" };
@@ -154,17 +155,19 @@ export default async function handler(req, res) {
   if (auth.error) return res.status(auth.error).json({ error: auth.msg });
   if (rateLimited(auth.user.id)) return res.status(429).json({ error: "Muitos envios seguidos. Aguarde um minuto." });
 
-  const supaUrl = process.env.VITE_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supaUrl = env("VITE_SUPABASE_URL");
+  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
   if (!serviceKey) return res.status(500).json({ error: "SUPABASE_SERVICE_ROLE_KEY não configurada no Vercel" });
   // Sem Resend o convite AINDA funciona: cai no e-mail nativo do Supabase.
   // (mais simples de ligar, porém com limite de poucos envios por hora e mais
   // chance de cair em spam — por isso o Resend é o caminho preferido)
-  const resendKey = process.env.RESEND_API_KEY;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
+  // env() apara espaço invisível: chave colada do painel do Resend costuma vir
+  // com espaço no fim, e o que volta é um 401 genérico da API deles.
+  const resendKey = env("RESEND_API_KEY");
+  const anonKey = env("VITE_SUPABASE_ANON_KEY");
 
   const admin = createClient(supaUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const crmUrl = (process.env.CRM_URL || "https://crm-kuboo.vercel.app").replace(/\/$/, "");
+  const crmUrl = env("CRM_URL", "https://crm-kuboo.vercel.app").replace(/\/$/, "");
   const redirectTo = `${crmUrl}/seguros/perfil`;
 
   // Aceita 1 pessoa ({name,email,role}) ou uma lista ({pessoas:[...]})
@@ -246,7 +249,7 @@ export default async function handler(req, res) {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
           body: JSON.stringify({
-            from: process.env.EMAIL_FROM || "Kuboo <onboarding@resend.dev>",
+            from: env("EMAIL_FROM", "Kuboo <onboarding@resend.dev>"),
             to: [email],
             subject: existente ? "Kuboo CRM — link para definir sua senha" : "Seu acesso ao CRM da Kuboo chegou",
             html,

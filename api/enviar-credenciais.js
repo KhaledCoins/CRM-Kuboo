@@ -16,6 +16,7 @@
 //   SITE_URL        — opcional; default https://kubooseguros.com.br
 
 import { createClient } from "@supabase/supabase-js";
+import { env } from "./_env.js";
 
 const BUCKET = new Map();
 function rateLimited(id) {
@@ -29,8 +30,8 @@ function rateLimited(id) {
 }
 
 async function authTeamUser(req) {
-  const supaUrl = process.env.VITE_SUPABASE_URL;
-  const anon = process.env.VITE_SUPABASE_ANON_KEY;
+  const supaUrl = env("VITE_SUPABASE_URL");
+  const anon = env("VITE_SUPABASE_ANON_KEY");
   if (!supaUrl || !anon) return { error: 500, msg: "Supabase env ausente no servidor" };
 
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
@@ -171,10 +172,12 @@ export default async function handler(req, res) {
   if (auth.error) return res.status(auth.error).json({ error: auth.msg });
   if (rateLimited(auth.user.id)) return res.status(429).json({ error: "Muitos envios seguidos. Aguarde um minuto." });
 
-  const supaUrl = process.env.VITE_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supaUrl = env("VITE_SUPABASE_URL");
+  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
   if (!serviceKey) return res.status(500).json({ error: "SUPABASE_SERVICE_ROLE_KEY não configurada no Vercel" });
-  const resendKey = process.env.RESEND_API_KEY;
+  // env() apara espaço invisível: chave colada do painel do Resend costuma vir
+  // com espaço no fim, e o que volta é um 401 genérico da API deles.
+  const resendKey = env("RESEND_API_KEY");
   if (!resendKey) {
     return res.status(503).json({
       error: "RESEND_API_KEY não configurada no Vercel — crie uma chave gratuita em resend.com, adicione a env e redeploye. Até lá, use o botão de copiar a senha e envie por WhatsApp.",
@@ -206,7 +209,7 @@ export default async function handler(req, res) {
     // Domínio próprio desde 12/08/2026. O default importa: é o endereço que o
     // CLIENTE recebe pra entrar no Portal, e um link "kuboo-site.vercel.app"
     // num e-mail sobre senha parece golpe.
-    const siteUrl = (process.env.SITE_URL || "https://kubooseguros.com.br").replace(/\/$/, "");
+    const siteUrl = env("SITE_URL", "https://kubooseguros.com.br").replace(/\/$/, "");
     const portalUrl = `${siteUrl}/portal`;
     const html = emailHtml({ nome: prof.name, loginEmail: email, tempPassword, portalUrl, siteUrl });
 
@@ -214,7 +217,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM || "Kuboo <onboarding@resend.dev>",
+        from: env("EMAIL_FROM", "Kuboo <onboarding@resend.dev>"),
         to: [email],
         subject: "Seu acesso à Área do Cliente Kuboo chegou",
         html,
