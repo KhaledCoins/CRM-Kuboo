@@ -128,8 +128,12 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
 
     if (novos.length) {
       const atualizados = [...(await lerDocsAtuais()), ...novos];
-      const { error: dbErr } = await supabase.from(tabela).update({ documentos: atualizados }).eq("id", registroId);
-      if (dbErr) {
+      // .select() porque UPDATE barrado por RLS devolve ZERO linhas SEM erro —
+      // sem isso o arquivo subia pro storage, o jsonb não gravava, e a tela
+      // dizia "anexado". O documento sumia e o objeto ficava órfão no bucket.
+      const { data: linhas, error: dbErr } = await supabase.from(tabela)
+        .update({ documentos: atualizados }).eq("id", registroId).select("id");
+      if (dbErr || !linhas?.length) {
         // Rollback do storage: os objetos ficariam órfãos se o jsonb não salvasse.
         await supabase.storage.from(BUCKET).remove(novos.map((d) => d.path));
         toast.error("Não foi possível registrar os documentos.");
@@ -181,9 +185,12 @@ export function DocumentosModal({ aberto, onFechar, tabela, registroId, clientId
       return;
     }
     const atualizados = (await lerDocsAtuais()).filter((d) => d.path !== doc.path);
-    const { error: dbErr } = await supabase.from(tabela).update({ documentos: atualizados }).eq("id", registroId);
+    const { data: linhas, error: dbErr } = await supabase.from(tabela)
+      .update({ documentos: atualizados }).eq("id", registroId).select("id");
     setExcluindoPath(null);
-    if (dbErr) {
+    // Zero linhas conta como falha: o arquivo já saiu do storage, então deixar
+    // a referência no jsonb faria a tela listar um documento que não existe mais.
+    if (dbErr || !linhas?.length) {
       toast.error("Arquivo removido, mas houve erro ao atualizar o registro.");
       carregar();
       return;

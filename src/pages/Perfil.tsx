@@ -59,9 +59,14 @@ export function Perfil() {
     const novoValor = !disponivel;
     setSalvandoDisponivel(true);
     setDisponivel(novoValor); // otimista — o grant por coluna permite o próprio usuário gravar
-    const { error } = await supabase.from("profiles").update({ disponivel: novoValor }).eq("id", user.id);
+    // .select() porque UPDATE barrado por RLS devolve ZERO linhas SEM erro.
+    // Aqui isso seria grave: a pessoa marca "ausente" (férias, saiu cedo),
+    // a tela confirma, e o rodízio segue mandando lead pra ela — que apodrece
+    // sem ninguém atender.
+    const { data, error } = await supabase.from("profiles")
+      .update({ disponivel: novoValor }).eq("id", user.id).select("id");
     setSalvandoDisponivel(false);
-    if (error) {
+    if (error || !data?.length) {
       setDisponivel(!novoValor);
       setDisponibilidadeBloqueada(true);
       return;
@@ -91,10 +96,12 @@ export function Perfil() {
     e.preventDefault();
     if (!supabase || !user) return;
     setSalvandoAssinatura(true);
-    const { error } = await supabase.from("profiles").update({ assinatura }).eq("id", user.id);
+    const { data, error } = await supabase.from("profiles")
+      .update({ assinatura }).eq("id", user.id).select("id");
     setSalvandoAssinatura(false);
-    if (error) {
+    if (error || !data?.length) {
       // RLS ainda bloqueia update direto em profiles — não quebra a tela, só avisa.
+      // Zero linhas conta como bloqueio: o PostgREST não devolve erro nesse caso.
       setAssinaturaBloqueada(true);
       return;
     }

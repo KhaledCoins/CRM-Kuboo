@@ -162,18 +162,28 @@ export async function moverEtapa(id: string, etapa: string) {
   if (!supabase) return;
   // interagido_em junto: mover de coluna é interação — mesma regra do registrarContato.
   // propaga o erro pra quem chama (Pipeline usa try/catch p/ desfazer o card se falhar)
-  const { error } = await supabase.from("leads").update({ etapa, interagido_em: new Date().toISOString() }).eq("id", id);
+  const { data, error } = await supabase.from("leads")
+    .update({ etapa, interagido_em: new Date().toISOString() })
+    .eq("id", id)
+    .select("id");
   if (error) throw error;
+  // Zero linhas = RLS barrou sem erro. Sem isto o card ficava na coluna nova na
+  // tela e voltava sozinho no próximo F5, sem ninguém entender o motivo.
+  if (!data || data.length === 0) throw new Error("Sem permissão para mover este lead.");
 }
 
 /** Descarta um lead do bolsão (soft-delete: não some do banco, só sai da fila).
  *  Requer a migration crm-leads-manage.sql (coluna descartado + policy da equipe). */
 export async function descartarLead(id: string, motivo: string): Promise<boolean> {
   if (!supabase) return false;
-  const { error } = await supabase.from("leads")
+  const { data, error } = await supabase.from("leads")
     .update({ descartado: true, motivo_descarte: motivo || "descartado pela equipe" })
-    .eq("id", id);
-  return !error;
+    .eq("id", id)
+    .select("id");
+  if (error) console.error("[leads] descartarLead:", error.message);
+  // Zero linhas = RLS barrou. Devolver true aqui fazia o lead "descartado"
+  // reaparecer na lista seguinte, como se a equipe não tivesse feito nada.
+  return !error && !!(data && data.length);
 }
 
 /** Distribuição automática (rodízio): gestor/admin reparte os leads do bolsão

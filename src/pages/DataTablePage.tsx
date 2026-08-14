@@ -169,11 +169,20 @@ export function DataTablePage({
       }
       payload[f.key] = v;
     }
-    const { error } = editingId
-      ? await supabase.from(table).update(payload).eq("id", editingId)
-      : await supabase.from(table).insert(payload);
+    // No UPDATE vai .select(): RLS barrando devolve ZERO linhas SEM erro, e sem
+    // isto a tela dizia "Registro atualizado!" e recarregava mostrando o dado
+    // ANTIGO. Esta função atende Vendas, Apólices, Consórcios, Cotas, Parcelas,
+    // Comissões e mais — é a tela de cadastro de quase toda a operação.
+    // O INSERT não precisa: RLS barrando insert devolve erro de verdade.
+    const { data, error } = editingId
+      ? await supabase.from(table).update(payload).eq("id", editingId).select("id")
+      : await supabase.from(table).insert(payload).select("id");
     setSaving(false);
     if (error) { toast.error("Não foi possível salvar: " + error.message); return; }
+    if (!data || data.length === 0) {
+      toast.error("Nada foi salvo — você não tem permissão para alterar este registro.");
+      return;
+    }
     toast.success(editingId ? "Registro atualizado!" : "Registro criado!");
     setShowForm(false); setForm({}); setEditingId(null);
     load();
