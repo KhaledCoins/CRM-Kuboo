@@ -68,15 +68,36 @@ export async function inserir(tabela: string, row: Record<string, unknown>): Pro
   const { error } = await supabase.from(tabela).insert(row);
   return err(`inserir ${tabela}`, error);
 }
+// UPDATE e DELETE barrados por RLS NÃO devolvem erro no PostgREST — devolvem
+// ZERO linhas. Sem o .select(), estas duas devolviam `true` (porque `error` é
+// null) e as 31 chamadas espalhadas pelo CRM comemoravam sem ter gravado nada.
+// O ConfigHub sozinho usa 17 delas: etiquetas, motivos de arquivamento,
+// mensagens prontas e alertas — todos com policy por has_perm(). Um gestor sem
+// a permissão específica salvava, via "salvo" e nada mudava.
+//
+// O .select() é seguro aqui porque quem pode escrever nestas tabelas também
+// pode LER (a policy de leitura é igual ou mais ampla). Se um dia existir
+// tabela com escrita sem leitura, esta função vai reportar falso negativo —
+// então trate isso como parte do contrato ao criar policy nova.
 export async function atualizar(tabela: string, id: string | number, patch: Record<string, unknown>): Promise<boolean> {
   if (!supabase) return false;
-  const { error } = await supabase.from(tabela).update(patch).eq("id", id);
-  return err(`atualizar ${tabela}`, error);
+  const { data, error } = await supabase.from(tabela).update(patch).eq("id", id).select();
+  if (!err(`atualizar ${tabela}`, error)) return false;
+  if (!data || data.length === 0) {
+    console.error(`[c2s] atualizar ${tabela}: 0 linhas afetadas (RLS bloqueou ou id inexistente)`);
+    return false;
+  }
+  return true;
 }
 export async function excluir(tabela: string, id: string): Promise<boolean> {
   if (!supabase) return false;
-  const { error } = await supabase.from(tabela).delete().eq("id", id);
-  return err(`excluir ${tabela}`, error);
+  const { data, error } = await supabase.from(tabela).delete().eq("id", id).select();
+  if (!err(`excluir ${tabela}`, error)) return false;
+  if (!data || data.length === 0) {
+    console.error(`[c2s] excluir ${tabela}: 0 linhas afetadas (RLS bloqueou ou id inexistente)`);
+    return false;
+  }
+  return true;
 }
 
 // ─── Atividades ──────────────────────────────────────────────────────────────
