@@ -695,7 +695,13 @@ export function LeadDetalhe() {
 
   async function onDevolverBolsao() {
     if (!lead) return;
-    await devolverBolsao(lead.id);
+    // Só mexe na tela DEPOIS de confirmar que gravou — o toast de sucesso era
+    // incondicional e mentia quando o update não passava.
+    const ok = await devolverBolsao(lead.id);
+    if (!ok) {
+      toast.error("Não consegui devolver ao bolsão. O lead continua com você — tente de novo.");
+      return;
+    }
     setLead((p) => (p ? { ...p, vendedor_id: null, atribuido_em: null, sla_expira_em: null } : p));
     setResponsavel(null);
     toast.success("Lead devolvido ao bolsão.");
@@ -705,8 +711,11 @@ export function LeadDetalhe() {
     if (!lead) return;
     const now = new Date().toISOString();
     await atualizar("leads", lead.id, { interagido_em: now });
-    if (!lead.primeiro_contato_em) await registrarContato(lead.id);
-    setLead((p) => (p ? { ...p, interagido_em: now, primeiro_contato_em: p.primeiro_contato_em ?? now } : p));
+    // Idem: se o 1º contato não gravou, não pinta a tela como se tivesse.
+    // Quem abre o WhatsApp e vê "contato registrado" não tenta de novo.
+    const marcouContato = lead.primeiro_contato_em ? true : await registrarContato(lead.id);
+    if (!marcouContato) toast.error("Abri o WhatsApp, mas não consegui registrar o 1º contato — o SLA continua correndo.");
+    setLead((p) => (p ? { ...p, interagido_em: now, primeiro_contato_em: marcouContato ? (p.primeiro_contato_em ?? now) : p.primeiro_contato_em } : p));
   }
 
   async function onConcluirAtividade(atividadeId: string) {

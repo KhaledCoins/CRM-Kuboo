@@ -299,7 +299,14 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
 
   async function onContato(id: string) {
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, primeiro_contato_em: new Date().toISOString() } : l)));
-    await registrarContato(id);
+    // Não gravou? DESFAZ o card. Deixá-lo marcado é pior do que não marcar: o
+    // SLA continua correndo no servidor e o lead volta pro bolsão com o
+    // consultor achando que já atendeu.
+    const ok = await registrarContato(id);
+    if (!ok) {
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, primeiro_contato_em: null } : l)));
+      toast.error("Não consegui registrar o contato. O SLA continua correndo — tente de novo.");
+    }
   }
 
   function onAbrir(id: string) {

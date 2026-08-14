@@ -128,17 +128,34 @@ export async function pegarLead(id: string, vendedorId: string): Promise<boolean
   return !!(data && data.length);
 }
 
-export async function registrarContato(id: string) {
-  if (!supabase) return;
+// ATENÇÃO ao padrão destas duas: `.select("id")` + conferir se voltou linha.
+// No PostgREST, UPDATE barrado por RLS NÃO devolve erro — devolve ZERO linhas.
+// Sem isso, `error` vem null, a tela comemora e nada foi gravado. Aqui o
+// prejuízo é concreto: registrarContato é o que PARA o relógio do SLA; se
+// falhar calado, o lead volta pro bolsão enquanto o consultor acha que já
+// atendeu. Devolvem boolean para quem chama poder desfazer e avisar.
+
+export async function registrarContato(id: string): Promise<boolean> {
+  if (!supabase) return false;
   const now = new Date().toISOString();
   // interagido_em também: a regra de retorno de 16 dias e os alertas de
   // inatividade dependem desse campo (LeadDetalhe já seta nas ações dele).
-  await supabase.from("leads").update({ primeiro_contato_em: now, interagido_em: now }).eq("id", id);
+  const { data, error } = await supabase.from("leads")
+    .update({ primeiro_contato_em: now, interagido_em: now })
+    .eq("id", id)
+    .select("id");
+  if (error) console.error("[leads] registrarContato:", error.message);
+  return !error && !!(data && data.length);
 }
 
-export async function devolverBolsao(id: string) {
-  if (!supabase) return;
-  await supabase.from("leads").update({ vendedor_id: null, atribuido_em: null, sla_expira_em: null }).eq("id", id);
+export async function devolverBolsao(id: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { data, error } = await supabase.from("leads")
+    .update({ vendedor_id: null, atribuido_em: null, sla_expira_em: null })
+    .eq("id", id)
+    .select("id");
+  if (error) console.error("[leads] devolverBolsao:", error.message);
+  return !error && !!(data && data.length);
 }
 
 export async function moverEtapa(id: string, etapa: string) {
