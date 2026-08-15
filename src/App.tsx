@@ -8,6 +8,7 @@ import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
 import { DefinirSenha } from "./pages/DefinirSenha";
 import { ErroApp } from "./components/ErroApp";
+import { Ajuda } from "./pages/Ajuda";
 import { SectionPage } from "./pages/SectionPage";
 // Dashboards usam recharts (~160KB gz) — lazy p/ não pesar quem não abre gráfico.
 const DashboardSeguros = lazy(() => import("./pages/seguros/DashboardSeguros").then((m) => ({ default: m.DashboardSeguros })));
@@ -112,6 +113,7 @@ function Shell() {
         <Route path="/seguros/desempenho" element={<RequireManager><Desempenho /></RequireManager>} />
         <Route path="/seguros/dashboards" element={<RequireManager><Dashboards /></RequireManager>} />
         <Route path="/seguros/perfil" element={<Perfil />} />
+        <Route path="/seguros/ajuda" element={<Ajuda />} />
 
         {/* Consórcios */}
         <Route path="/consorcios" element={<DashboardConsorcios />} />
@@ -138,6 +140,7 @@ function Shell() {
         <Route path="/consorcios/desempenho" element={<RequireManager><Desempenho /></RequireManager>} />
         <Route path="/consorcios/dashboards" element={<RequireManager><Dashboards /></RequireManager>} />
         <Route path="/consorcios/perfil" element={<Perfil />} />
+        <Route path="/consorcios/ajuda" element={<Ajuda />} />
       </Route>
       <Route path="*" element={<Navigate to="/seguros" replace />} />
     </Routes>

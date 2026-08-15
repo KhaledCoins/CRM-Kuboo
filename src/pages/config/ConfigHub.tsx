@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Settings, Inbox, Bell, Archive, Tag, MessageSquare, Plus, Trash2, Pencil, Power, X, AlertTriangle, Lock } from "lucide-react";
+import { Settings, Inbox, Bell, Archive, Tag, MessageSquare, Plus, Trash2, Pencil, Power, X, AlertTriangle, Lock, Activity } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 import { toast } from "sonner";
 import { PageHeader, Card, Button, Table, Th, Td, Tr, EmptyState, Spinner } from "../../components/ui";
 import { ModalShell } from "../../components/ModalShell";
@@ -48,13 +49,14 @@ function AvisoSomenteLeitura() {
   );
 }
 
-type Aba = "bolsao" | "alertas" | "motivos" | "etiquetas" | "mensagens";
+type Aba = "bolsao" | "alertas" | "motivos" | "etiquetas" | "mensagens" | "erros";
 const ABAS: { valor: Aba; rotulo: string; icon: LucideIcon }[] = [
   { valor: "bolsao", rotulo: "Bolsão", icon: Inbox },
   { valor: "alertas", rotulo: "Alertas", icon: Bell },
   { valor: "motivos", rotulo: "Motivos de arquivamento", icon: Archive },
   { valor: "etiquetas", rotulo: "Etiquetas", icon: Tag },
   { valor: "mensagens", rotulo: "Mensagens prontas", icon: MessageSquare },
+  { valor: "erros", rotulo: "Saúde do sistema", icon: Activity },
 ];
 
 export function ConfigHub() {
@@ -82,6 +84,7 @@ export function ConfigHub() {
       {aba === "motivos" && <AbaMotivos />}
       {aba === "etiquetas" && <AbaEtiquetas />}
       {aba === "mensagens" && <AbaMensagens />}
+      {aba === "erros" && <AbaErros />}
     </>
   );
 }
@@ -638,5 +641,76 @@ function MensagemEditor({ mensagem, proximaOrdem, onClose, onSaved }: {
         <Button onClick={salvar} disabled={salvando}>{salvando ? "Salvando..." : "Salvar"}</Button>
       </div>
     </ModalShell>
+  );
+}
+
+// ─── Saúde do sistema (telemetria de erros do front) ─────────────────────────
+// Alimentada por lib/telemetria.ts: ErroApp + window.onerror + unhandledrejection
+// gravam em erros_front. RLS: só gestor/admin lê — por isso a aba mostra o
+// aviso de permissão pra vendedor em vez de uma lista vazia enganosa.
+
+interface ErroFront { id: string; quando: string; rota: string | null; mensagem: string; stack: string | null; user_agent: string | null }
+
+function AbaErros() {
+  const { user } = useAuth();
+  const gestor = user?.role === "gestor" || user?.role === "admin";
+  const [erros, setErros] = useState<ErroFront[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [aberto, setAberto] = useState<string | null>(null);
+
+  async function carregar() {
+    if (!supabase) { setLoading(false); return; }
+    setLoading(true);
+    const { data } = await supabase.from("erros_front")
+      .select("id, quando, rota, mensagem, stack, user_agent")
+      .order("quando", { ascending: false }).limit(50);
+    setErros((data as ErroFront[]) ?? []);
+    setLoading(false);
+  }
+  useEffect(() => { carregar(); }, []);
+
+  async function limpar() {
+    if (!supabase || !window.confirm("Apagar todos os erros registrados?")) return;
+    // delete sem filtro é recusado pelo PostgREST; o filtro largo pega tudo.
+    const { error } = await supabase.from("erros_front").delete().gte("quando", "1970-01-01");
+    if (error) toast.error("Não foi possível limpar.");
+    else { toast.success("Registros limpos."); setErros([]); }
+  }
+
+  if (!gestor) return <AvisoSomenteLeitura />;
+  if (loading) return <div className="py-16 grid place-items-center"><Spinner /></div>;
+
+  return (
+    <Card className="p-0 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div>
+          <p className="font-extrabold text-ink">Erros do sistema (últimos 50)</p>
+          <p className="text-xs text-muted">Capturados automaticamente nos navegadores da equipe. Vazio = tudo saudável.</p>
+        </div>
+        {erros.length > 0 && <Button variant="outline" icon={Trash2} onClick={limpar}>Limpar</Button>}
+      </div>
+      {erros.length === 0 ? (
+        <EmptyState icon={Activity} title="Nenhum erro registrado" hint="Quando alguma tela quebrar para alguém da equipe, o detalhe aparece aqui — sem depender de ninguém avisar." />
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {erros.map((e) => (
+            <li key={e.id} className="px-5 py-3">
+              <button type="button" className="w-full text-left" onClick={() => setAberto(aberto === e.id ? null : e.id)}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-bold text-ink truncate">{e.mensagem}</span>
+                  <span className="text-xs text-muted shrink-0">{new Date(e.quando).toLocaleString("pt-BR")}</span>
+                </div>
+                <p className="text-xs text-muted mt-0.5">{e.rota || "rota desconhecida"}</p>
+              </button>
+              {aberto === e.id && (
+                <pre className="mt-2 text-[11px] bg-slate-50 border border-slate-200 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap text-slate-700">
+                  {e.stack || "(sem stack)"}{"\n\n"}{e.user_agent || ""}
+                </pre>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

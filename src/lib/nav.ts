@@ -2,7 +2,7 @@ import {
   LayoutDashboard, ShoppingCart, FileEdit, Receipt, DollarSign, Trophy,
   KanbanSquare, RefreshCcw, Target, ShieldAlert, ClipboardCheck, BarChart3,
   Tv, Users, Building2, Package, UserCog, Settings, Layers, Award, CalendarDays, Inbox, ListChecks, Shield, Shuffle,
-  MessageCircle, Gauge, UserCircle, Upload,
+  MessageCircle, Gauge, UserCircle, Upload, HelpCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../context/AuthContext";
@@ -42,6 +42,9 @@ const adminGroup = (modulo: Modulo): NavGroup => ({
     { label: "Importar leads", to: `/${modulo}/importar-leads`, icon: Upload, roles: ["admin", "gestor"] },
     { label: "Configurações", to: `/${modulo}/configuracoes`, icon: Settings, roles: ["admin", "gestor"], perms: ["acessar_config", "editar_etiquetas", "editar_bolsao"] },
     { label: "Meu Perfil", to: `/${modulo}/perfil`, icon: UserCircle },
+    // Guia de uso — visível pra todo mundo de propósito: é o que evita a
+    // pergunta "e agora?" no primeiro dia de cada contratação.
+    { label: "Ajuda", to: `/${modulo}/ajuda`, icon: HelpCircle },
   ],
 });
 

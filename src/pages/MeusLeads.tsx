@@ -9,7 +9,7 @@ import { PageHeader, Card, Badge, EmptyState, Spinner, SearchInput, Select, Butt
 import { ModalShell } from "../components/ModalShell";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { fetchLeads, moduloDe, limiteSlaMinutos, type Lead } from "../lib/leads";
+import { fetchLeads, fetchLeadsArquivados, moduloDe, limiteSlaMinutos, type Lead } from "../lib/leads";
 import {
   type Atividade, type Etiqueta, TIPOS_ATIVIDADE, atividadeAtual, atividadeAtrasada,
   favoritosDoUsuario, alternarFavorito, listarEquipe, inserir, listar,
@@ -125,8 +125,9 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
     const req = ++loadReq.current;
     try {
       const [todosLeads, ativsRes, favs, equipeRes, tagsRes, vinculosRes] = await Promise.all([
-        // Descartados vêm junto: a aba "Arquivados" precisa deles (as demais filtram)
-        fetchLeads({ incluirDescartados: true }),
+        // Só ativos: a aba "Arquivados" pagina no servidor (fetchLeadsArquivados) —
+        // o histórico de descartados só cresce e não pode pesar em toda visita.
+        fetchLeads(),
         supabase ? supabase.from("lead_atividades").select("*").eq("status", "pendente") : Promise.resolve({ data: [], error: null }),
         user ? favoritosDoUsuario(user.id) : Promise.resolve(new Set<string>()),
         isManager ? listarEquipe() : Promise.resolve([]),
@@ -162,6 +163,69 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
   }
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [modulo, user?.id]);
 
+  // ─── Aba "Arquivados": paginada no servidor (ver fetchLeadsArquivados) ────
+  const [arq, setArq] = useState<LeadRico[]>([]);
+  const [arqPagina, setArqPagina] = useState(0);
+  const [arqTotal, setArqTotal] = useState(0); // total do filtro atual (alimenta o "Carregar mais")
+  const [arqBadge, setArqBadge] = useState(0); // total SEM busca/filtros (badge da aba, como as demais)
+  const [arqLoading, setArqLoading] = useState(false);
+  const arqReq = useRef(0);
+
+  // Escopo replicado no servidor: vendedor só vê os dele; gestor usa "Ver como".
+  const escopoVendedorId = !isManager ? (user?.id ?? null) : visao !== "todos" ? visao : null;
+
+  async function carregarArquivados(pagina: number) {
+    const req = ++arqReq.current;
+    setArqLoading(true);
+    try {
+      // Etiqueta é vínculo N:N — resolve os ids no cliente (mapa já carregado)
+      // e manda como pré-filtro `in`, igual ao comportamento das outras abas.
+      const leadIdsEtiqueta = fEtiqueta
+        ? [...etiquetasPorLead.entries()].filter(([, s]) => s.has(fEtiqueta)).map(([id]) => id)
+        : null;
+      const { leads: pageArq, total } = await fetchLeadsArquivados({
+        modulo,
+        pagina,
+        busca,
+        origem: fOrigem || undefined,
+        periodoDias: fPeriodo ? Number(fPeriodo) : undefined,
+        vendedorId: escopoVendedorId,
+        leadIds: leadIdsEtiqueta,
+      });
+      if (req !== arqReq.current) return;
+      setArqTotal(total);
+      setArqPagina(pagina);
+      setArq((prev) => (pagina === 0 ? pageArq : [...prev, ...pageArq]) as LeadRico[]);
+    } catch (e) {
+      console.error("[meus-leads] arquivados:", e);
+    } finally {
+      if (req === arqReq.current) setArqLoading(false);
+    }
+  }
+
+  // 1ª página sempre que a aba abre ou busca/filtros/visão mudam (debounce na
+  // digitação). Fora da aba, zero rede — quem nunca abre Arquivados não paga nada.
+  useEffect(() => {
+    if (aba !== "arquivados") return;
+    const t = setTimeout(() => carregarArquivados(0), busca ? 300 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aba, modulo, busca, fOrigem, fEtiqueta, fPeriodo, visao, user?.id]);
+
+  // Badge da aba: HEAD count (sem baixar linhas), independente de busca/filtros —
+  // as demais abas também contam a lista inteira do escopo, não a filtrada.
+  useEffect(() => {
+    let vivo = true;
+    fetchLeadsArquivados({ modulo, vendedorId: escopoVendedorId, contarApenas: true })
+      .then(({ total }) => { if (vivo) setArqBadge(total); });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modulo, visao, user?.id, isManager]);
+
+  // Troca de módulo zera a lista carregada (senão a aba reabriria mostrando
+  // arquivados do módulo anterior por um instante até a nova página chegar).
+  useEffect(() => { setArq([]); setArqTotal(0); setArqPagina(0); }, [modulo]);
+
   const nomePorId = useMemo(() => {
     const m: Record<string, string> = {};
     equipe.forEach((p) => { m[p.id] = p.name; });
@@ -181,11 +245,13 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
     () => escopo.map((l) => ({ lead: l, ...infoAtividade(atividadesPorLead.get(l.id) ?? []) })),
     [escopo, atividadesPorLead]
   );
-  // Arquivados têm aba própria; todas as demais visões são só dos ativos.
+  // A lista principal já vem sem descartados; o filtro fica como cinto de
+  // segurança (um lead arquivado em outra aba do navegador não deve vazar aqui).
   const ativosClass = useMemo(() => classificados.filter((c) => !c.lead.descartado), [classificados]);
+  // Arquivados vêm do estado paginado (servidor já aplicou escopo, ordem e filtros).
   const arquivadosLeads = useMemo(
-    () => classificados.filter((c) => c.lead.descartado).sort((a, b) => (b.lead.created_at ?? "").localeCompare(a.lead.created_at ?? "")),
-    [classificados]
+    () => arq.map((l) => ({ lead: l, ...infoAtividade(atividadesPorLead.get(l.id) ?? []) })),
+    [arq, atividadesPorLead]
   );
 
   const hojeLeads = useMemo(
@@ -216,7 +282,7 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
     futuras: futurasLeads.length,
     favoritos: favoritosLeads.length,
     todos: ativosClass.length,
-    arquivados: arquivadosLeads.length,
+    arquivados: arqBadge,
   };
 
   async function handleFavorito(leadId: string) {
@@ -538,13 +604,30 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
           })()}
 
           {aba === "arquivados" && (() => {
+            // O servidor já filtrou; o filtro() do cliente entra só pra manter a
+            // lista coerente enquanto a próxima página/busca está a caminho.
             const arr = filtro(arquivadosLeads);
-            return arr.length === 0 ? (
-              <Card pad={false}>
-                <EmptyState icon={Archive} title="Nenhum lead arquivado" hint="Leads arquivados ficam aqui com o motivo — abra um para reabrir se precisar." />
-              </Card>
-            ) : (
-              <div className="space-y-2">{arr.map((c) => <LeadRow key={c.lead.id} item={c} />)}</div>
+            if (arqLoading && arq.length === 0) return <Spinner label="Carregando arquivados..." />;
+            if (arr.length === 0) {
+              const comFiltro = !!(busca || fOrigem || fEtiqueta || fPeriodo);
+              return (
+                <Card pad={false}>
+                  <EmptyState icon={Archive} title="Nenhum lead arquivado"
+                    hint={comFiltro ? "Nada encontrado com essa busca/filtros — a busca aqui vale pra TODOS os arquivados, não só os já carregados." : "Leads arquivados ficam aqui com o motivo — abra um para reabrir se precisar."} />
+                </Card>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                {arr.map((c) => <LeadRow key={c.lead.id} item={c} />)}
+                {arq.length < arqTotal && (
+                  <div className="pt-2 text-center">
+                    <Button variant="outline" onClick={() => carregarArquivados(arqPagina + 1)} disabled={arqLoading}>
+                      {arqLoading ? "Carregando…" : `Carregar mais (${arqTotal - arq.length} restantes)`}
+                    </Button>
+                  </div>
+                )}
+              </div>
             );
           })()}
         </>

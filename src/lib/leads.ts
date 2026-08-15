@@ -96,8 +96,8 @@ export function moduloDe(l: Lead): "seguros" | "consorcios" {
 
 // Descartados ficam FORA por padrão (alivia o teto da query — pós-importação dos
 // 754 do C2S a base cresce ~130/mês). Quem precisa deles (aba Arquivados do
-// MeusLeads) pede explicitamente. Limite alto + warning quando estourar, pra
-// nunca truncar a base em silêncio.
+// MeusLeads) usa fetchLeadsArquivados, que pagina no SERVIDOR. Limite alto +
+// warning quando estourar, pra nunca truncar a base em silêncio.
 const FETCH_LIMIT = 3000;
 export async function fetchLeads(opts?: { incluirDescartados?: boolean }): Promise<Lead[]> {
   if (!supabase) return [];
@@ -107,6 +107,67 @@ export async function fetchLeads(opts?: { incluirDescartados?: boolean }): Promi
   if (error) console.error("[leads] fetchLeads:", error.message); // não engole em silêncio
   if (data && data.length === FETCH_LIMIT) console.warn(`[leads] fetchLeads atingiu o teto de ${FETCH_LIMIT} — leads mais antigos fora da lista; hora de paginar.`);
   return (data as any) ?? [];
+}
+
+// ─── Aba "Arquivados" pagina no SERVIDOR ────────────────────────────────────
+// O histórico de descartados só cresce (todo o legado do C2S mora aqui) e vinha
+// inteiro junto dos ativos — a tela Meus Leads pagava esse peso em TODA visita.
+// Agora os ativos carregam sozinhos e os arquivados vêm em páginas, com busca e
+// filtros resolvidos no banco: o cliente só baixa o que vai mostrar.
+export const ARQUIVADOS_POR_PAGINA = 100;
+
+export interface ArquivadosOpts {
+  modulo: "seguros" | "consorcios";
+  pagina?: number; // 0-based; ignorado com contarApenas
+  busca?: string; // nome/telefone/e-mail/produto — ilike no servidor
+  origem?: string;
+  periodoDias?: number; // criados nos últimos N dias
+  vendedorId?: string | null; // escopo: vendedor logado ou "Ver como" do gestor
+  leadIds?: string[] | null; // pré-filtro por etiqueta (ids resolvidos no cliente)
+  contarApenas?: boolean; // só o total (badge da aba), sem baixar linha nenhuma
+}
+
+export async function fetchLeadsArquivados(opts: ArquivadosOpts): Promise<{ leads: Lead[]; total: number }> {
+  if (!supabase) return { leads: [], total: 0 };
+  // Filtro de etiqueta sem nenhum lead vinculado: resultado é vazio por
+  // definição — devolve direto em vez de mandar um `id=in.()` pro PostgREST.
+  if (opts.leadIds && opts.leadIds.length === 0) return { leads: [], total: 0 };
+
+  let q = supabase
+    .from("leads")
+    .select(opts.contarApenas ? "id" : "*", { count: "exact", head: !!opts.contarApenas })
+    .eq("descartado", true);
+  // Mesma regra de moduloDe(): só "consorcios" explícito é consórcio; o resto
+  // (null incluso) conta como seguros.
+  q = opts.modulo === "consorcios" ? q.eq("modulo", "consorcios") : q.or("modulo.neq.consorcios,modulo.is.null");
+  if (opts.vendedorId) q = q.eq("vendedor_id", opts.vendedorId);
+  if (opts.origem) q = q.eq("origem", opts.origem);
+  if (opts.periodoDias) q = q.gte("created_at", new Date(Date.now() - opts.periodoDias * 86400000).toISOString());
+  if (opts.leadIds) q = q.in("id", opts.leadIds);
+
+  const termo = (opts.busca ?? "").trim();
+  if (termo) {
+    // Sanitiza pro .or() do PostgREST: vírgula/parênteses separam filtros e
+    // %/_ são curinga do ilike — só sobram letras, números, @ . - e espaço.
+    const t = termo.replace(/[^\p{L}\p{N}@.\-\s]/gu, " ").replace(/\s+/g, " ").trim();
+    if (t) {
+      const alvo = `%${t}%`;
+      const partes = [`nome.ilike.${alvo}`, `email.ilike.${alvo}`, `produto_interesse.ilike.${alvo}`, `telefone.ilike.${alvo}`];
+      // Telefone por dígitos (mesma regra ≥4 do matchBusca do cliente):
+      // "12988887777" casa "(12) 98888-7777" intercalando curingas.
+      const digitos = t.replace(/\D/g, "");
+      if (digitos.length >= 4) partes.push(`telefone.ilike.%${digitos.split("").join("%")}%`);
+      q = q.or(partes.join(",")); // vários .or() no PostgREST viram ANDs entre si
+    }
+  }
+
+  if (!opts.contarApenas) {
+    const de = (opts.pagina ?? 0) * ARQUIVADOS_POR_PAGINA;
+    q = q.order("created_at", { ascending: false }).range(de, de + ARQUIVADOS_POR_PAGINA - 1);
+  }
+  const { data, count, error } = await q;
+  if (error) console.error("[leads] fetchLeadsArquivados:", error.message);
+  return { leads: (data as any) ?? [], total: count ?? 0 };
 }
 
 // Retorna true se pegou; false se outro vendedor pegou primeiro.

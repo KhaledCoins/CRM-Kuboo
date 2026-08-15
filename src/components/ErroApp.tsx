@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { reportarErro } from "../lib/telemetria";
 
 // Rede de segurança de RENDER do app inteiro. Sem isto, dois cenários viravam
 // tela branca sem explicação:
@@ -30,6 +31,7 @@ export class ErroApp extends Component<{ children: ReactNode }, State> {
 
   componentDidCatch(erro: Error) {
     console.error("[ErroApp]", erro);
+    reportarErro(`render: ${erro.message}`, erro.stack);
     if (CHUNK_ERRO.test(String(erro?.message))) {
       // Deploy no meio da sessão: o chunk antigo não existe mais. Recarregar
       // resolve — mas só tentamos uma vez por sessão pra não entrar em loop
