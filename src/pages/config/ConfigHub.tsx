@@ -107,10 +107,15 @@ function AbaBolsao() {
 
   async function salvar(patch: Partial<BolsaoConfig>) {
     if (!podeEditar) return;
+    const anterior = cfg; // pra reverter se o servidor recusar
     setCfg((p) => (p ? { ...p, ...patch } : p));
     const ok = await salvarBolsaoConfig(patch);
-    if (ok) toast.success("Configuração do bolsão salva.");
-    else toast.error("Não foi possível salvar.");
+    if (ok) { toast.success("Configuração do bolsão salva."); return; }
+    // Sem reverter, o SLA na tela dizia 45 min enquanto o motor reciclava em 20,
+    // e a edição seguinte de horário partiria do valor fantasma. Volta ao que
+    // o servidor confirmou por último.
+    setCfg(anterior);
+    toast.error("Não foi possível salvar. Confira sua permissão de editar bolsão e tente de novo.");
   }
 
   function setDiaHorario(chave: keyof HorarioSemana, patchDia: Partial<HorarioDia>) {

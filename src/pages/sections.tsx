@@ -35,7 +35,12 @@ const soValores = (o: FormField["options"]) => (o ?? []).map((x) => x.value);
 // Picker de cliente reutilizável (Apólices, Consórcios...): carrega da base real de clientes.
 async function carregarClientes(): Promise<{ value: string; label: string }[]> {
   if (!supabase) return [];
-  const { data } = await supabase.from("profiles").select("id, name, cpf").order("name").limit(1000);
+  // Só CLIENTE no seletor obrigatório de Apólice/Consórcio. Sem o filtro, o
+  // combo oferecia os 18 da equipe e um clique errado gravava client_id
+  // apontando pra um vendedor — a apólice some do Portal do segurado (que lê
+  // por auth.uid() = client_id) e ninguém descobre até o cliente reclamar.
+  const { data } = await supabase.from("profiles").select("id, name, cpf")
+    .or("role.eq.cliente,role.is.null").order("name").limit(1000);
   return (data || []).map((c: any) => ({ value: c.id, label: c.cpf ? `${c.name} · ${c.cpf}` : c.name }));
 }
 

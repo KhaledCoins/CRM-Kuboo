@@ -25,9 +25,14 @@ export function Clientes() {
     // Não selecionamos aqui de propósito — se essa migração ainda não rodou,
     // a lista de clientes não pode quebrar por causa de uma coluna nova.
     try {
+      // Só CLIENTE: profiles guarda equipe e cliente na mesma tabela e a policy
+      // de leitura é is_team(), então sem este filtro a "Base de clientes"
+      // listava os 18 da equipe junto com os 3 clientes reais. `role.is.null`
+      // cobre cadastros legados sem papel (default é 'cliente' de qualquer forma).
       const { data, error } = await supabase
         .from("profiles")
         .select("id, name, cpf, phone, city, state, created_at")
+        .or("role.eq.cliente,role.is.null")
         .order("name");
       if (error) console.error("[clientes] carregar:", error.message);
       let lista: Cliente[] = (data as any) ?? [];

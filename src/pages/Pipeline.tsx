@@ -9,8 +9,8 @@ import { PageHeader, Button, KpiCard, Card, Spinner } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
 import { RegistrarVendaModal } from "../components/RegistrarVendaModal";
 import { criarColumnKeyboardCoordinateGetter } from "../lib/dndKeyboard";
-import { fetchLeads, moverEtapa, registrarContato, descartarLead, noBolsao, slaRestanteMin, moduloDe, temperaturaLead, type Lead } from "../lib/leads";
-import { listar, type MotivoArquivamento } from "../lib/c2s";
+import { fetchLeads, moverEtapa, registrarContato, noBolsao, slaRestanteMin, moduloDe, temperaturaLead, type Lead } from "../lib/leads";
+import { listar, atualizar, type MotivoArquivamento } from "../lib/c2s";
 
 const TEMP_DOT: Record<string, string> = { quente: "#ef4444", morno: "#f59e0b", frio: "#5bc4f5" };
 import { criarTarefa } from "../lib/tarefas";
@@ -276,17 +276,23 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
 
   async function confirmarPerdido(motivo: string) {
     if (!perdidoPend) return;
-    const { lead } = perdidoPend;
+    const { lead, anterior } = perdidoPend;
     setPerdidoPend(null);
-    try {
-      await moverEtapa(lead.id, "perdido");
-      const ok = await descartarLead(lead.id, motivo);
-      if (!ok) throw new Error("descartar falhou");
+    // UMA gravação só. Antes eram dois UPDATEs (moverEtapa + descartarLead) sem
+    // transação: se o 2º falhasse, o lead ficava em (etapa='perdido',
+    // descartado=false) — um estado que nenhuma tela trata, some do funil e dos
+    // Arquivados, e o toast ainda dizia que nada aconteceu. Combinar tudo num
+    // update elimina o estado intermediário tóxico.
+    const ok = await atualizar("leads", lead.id, {
+      etapa: "perdido", descartado: true, motivo_descarte: motivo,
+      interagido_em: new Date().toISOString(),
+    });
+    if (ok) {
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, etapa: "perdido", descartado: true, motivo_descarte: motivo } : l)));
       toast.success("Lead arquivado como perdido.");
-    } catch {
-      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, etapa: perdidoPend.anterior } : l)));
-      toast.error("Não foi possível arquivar o lead.");
+    } else {
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, etapa: anterior } : l)));
+      toast.error("Não foi possível arquivar o lead. Tente de novo.");
     }
   }
 

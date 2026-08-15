@@ -90,10 +90,27 @@ export function RegistrarVendaModal({
       toast.success(`Venda registrada! ${nParc} parcela(s) e comissão de ${brl(comissaoValor)} geradas automaticamente.`);
       onSaved();
     } catch {
-      // Sem transação no PostgREST: se falhou depois de criar a venda, desfaz
-      // pra não deixar venda órfã (parcelas caem por ON DELETE CASCADE).
-      if (vendaId) { try { await supabase.from("vendas").delete().eq("id", vendaId); } catch { /* nada */ } }
-      toast.error("Não foi possível registrar a venda. Nada foi salvo — tente novamente.");
+      // Sem transação no PostgREST: se falhou depois de criar a venda, tenta
+      // desfazer (parcelas caem por ON DELETE CASCADE). Mas o rollback PRECISA
+      // ser conferido: a policy vendas_del exige gestor ou 'acessar_financeiro',
+      // então pro vendedor o DELETE devolve zero linhas SEM erro — e a venda
+      // fica no banco. Afirmar "Nada foi salvo — tente novamente" nesse caso é
+      // a receita da DUPLICATA: ele tenta de novo e a Produção conta 2x.
+      let desfez = false;
+      if (vendaId) {
+        try {
+          const { data: apagadas } = await supabase.from("vendas").delete().eq("id", vendaId).select("id");
+          desfez = !!(apagadas && apagadas.length);
+        } catch { /* rede caiu de novo — trata como não desfeito */ }
+      }
+      if (!vendaId || desfez) {
+        toast.error("Não foi possível registrar a venda. Nada foi salvo — tente novamente.");
+      } else {
+        toast.error(
+          "A venda foi criada, mas as parcelas/comissão falharam. NÃO registre de novo — avise um gestor para completar ou excluir o lançamento.",
+          { duration: 15000 }
+        );
+      }
     }
     setSalvando(false);
   }

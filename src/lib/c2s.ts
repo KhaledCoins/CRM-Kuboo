@@ -322,8 +322,19 @@ export async function buscarBolsaoConfig(): Promise<{ data: BolsaoConfig | null;
 }
 export async function salvarBolsaoConfig(patch: Partial<BolsaoConfig>): Promise<boolean> {
   if (!supabase) return false;
-  const { error } = await supabase.from("bolsao_config").upsert({ id: 1, ...patch });
-  return err("salvarBolsaoConfig", error);
+  // UPDATE, não upsert. A tabela bolsao_config tem RLS ligada e só policies de
+  // SELECT e UPDATE — NÃO tem policy de INSERT. O upsert vira INSERT..ON CONFLICT
+  // e o Postgres avalia o WITH CHECK de INSERT (inexistente = nega) ANTES de
+  // resolver o conflito, então TODA gravação falhava, para admin inclusive — a
+  // aba de configuração do bolsão estava 100% morta. A linha id=1 já existe
+  // (seed do c2s-parity), então update puro resolve sem depender de policy nova.
+  const { data, error } = await supabase.from("bolsao_config").update(patch).eq("id", 1).select("id");
+  if (!err("salvarBolsaoConfig", error)) return false;
+  if (!data || data.length === 0) {
+    console.error("[c2s] salvarBolsaoConfig: 0 linhas (RLS bloqueou ou id=1 sumiu)");
+    return false;
+  }
+  return true;
 }
 
 // ─── Alertas — rótulo legível de minutos ("30 min" / "1h" / "1 dia") ────────

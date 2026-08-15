@@ -192,8 +192,18 @@ export function DataTablePage({
     if (!supabase) return;
     if (!window.confirm("Excluir este registro? Esta ação não pode ser desfeita.")) return;
     setRows((prev) => prev.filter((r) => r.id !== row.id));
-    const { error } = await supabase.from(table).delete().eq("id", row.id);
+    // .select() porque DELETE barrado por RLS devolve ZERO linhas SEM erro (o
+    // UPDATE logo acima já faz isso). Sem isto, um vendedor sem 'acessar_financeiro'
+    // clicava na lixeira de uma venda/parcela, a linha sumia da tela e o toast
+    // dizia "excluído" — mas o registro seguia no banco e voltava no F5,
+    // contando de novo em Produção/Ranking/comissões.
+    const { data, error } = await supabase.from(table).delete().eq("id", row.id).select("id");
     if (error) { toast.error("Não foi possível excluir: " + error.message); load(); return; }
+    if (!data || data.length === 0) {
+      load(); // devolve a linha à tabela — ela nunca saiu do banco
+      toast.error("Nada foi excluído — você não tem permissão para remover este registro.");
+      return;
+    }
     setTotal((t) => Math.max(0, t - 1));
     toast.success("Registro excluído");
   }

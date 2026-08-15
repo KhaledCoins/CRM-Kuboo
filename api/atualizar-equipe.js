@@ -203,7 +203,14 @@ export default async function handler(req, res) {
       const { error: aprovErr } = await admin.from("profiles").update({ aprovado: false }).eq("id", userId);
       if (aprovErr) throw new Error(aprovErr.message);
 
-      await admin.from("fila_usuarios").delete().eq("user_id", userId);
+      // ativo=false, NÃO delete. O hard delete destruía a informação de QUAIS
+      // filas a pessoa integrava — quem voltava de férias/licença era reativado
+      // com login e aprovação, mas ficava fora do rodízio PARA SEMPRE, em
+      // silêncio, porque o "reativar" não tinha como saber onde recolocá-la.
+      // O motor já ignora inativos (fila_proximo_usuario filtra fu.ativo).
+      const { error: filaErr } = await admin.from("fila_usuarios")
+        .update({ ativo: false }).eq("user_id", userId);
+      if (filaErr) console.error(JSON.stringify({ level: "warn", fn: "atualizar-equipe", msg: `fila_usuarios desativar: ${filaErr.message}` }));
 
       const sessaoEncerrada = await definirBanimento(admin, userId, true);
 
@@ -217,9 +224,14 @@ export default async function handler(req, res) {
     if (acao === "reativar") {
       const { error: reativErr } = await admin.from("profiles").update({ aprovado: true }).eq("id", userId);
       if (reativErr) throw new Error(reativErr.message);
+      // Devolve a pessoa às MESMAS filas de antes (o desativar agora marca
+      // ativo=false em vez de apagar, justamente pra isto ser possível).
+      const { data: filasDeVolta, error: filaErr } = await admin.from("fila_usuarios")
+        .update({ ativo: true }).eq("user_id", userId).select("fila_id");
+      if (filaErr) console.error(JSON.stringify({ level: "warn", fn: "atualizar-equipe", msg: `fila_usuarios reativar: ${filaErr.message}` }));
       // Sem tirar o ban o usuário reativado não consegue nem fazer login de novo.
       const acessoLiberado = await definirBanimento(admin, userId, false);
-      return res.status(200).json({ ok: true, acessoLiberado });
+      return res.status(200).json({ ok: true, acessoLiberado, filasRestauradas: filasDeVolta?.length ?? 0 });
     }
   } catch (err) {
     console.error(JSON.stringify({ level: "error", fn: "atualizar-equipe", msg: String(err).slice(0, 300) }));
