@@ -22,6 +22,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.js";
+import { inscreverNasFilas } from "./_filas.js";
 
 const BUCKET = new Map();
 function rateLimited(id) {
@@ -259,6 +260,10 @@ export default async function handler(req, res) {
           patch.role = role;
           patch.nivel = nivel;
         }
+        // Vendedor NOVO entra no rodízio na hora (ver api/_filas.js). Reenvio
+        // de convite não mexe em fila: quem já existe pode ter sido removido
+        // de uma fila de propósito pelo gestor.
+        if (!existente) await inscreverNasFilas(admin, userId, patch.role ?? role);
         const { error: upErr } = await admin.from("profiles").update(patch).eq("id", userId);
         if (upErr) throw new Error(`Convite gerado, mas falhou ao salvar o perfil: ${upErr.message}`);
       }

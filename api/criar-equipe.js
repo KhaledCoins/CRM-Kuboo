@@ -6,6 +6,7 @@
 // Retorna a senha temporária UMA vez — a equipe repassa e a pessoa troca.
 
 import { createClient } from "@supabase/supabase-js";
+import { inscreverNasFilas } from "./_filas.js";
 
 const BUCKET = new Map();
 function rateLimited(id) {
@@ -94,7 +95,11 @@ export default async function handler(req, res) {
     }).eq("id", userId);
     if (upErr) throw new Error(`Login criado mas falhou ao salvar o perfil: ${upErr.message}`);
 
-    return res.status(200).json({ id: userId, loginEmail: email, tempPassword, role });
+    // Vendedor novo entra no rodízio NA HORA — sem isto ele aparecia em toda a
+    // UI como equipe e nunca recebia um lead automático (ver api/_filas.js).
+    const filasInscritas = await inscreverNasFilas(admin, userId, role);
+
+    return res.status(200).json({ id: userId, loginEmail: email, tempPassword, role, filasInscritas });
   } catch (err) {
     console.error(JSON.stringify({ level: "error", fn: "criar-equipe", msg: String(err).slice(0, 300) }));
     return res.status(500).json({ error: err instanceof Error ? err.message : "Falha ao criar usuário" });
