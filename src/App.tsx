@@ -7,6 +7,7 @@ import { can } from "./lib/permissoes";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
 import { DefinirSenha } from "./pages/DefinirSenha";
+import { ErroApp } from "./components/ErroApp";
 import { SectionPage } from "./pages/SectionPage";
 // Dashboards usam recharts (~160KB gz) — lazy p/ não pesar quem não abre gráfico.
 const DashboardSeguros = lazy(() => import("./pages/seguros/DashboardSeguros").then((m) => ({ default: m.DashboardSeguros })));
@@ -76,6 +77,9 @@ function Shell() {
   if (!user) return <Login />;
 
   return (
+    // ErroApp por fora do Suspense: pega tanto exceção de render de qualquer
+    // página quanto chunk lazy que sumiu depois de um deploy (ver ErroApp.tsx).
+    <ErroApp>
     <Suspense fallback={<div className="min-h-screen grid place-items-center text-slate-400 text-sm">Carregando…</div>}>
     <Routes>
       <Route element={<Layout />}>
@@ -138,6 +142,7 @@ function Shell() {
       <Route path="*" element={<Navigate to="/seguros" replace />} />
     </Routes>
     </Suspense>
+    </ErroApp>
   );
 }
 

@@ -156,6 +156,8 @@ export function Usuarios() {
   const [rows, setRows] = useState<TeamRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [colunasFaltando, setColunasFaltando] = useState(false);
+  // user_ids com pelo menos uma fila ativa — alimenta o chip "Fora do rodízio".
+  const [noRodizio, setNoRodizio] = useState<Set<string> | null>(null);
   const [novoAberto, setNovoAberto] = useState(false);
   const [convidarAberto, setConvidarAberto] = useState(false);
   const [editando, setEditando] = useState<TeamRow | null>(null);
@@ -190,6 +192,17 @@ export function Usuarios() {
     } finally {
       setLoading(false);
     }
+
+    // Quem está em alguma fila de distribuição. A auditoria mostrou que esse
+    // estado era INVISÍVEL: vendedor fora de todas as filas nunca recebia lead
+    // automático e ninguém via isso em tela nenhuma (só enterrado no modal de
+    // Check-in). Alguns estão fora DE PROPÓSITO (decisão de gestão) — por isso
+    // é um chip informativo, não um alerta vermelho. Falha nesta consulta não
+    // pode derrubar a tela: sem dado, simplesmente não mostra chip.
+    try {
+      const { data: fu } = await supabase.from("fila_usuarios").select("user_id").eq("ativo", true);
+      setNoRodizio(new Set(((fu as { user_id: string }[]) ?? []).map((r) => r.user_id)));
+    } catch { /* chip é informativo — segue sem ele */ }
   }
 
   useEffect(() => { carregar(); }, []);
@@ -312,7 +325,16 @@ export function Usuarios() {
                     </div>
                   </Td>
                   <Td>
-                    <Badge tone={roleTone(u.role)}>{roleLabel(u.role, u.nivel)}</Badge>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge tone={roleTone(u.role)}>{roleLabel(u.role, u.nivel)}</Badge>
+                      {/* Só faz sentido pra vendedor ativo; alguns estão fora DE
+                          PROPÓSITO (decisão de gestão), por isso tom neutro. */}
+                      {noRodizio && u.role === "vendedor" && u.aprovado !== false && !noRodizio.has(u.id) && (
+                        <span title="Não está em nenhuma fila de distribuição — não recebe lead automático. Para incluir, use Distribuição de Leads.">
+                          <Badge tone="slate">Fora do rodízio</Badge>
+                        </span>
+                      )}
+                    </div>
                   </Td>
                   <Td>{u.aprovado === false ? <Badge tone="red">Desativado</Badge> : <Badge tone="green">Ativo</Badge>}</Td>
                   <Td>{dateBR(u.created_at)}</Td>
