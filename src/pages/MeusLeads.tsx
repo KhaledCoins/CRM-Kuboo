@@ -14,7 +14,7 @@ import {
   type Atividade, type Etiqueta, TIPOS_ATIVIDADE, atividadeAtual, atividadeAtrasada,
   favoritosDoUsuario, alternarFavorito, listarEquipe, inserir, listar,
 } from "../lib/c2s";
-import { onlyDigits } from "../lib/format";
+import { onlyDigits, waLink } from "../lib/format";
 import { paraNumero } from "../lib/num";
 import type { Modulo } from "../lib/nav";
 
@@ -393,7 +393,7 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
   function LeadRow({ item }: { item: (typeof classificados)[number] }) {
     const { lead: l, atual, atrasada } = item;
     const isFav = favoritos.has(l.id);
-    const wa = l.telefone ? `https://wa.me/55${onlyDigits(l.telefone)}` : null;
+    const wa = waLink(l.telefone);
     return (
       <div
         role="button"

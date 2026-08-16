@@ -12,7 +12,7 @@ import { RegistrarVendaModal } from "../components/RegistrarVendaModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import type { TeamUser } from "../context/AuthContext";
-import { onlyDigits } from "../lib/format";
+import { onlyDigits, waLink } from "../lib/format";
 import {
   type Lead, registrarContato, devolverBolsao, descartarLead, moverEtapa, limiteSlaMinutos,
 } from "../lib/leads";
@@ -45,12 +45,8 @@ const dateTimeBR = (v?: string | null) => {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
-function waLink(telefone?: string | null, texto?: string) {
-  const digits = onlyDigits(telefone || "");
-  if (!digits) return null;
-  const comPais = digits.startsWith("55") ? digits : `55${digits}`;
-  return `https://wa.me/${comPais}${texto ? `?text=${encodeURIComponent(texto)}` : ""}`;
-}
+// waLink agora vem de src/lib/format.ts — fonte única usada por TODAS as telas
+// (a versão de lá ainda trata DDD 55/RS, que a local confundia com o DDI).
 
 const rotuloTipo = (t: string) => TIPOS_ATIVIDADE.find((x) => x.valor === t)?.rotulo ?? t;
 

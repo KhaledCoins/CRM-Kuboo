@@ -9,7 +9,7 @@ import { ModalShell } from "../components/ModalShell";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { listarEquipe, atualizar } from "../lib/c2s";
-import { onlyDigits } from "../lib/format";
+import { onlyDigits, waLink } from "../lib/format";
 
 // Chamados de sinistro triados pelo Kubinho (site) — gravados direto em
 // sinistros_chamados (ver supabase/sinistros-triagem.sql). A equipe assume,
@@ -213,7 +213,7 @@ export function SinistrosChamados() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((c) => {
-            const wa = c.telefone ? `https://wa.me/55${onlyDigits(c.telefone)}` : null;
+            const wa = waLink(c.telefone);
             const sm = STATUS_META[c.status] ?? STATUS_META.novo;
             const responsavel = c.responsavel_id ? (nomePorId[c.responsavel_id] ?? "—") : null;
             return (
@@ -282,7 +282,7 @@ export function SinistrosChamados() {
                 {selecionado.telefone ? (
                   <div className="flex items-center gap-2">
                     <a href={`tel:${onlyDigits(selecionado.telefone)}`} className="text-brand-600 font-semibold hover:underline">{selecionado.telefone}</a>
-                    <a href={`https://wa.me/55${onlyDigits(selecionado.telefone)}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="text-muted hover:text-[#25d366] transition-colors">
+                    <a href={waLink(selecionado.telefone) ?? undefined} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="text-muted hover:text-[#25d366] transition-colors">
                       <MessageCircle size={16} />
                     </a>
                   </div>

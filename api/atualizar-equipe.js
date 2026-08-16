@@ -11,6 +11,7 @@
 // também bane/desbane a sessão no Auth (token válido não sobrevive à demissão).
 
 import { createClient } from "@supabase/supabase-js";
+import { inscreverNasFilas } from "./_filas.js";
 
 const TEAM_ROLES = ["vendedor", "gestor", "admin"];
 const PERMISSOES_CHAVES = [
@@ -95,7 +96,7 @@ export default async function handler(req, res) {
   try {
     // Alvo tem que ser da equipe — nunca mexe em profile de cliente.
     const { data: alvo, error: alvoErr } = await admin
-      .from("profiles").select("id, role, name").eq("id", userId).single();
+      .from("profiles").select("id, role, name, nivel").eq("id", userId).single();
     if (alvoErr || !alvo) return res.status(404).json({ error: "Usuário não encontrado." });
     if (!TEAM_ROLES.includes(alvo.role)) {
       return res.status(403).json({ error: "Este endpoint só gerencia usuários de equipe." });
@@ -124,13 +125,12 @@ export default async function handler(req, res) {
       if (p.assinatura !== undefined) {
         patch.assinatura = String(p.assinatura || "").slice(0, 2000) || null;
       }
-      // CARGO (profiles.nivel) — só rótulo, NÃO dá permissão nenhuma.
-      // "Consultor" e "Vendedor" são a mesma coisa pro sistema: ambos têm
-      // role='vendedor'. Criar um papel 'consultor' de verdade no banco exigiria
-      // mexer em is_team()/is_manager() na RLS, no rodízio do Bolsão (que filtra
-      // role='vendedor') e em toda checagem de papel — risco alto para uma
-      // diferença que é de nomenclatura. Whitelist fechada de propósito: campo
-      // livre aqui viraria papel inventado circulando pela tela.
+      // CARGO (profiles.nivel) — permissões idênticas (ambos role='vendedor',
+      // então RLS e checagens de papel não mudam), MAS o cargo define o RODÍZIO:
+      // Consultor é a equipe de SEGUROS e fica FORA da distribuição automática
+      // (recebe lead por atribuição manual/transferência); Vendedor (consórcios)
+      // entra. A troca de cargo ajusta fila_usuarios logo abaixo, após o update.
+      // Whitelist fechada de propósito: campo livre viraria papel inventado.
       if (p.nivel !== undefined) {
         const cargo = String(p.nivel || "").trim();
         if (cargo && !["Consultor", "Vendedor"].includes(cargo)) {
@@ -167,7 +167,26 @@ export default async function handler(req, res) {
         }
         throw new Error(upErr.message);
       }
-      return res.status(200).json({ ok: true });
+
+      // Troca de CARGO ajusta o rodízio: virou Consultor (seguros) → sai das
+      // filas (ativo=false, preservando o histórico como no desativar); voltou
+      // a Vendedor → entra nas filas ativas não-segurança (o upsert do helper
+      // também reativa linhas antigas). Falha aqui não derruba o update do
+      // perfil — a fila dá pra acertar na tela de Filas; o log grita.
+      let filasAjustadas = 0;
+      const roleFinal = patch.role ?? alvo.role;
+      const nivelFinal = patch.nivel !== undefined ? patch.nivel : alvo.nivel;
+      if (roleFinal === "vendedor" && patch.nivel !== undefined && nivelFinal !== alvo.nivel) {
+        if (nivelFinal === "Consultor") {
+          const { data: fora, error: fErr } = await admin.from("fila_usuarios")
+            .update({ ativo: false }).eq("user_id", userId).eq("ativo", true).select("fila_id");
+          if (fErr) console.error(JSON.stringify({ level: "warn", fn: "atualizar-equipe", msg: `filas ao virar Consultor: ${fErr.message}` }));
+          filasAjustadas = fora?.length ?? 0;
+        } else if (alvo.nivel === "Consultor") {
+          filasAjustadas = await inscreverNasFilas(admin, userId, roleFinal, nivelFinal);
+        }
+      }
+      return res.status(200).json({ ok: true, filasAjustadas });
     }
 
     if (acao === "desativar") {

@@ -17,7 +17,7 @@ import {
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none text-ink focus:border-brand-400 transition-colors";
 const labelCls = "text-xs font-bold text-muted uppercase tracking-wide block mb-1.5";
 
-interface EquipeMembro { id: string; name: string; role: string | null }
+interface EquipeMembro { id: string; name: string; role: string | null; nivel: string | null }
 
 function AvisoMigracao() {
   return (
@@ -332,9 +332,12 @@ function ModalAuditoria({ filas, onClose }: { filas: Fila[]; onClose: () => void
 // mas até aqui só o próprio consultor enxergava o próprio estado, no Perfil. Esta
 // visão dá ao gestor o raio-x de quem está de plantão em cada fila.
 const ROLES_EQUIPE = ["vendedor", "gestor", "admin"];
-const ROLE_ROTULO: Record<string, string> = { vendedor: "Consultor", gestor: "Gestor", admin: "Administrador" };
+const ROLE_ROTULO: Record<string, string> = { vendedor: "Vendedor", gestor: "Gestor", admin: "Administrador" };
+// Cargo tem semântica agora: Consultor (seguros, fora do rodízio) ≠ Vendedor.
+const rotuloMembro = (role: string | null, nivel?: string | null) =>
+  role === "vendedor" && nivel === "Consultor" ? "Consultor" : (ROLE_ROTULO[role ?? ""] ?? role ?? "—");
 
-interface MembroCheckin { id: string; name: string; role: string | null; disponivel: boolean }
+interface MembroCheckin { id: string; name: string; role: string | null; nivel?: string | null; disponivel: boolean }
 
 function ModalCheckin({ filas, filaUsuarios, podeEditar, meuId, onClose }: {
   filas: Fila[];
@@ -356,7 +359,7 @@ function ModalCheckin({ filas, filaUsuarios, podeEditar, meuId, onClose }: {
       // `disponivel` só existe depois de supabase/c2s-parity.sql — sem ela a tela
       // ainda vale pelo mapa "quem está em qual fila", então degradamos em silêncio.
       let linhas: any[] = [];
-      const res = await supabase.from("profiles").select("id,name,role,aprovado,disponivel").in("role", ROLES_EQUIPE).order("name");
+      const res = await supabase.from("profiles").select("id,name,role,nivel,aprovado,disponivel").in("role", ROLES_EQUIPE).order("name");
       if (res.error) {
         const alt = await supabase.from("profiles").select("id,name,role,aprovado").in("role", ROLES_EQUIPE).order("name");
         if (!alt.error && ativo) { linhas = (alt.data as any[]) ?? []; setSemColuna(true); }
@@ -367,6 +370,7 @@ function ModalCheckin({ filas, filaUsuarios, podeEditar, meuId, onClose }: {
         id: p.id,
         name: p.name ?? "—",
         role: p.role,
+        nivel: p.nivel ?? null,
         disponivel: p.disponivel !== false, // espelha o coalesce(disponivel, true) do motor
       })));
       setCarregando(false);
@@ -470,7 +474,7 @@ function ModalCheckin({ filas, filaUsuarios, podeEditar, meuId, onClose }: {
                       <span className="font-bold text-ink">{m.name}</span>
                       {m.id === meuId && <span className="text-xs text-muted"> (você)</span>}
                     </Td>
-                    <Td>{ROLE_ROTULO[m.role ?? ""] ?? m.role ?? "—"}</Td>
+                    <Td>{rotuloMembro(m.role, m.nivel)}</Td>
                     {!semColuna && (
                       <Td>
                         {m.disponivel
@@ -480,7 +484,7 @@ function ModalCheckin({ filas, filaUsuarios, podeEditar, meuId, onClose }: {
                     )}
                     <Td>
                       {minhasFilas.length === 0 ? (
-                        <span className="text-xs text-muted">Fora de todas as filas</span>
+                        <span className="text-xs text-muted">{m.nivel === "Consultor" ? "Seguros — sem rodízio" : "Fora de todas as filas"}</span>
                       ) : (
                         <span className="inline-flex flex-wrap gap-1">
                           {minhasFilas.map((nome) => <Badge key={nome} tone="blue">{nome}</Badge>)}
@@ -686,11 +690,15 @@ function FilaEditor({ fila, equipe, filaUsuarios, proximaOrdem, onClose, onSaved
 
         <div>
           <span className={labelCls}>Usuários na fila</span>
-          {equipe.length === 0 ? (
-            <p className="text-xs text-muted">Nenhum usuário de equipe cadastrado.</p>
+          {/* Consultores (seguros) nem aparecem: o cargo fica FORA da
+              distribuição automática por regra de negócio — o rodízio do
+              bolsão é dos Vendedores (consórcios). */}
+          {(() => { const elegiveis = equipe.filter((u) => u.nivel !== "Consultor");
+          return elegiveis.length === 0 ? (
+            <p className="text-xs text-muted">Nenhum usuário elegível — Consultores (seguros) não entram em fila de distribuição.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {equipe.map((u) => {
+              {elegiveis.map((u) => {
                 const ultima = ultimaPorUsuario.get(u.id);
                 return (
                   <label key={u.id} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 cursor-pointer">
@@ -703,7 +711,7 @@ function FilaEditor({ fila, equipe, filaUsuarios, proximaOrdem, onClose, onSaved
                 );
               })}
             </div>
-          )}
+          ); })()}
         </div>
       </div>
 

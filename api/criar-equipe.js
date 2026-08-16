@@ -59,9 +59,10 @@ export default async function handler(req, res) {
   const email = String(b.email || "").trim().toLowerCase().slice(0, 200);
   const phone = String(b.phone || "").trim().slice(0, 30) || null;
   const role = ["vendedor", "gestor", "admin"].includes(b.role) ? b.role : "vendedor";
-  // CARGO (profiles.nivel) — só rótulo, NÃO concede permissão. "Consultor" é um
-  // vendedor que se chama diferente na tela. Whitelist fechada de propósito:
-  // campo livre aqui viraria papel inventado circulando pela interface.
+  // CARGO (profiles.nivel) — permissões idênticas às do vendedor, MAS define o
+  // rodízio: Consultor é a equipe de SEGUROS e fica FORA da distribuição
+  // automática de leads (ver api/_filas.js); Vendedor (consórcios) entra.
+  // Whitelist fechada de propósito: campo livre viraria papel inventado.
   const nivel = role === "vendedor" && ["Consultor", "Vendedor"].includes(String(b.nivel || "")) ? String(b.nivel) : null;
   if (!name || !email.includes("@")) return res.status(400).json({ error: "Nome e e-mail válidos são obrigatórios." });
   if (role === "admin" && auth.callerRole !== "admin") {
@@ -97,7 +98,8 @@ export default async function handler(req, res) {
 
     // Vendedor novo entra no rodízio NA HORA — sem isto ele aparecia em toda a
     // UI como equipe e nunca recebia um lead automático (ver api/_filas.js).
-    const filasInscritas = await inscreverNasFilas(admin, userId, role);
+    // Consultor (seguros) NÃO entra: recebe lead por atribuição manual.
+    const filasInscritas = await inscreverNasFilas(admin, userId, role, nivel);
 
     return res.status(200).json({ id: userId, loginEmail: email, tempPassword, role, filasInscritas });
   } catch (err) {

@@ -15,7 +15,7 @@ import { listar, atualizar, type MotivoArquivamento } from "../lib/c2s";
 const TEMP_DOT: Record<string, string> = { quente: "#ef4444", morno: "#f59e0b", frio: "#5bc4f5" };
 import { criarTarefa } from "../lib/tarefas";
 import { useAuth } from "../context/AuthContext";
-import { brl, brlShort, onlyDigits } from "../lib/format";
+import { brl, brlShort, waLink } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import type { Modulo } from "../lib/nav";
 
@@ -59,9 +59,10 @@ function SlaBadge({ lead }: { lead: Lead }) {
 function LeadCard({ lead, consultor, ativ, onContato, onAbrir }: {
   lead: LeadPipe; consultor?: string; ativ?: AtivAtual; onContato: (id: string) => void; onAbrir: (id: string) => void;
 }) {
+  const { user } = useAuth();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id });
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined;
-  const wa = lead.telefone ? `https://wa.me/55${onlyDigits(lead.telefone)}` : null;
+  const wa = waLink(lead.telefone);
   const fonteCanal = [lead.fonte, lead.canal].filter(Boolean).join(" · ");
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}
@@ -105,12 +106,18 @@ function LeadCard({ lead, consultor, ativ, onContato, onAbrir }: {
         )}
         <button
           onClick={async () => {
+            // Responsável + vencimento têm que ir juntos: o quadro filtra
+            // "Minhas" por responsavel_nome, e sem prazo a tarefa nunca fica
+            // atrasada — o follow-up que motivou o clique não lembraria ninguém.
+            const amanha = new Date(Date.now() + 24 * 60 * 60 * 1000);
             const { error } = await criarTarefa({
               titulo: `Follow-up: ${lead.nome}`,
               descricao: lead.produto_interesse ? `Interesse: ${lead.produto_interesse}` : undefined,
               cliente_nome: lead.nome, status: "a_fazer", prioridade: "media", modulo: moduloDe(lead),
+              responsavel_nome: user?.name ?? null,
+              vencimento: amanha.toISOString().slice(0, 10),
             });
-            if (error) toast.error("Não foi possível criar a tarefa"); else toast.success("Tarefa criada no quadro!");
+            if (error) toast.error("Não foi possível criar a tarefa"); else toast.success("Tarefa criada no quadro — sua, pra amanhã!");
           }}
           className="flex items-center gap-1 text-[11px] font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-lg">
           <ListPlus size={12} /> Tarefa

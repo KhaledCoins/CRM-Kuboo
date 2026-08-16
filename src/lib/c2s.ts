@@ -272,12 +272,14 @@ export async function listarTodosFilaUsuarios(): Promise<FilaUsuario[]> {
   err("listarTodosFilaUsuarios", error);
   return (data as FilaUsuario[]) ?? [];
 }
-export async function listarEquipe(): Promise<{ id: string; name: string; role: string | null }[]> {
+// `nivel` vem junto porque o cargo tem semântica: Consultor (seguros) fica FORA
+// do rodízio — a tela de Filas usa isso pra nem oferecer a inscrição.
+export async function listarEquipe(): Promise<{ id: string; name: string; role: string | null; nivel: string | null }[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase.from("profiles").select("id, name, role")
+  const { data, error } = await supabase.from("profiles").select("id, name, role, nivel")
     .in("role", ["vendedor", "gestor", "admin"]).order("name");
   err("listarEquipe", error);
-  return (data as { id: string; name: string; role: string | null }[]) ?? [];
+  return (data as { id: string; name: string; role: string | null; nivel: string | null }[]) ?? [];
 }
 export async function salvarFila(fila: Partial<Fila> & { id?: string }): Promise<string | null> {
   if (!supabase) return null;

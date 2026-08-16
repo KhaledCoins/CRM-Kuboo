@@ -28,6 +28,16 @@ export const initials = (name?: string | null) =>
 
 export const onlyDigits = (s: string) => s.replace(/\D/g, "");
 
+// Link de WhatsApp que NÃO duplica o DDI: telefone salvo como "+55 12 9..."
+// virava wa.me/5555... (link morto) nas telas que concatenavam "55" na mão.
+// Fonte única — o botão de WhatsApp é o mais clicado do CRM.
+export function waLink(telefone?: string | null, texto?: string): string | null {
+  const digits = onlyDigits(telefone || "");
+  if (!digits) return null;
+  const comPais = digits.startsWith("55") && digits.length >= 12 ? digits : `55${digits}`;
+  return `https://wa.me/${comPais}${texto ? `?text=${encodeURIComponent(texto)}` : ""}`;
+}
+
 // Documento do cliente para EXIBIÇÃO: 11 dígitos vira CPF, 14 vira CNPJ.
 // A validação de verdade (dígito verificador) é do servidor, em
 // api/_documento.js — aqui é só máscara. Valor legado já formatado, ou de

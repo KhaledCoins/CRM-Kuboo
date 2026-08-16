@@ -7,7 +7,7 @@ import { fetchLeads, pegarLead, descartarLead, distribuirBolsao, noBolsao, modul
 import { DIAS_SEMANA, minutosLabel, type BolsaoConfig, type HorarioSemana } from "../lib/c2s";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { brl, onlyDigits } from "../lib/format";
+import { brl, waLink } from "../lib/format";
 
 function esperaLabel(l: Lead): { txt: string; urgente: boolean } {
   const base = l.created_at ? new Date(l.created_at).getTime() : Date.now();
@@ -148,11 +148,12 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
     if (!supabase || !filtered.length) return;
     // Só VENDEDORES aprovados e com check-in ativo — mesma régua do motor
     // (fila_proximo_usuario): quem fez check-out de plantão não recebe lead,
-    // e gestor/admin não entram na conta do rodízio manual.
+    // e gestor/admin não entram na conta do rodízio manual. Consultor (cargo
+    // de SEGUROS em profiles.nivel) também fica fora: não entra em distribuição.
     const { data: vendedores } = await supabase.from("profiles")
-      .select("id,name,aprovado,disponivel").eq("role", "vendedor").limit(50);
+      .select("id,name,nivel,aprovado,disponivel").eq("role", "vendedor").limit(50);
     const ids = (vendedores || [])
-      .filter((v: any) => v.aprovado !== false && v.disponivel !== false)
+      .filter((v: any) => v.aprovado !== false && v.disponivel !== false && v.nivel !== "Consultor")
       .map((v: any) => v.id);
     if (!ids.length) { toast.error("Nenhum vendedor disponível (aprovado e com check-in) pra distribuir."); return; }
     if (!window.confirm(`Distribuir ${filtered.length} lead(s) em rodízio entre ${ids.length} membro(s) da equipe?`)) return;
@@ -227,7 +228,7 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((l) => {
             const espera = esperaLabel(l);
-            const wa = l.telefone ? `https://wa.me/55${onlyDigits(l.telefone)}` : null;
+            const wa = waLink(l.telefone);
             const reciclado = !!l.vendedor_id; // voltou ao bolsão por SLA estourado
             const temp = temperaturaLead(l);
             const tm = tempMeta[temp];

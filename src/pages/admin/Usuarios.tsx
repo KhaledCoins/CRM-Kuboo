@@ -36,10 +36,11 @@ const roleTone = (r?: string | null) => (r === "admin" ? "violet" : r === "gesto
 // tela sem que isso mude uma permissão sequer. Ver OPCOES_CARGO mais abaixo.
 // Papel + cargo num valor só ("vendedor|Consultor"), porque as três telas
 // (criar, convidar e editar) precisam oferecer exatamente as mesmas opções.
-// Consultor e Vendedor são o MESMO papel (role='vendedor'): mudam de nome, não
-// de permissão. Criar um papel de verdade obrigaria a mexer em is_team() na
-// RLS, no rodízio do Bolsão (filtra role='vendedor') e em toda checagem —
-// risco alto para uma diferença de nomenclatura.
+// Consultor e Vendedor são o MESMO papel (role='vendedor') em PERMISSÃO — RLS e
+// checagens não mudam. A diferença é o RODÍZIO: Consultor é a equipe de SEGUROS
+// e fica FORA da distribuição automática de leads (recebe por atribuição
+// manual/transferência); Vendedor (consórcios) entra nas filas. A troca de
+// cargo ajusta fila_usuarios no servidor (api/atualizar-equipe + api/_filas).
 export const PAPEIS_COM_CARGO: { valor: string; rotulo: string; role: string; nivel: string | null }[] = [
   { valor: "vendedor|Consultor", rotulo: "Consultor", role: "vendedor", nivel: "Consultor" },
   { valor: "vendedor|",          rotulo: "Vendedor",  role: "vendedor", nivel: null },
@@ -327,9 +328,11 @@ export function Usuarios() {
                   <Td>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge tone={roleTone(u.role)}>{roleLabel(u.role, u.nivel)}</Badge>
-                      {/* Só faz sentido pra vendedor ativo; alguns estão fora DE
-                          PROPÓSITO (decisão de gestão), por isso tom neutro. */}
-                      {noRodizio && u.role === "vendedor" && u.aprovado !== false && !noRodizio.has(u.id) && (
+                      {/* Só faz sentido pra VENDEDOR ativo; alguns estão fora DE
+                          PROPÓSITO (decisão de gestão), por isso tom neutro.
+                          Consultor (seguros) fica fora POR DEFINIÇÃO — pra ele
+                          o aviso seria ruído, o rótulo do cargo já diz tudo. */}
+                      {noRodizio && u.role === "vendedor" && u.nivel !== "Consultor" && u.aprovado !== false && !noRodizio.has(u.id) && (
                         <span title="Não está em nenhuma fila de distribuição — não recebe lead automático. Para incluir, use Distribuição de Leads.">
                           <Badge tone="slate">Fora do rodízio</Badge>
                         </span>

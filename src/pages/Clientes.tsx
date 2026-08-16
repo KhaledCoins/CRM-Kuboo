@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Users, Plus, MapPin, Phone, Mail, Send } from "lucide-react";
+import { Users, Plus, MapPin, Phone, Mail, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Button, Card, Table, Th, Td, Tr, FilterBar, SearchInput, EmptyState, Spinner } from "../components/ui";
 import { TimelineCliente, type ClienteResumo } from "../components/TimelineCliente";
 import { NovoClienteModal } from "../components/NovoClienteModal";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../context/AuthContext";
 import { dateBR, initials, formatarDocumento } from "../lib/format";
 
 interface Cliente {
@@ -13,6 +14,7 @@ interface Cliente {
 }
 
 export function Clientes() {
+  const { isManager } = useAuth();
   const [rows, setRows] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -79,6 +81,34 @@ export function Clientes() {
     }
   }
 
+  // Exclusão (gestor/admin): o servidor BLOQUEIA se o cliente tiver apólices/
+  // consórcios/vendas/cotas/sinistros — apagar cadastro com contrato levaria o
+  // histórico junto (FKs em cascata). O caso de uso é cadastro errado/duplicado.
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
+  async function excluirCliente(c: Cliente) {
+    if (!supabase || excluindoId) return;
+    if (!window.confirm(`Excluir o cliente "${c.name}"?\n\nIsso remove o cadastro e o login do portal, de vez. Só é possível quando o cliente não tem apólices, consórcios, vendas, cotas ou sinistros vinculados.`)) return;
+    setExcluindoId(c.id);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("Sessão expirada — faça login novamente.");
+      const r = await fetch("/api/excluir-cliente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ clientId: c.id }),
+      });
+      const json = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(json?.error || "Falha ao excluir o cliente.");
+      toast.success(`Cliente "${json.nome ?? c.name}" excluído.`);
+      setRows((prev) => prev.filter((x) => x.id !== c.id));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao excluir o cliente.", { duration: 10000 });
+    } finally {
+      setExcluindoId(null);
+    }
+  }
+
   useEffect(() => { carregar(); }, [carregar]);
 
   const filtered = useMemo(
@@ -99,7 +129,7 @@ export function Clientes() {
             action={<Button icon={Plus} onClick={() => setNovoAberto(true)}>Novo Cliente</Button>} />
         ) : (
           <div className="p-2">
-            <Table head={<><Th>Cliente</Th><Th>CPF/CNPJ</Th><Th>Contato</Th><Th>Cidade/UF</Th><Th>Cadastro</Th><Th>Acesso</Th></>}>
+            <Table head={<><Th>Cliente</Th><Th>CPF/CNPJ</Th><Th>Contato</Th><Th>Cidade/UF</Th><Th>Cadastro</Th><Th>Acesso</Th>{isManager && <Th> </Th>}</>}>
               {filtered.map((c) => (
                 <Tr key={c.id} className="cursor-pointer" onClick={() => setAberto(c)}>
                   <Td>
@@ -133,6 +163,19 @@ export function Clientes() {
                       <span className="text-xs text-muted">—</span>
                     )}
                   </Td>
+                  {isManager && (
+                    <Td>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); excluirCliente(c); }}
+                        disabled={excluindoId === c.id}
+                        title="Excluir cliente (cadastro + login do portal)"
+                        aria-label={`Excluir cliente ${c.name}`}
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </Td>
+                  )}
                 </Tr>
               ))}
             </Table>
