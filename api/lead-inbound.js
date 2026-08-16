@@ -100,6 +100,42 @@ export default async function handler(req, res) {
     score: Number.isFinite(+b.score) ? Math.max(0, Math.min(100, +b.score)) : 60,
   };
 
+  // ─── Idempotência (24h por telefone/e-mail) ────────────────────────────────
+  // Make/Zapier fazem RETRY automático quando a resposta demora (cold start +
+  // trigger de distribuição são candidatos clássicos a timeout), e o mesmo
+  // cliente reenvia formulário — sem esta trava cada tentativa virava um lead
+  // NOVO, distribuído possivelmente pra OUTRO vendedor: dois consultores
+  // ligando pra mesma pessoa. Dentro de 24h, mesmo telefone (por dígitos, com
+  // tolerância ao prefixo 55) ou mesmo e-mail devolve o lead EXISTENTE com 200
+  // (Make não re-tenta). Depois de 24h, contato novo é interesse novo: vira
+  // lead e a fila de retorno (memória 16d) devolve ao mesmo consultor.
+  // Falha na checagem NUNCA segura a captação — lead pago não se perde.
+  const soDigitos = (s) => String(s || "").replace(/\D/g, "");
+  const mesmoTelefone = (a, b) => {
+    if (a.length < 8 || b.length < 8) return false;
+    return a === b || a.endsWith(b) || b.endsWith(a); // "5512988..." casa "12988..."
+  };
+  try {
+    const digitos = soDigitos(lead.telefone);
+    if (digitos.length >= 8 || lead.email) {
+      const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentes } = await admin
+        .from("leads").select("id, vendedor_id, telefone, email")
+        .gte("created_at", desde)
+        .order("created_at", { ascending: false }).limit(200);
+      const existente = (recentes ?? []).find((r) =>
+        mesmoTelefone(soDigitos(r.telefone), digitos) ||
+        (lead.email && r.email && r.email.toLowerCase() === lead.email)
+      );
+      if (existente) {
+        console.log(JSON.stringify({ level: "info", fn: "lead-inbound", msg: `dedup 24h: reaproveitando lead ${existente.id}` }));
+        return res.status(200).json({ ok: true, id: existente.id, duplicado: true, distribuido_para: existente.vendedor_id ?? null });
+      }
+    }
+  } catch (err) {
+    console.error(JSON.stringify({ level: "warn", fn: "lead-inbound", msg: `dedup falhou (seguindo com insert): ${String(err).slice(0, 200)}` }));
+  }
+
   try {
     const { data, error } = await admin.from("leads").insert(lead).select("id, vendedor_id").single();
     if (error) throw new Error(error.message);
