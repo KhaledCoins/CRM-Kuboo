@@ -680,6 +680,19 @@ export function LeadDetalhe() {
   // Fechar o negócio AQUI tem que gerar venda/parcelas/comissão igual ao funil —
   // antes só movia a etapa e a venda nunca era registrada (Produção, Ranking e
   // Comissões ficavam cegos pra quem fechava pela página do lead).
+  // Mover etapa DAQUI fecha um buraco de UX: antes só o drag no kanban movia o
+  // funil — penoso no celular e fora do fluxo de quem já está atendendo aqui.
+  async function onMudarEtapa(etapa: string) {
+    if (!lead || (lead.etapa || "novos") === etapa) return;
+    try {
+      await moverEtapa(lead.id, etapa); // lança em RLS/rede — nada de sucesso falso
+      setLead((p) => (p ? { ...p, etapa } : p));
+      toast.success(`Etapa atualizada: ${ETAPA_INFO[etapa]?.rotulo ?? etapa}.`);
+    } catch {
+      toast.error("Não foi possível mudar a etapa.");
+    }
+  }
+
   async function onFecharNegocio() {
     if (!lead) return;
     try {
@@ -850,7 +863,11 @@ export function LeadDetalhe() {
               {lead.origem && <Badge tone="slate">{lead.origem}</Badge>}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-sm text-muted">
-              {lead.telefone && <span className="flex items-center gap-1.5"><Phone size={13} /> {lead.telefone}</span>}
+              {lead.telefone && (
+                <a href={`tel:${lead.telefone.replace(/[^\d+]/g, "")}`} title="Ligar" className="flex items-center gap-1.5 hover:text-brand-600">
+                  <Phone size={13} /> {lead.telefone}
+                </a>
+              )}
               {waHref && (
                 <a href={waHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg">
                   <MessageCircle size={12} /> WhatsApp
@@ -912,12 +929,29 @@ export function LeadDetalhe() {
                 <Button size="sm" variant="outline" icon={Archive} onClick={() => setShowArquivar(true)}>Arquivar lead</Button>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" icon={Trophy} onClick={onFecharNegocio}>Marcar negócio fechado</Button>
-                <Button size="sm" variant="outline" icon={FileText} onClick={() => setShowProposta(true)}>Cadastrar proposta</Button>
-                <Button size="sm" variant="outline" icon={Archive} onClick={() => setShowArquivar(true)}>Arquivar lead</Button>
-                <Button size="sm" variant="outline" icon={Undo2} onClick={onDevolverBolsao}>Devolver ao bolsão</Button>
-              </div>
+              <>
+                <div className="mb-3">
+                  <p className="text-xs font-bold text-muted uppercase tracking-wide mb-1.5">Etapa do funil</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["novos", "contato", "cotacao", "negociacao"].map((et) => (
+                      <button key={et} type="button" onClick={() => onMudarEtapa(et)}
+                        className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                          (lead.etapa || "novos") === et
+                            ? "bg-brand-500 text-white border-brand-500"
+                            : "bg-slate-50 text-muted border-slate-200 hover:border-brand-300 hover:text-brand-600"
+                        }`}>
+                        {ETAPA_INFO[et]?.rotulo ?? et}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" icon={Trophy} onClick={onFecharNegocio}>Marcar negócio fechado</Button>
+                  <Button size="sm" variant="outline" icon={FileText} onClick={() => setShowProposta(true)}>Cadastrar proposta</Button>
+                  <Button size="sm" variant="outline" icon={Archive} onClick={() => setShowArquivar(true)}>Arquivar lead</Button>
+                  <Button size="sm" variant="outline" icon={Undo2} onClick={onDevolverBolsao}>Devolver ao bolsão</Button>
+                </div>
+              </>
             )}
           </Card>
 

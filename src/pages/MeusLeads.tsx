@@ -407,7 +407,12 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-ink">{l.nome}</span>
-                {l.telefone && <span className="text-xs text-muted flex items-center gap-1"><Phone size={11} /> {l.telefone}</span>}
+                {l.telefone && (
+                  <a href={`tel:${l.telefone.replace(/[^\d+]/g, "")}`} onClick={(e) => e.stopPropagation()} title="Ligar"
+                    className="text-xs text-muted hover:text-brand-600 flex items-center gap-1">
+                    <Phone size={11} /> {l.telefone}
+                  </a>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {l.descartado && <Badge tone="red"><Archive size={11} /> Arquivado{l.motivo_descarte ? ` · ${l.motivo_descarte}` : ""}</Badge>}

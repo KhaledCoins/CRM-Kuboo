@@ -5,7 +5,7 @@ import { temaAtual, alternarTema } from "../lib/theme";
 import { NAV, type Modulo } from "../lib/nav";
 import { useAuth } from "../context/AuthContext";
 import { initials } from "../lib/format";
-import { fetchLeads, noBolsao, moduloDe } from "../lib/leads";
+import { contarBolsao } from "../lib/leads";
 import { fetchAvisos, type Aviso } from "../lib/avisos";
 import { can } from "../lib/permissoes";
 
@@ -35,9 +35,11 @@ export function Layout() {
     let active = true;
     async function load() {
       try {
-        const [leads, avs] = await Promise.all([fetchLeads(), fetchAvisos(modulo)]);
+        // contarBolsao = HEAD count no servidor. Antes: fetchLeads() baixava a
+        // base inteira a cada 60s, por usuário logado, só pra contar o badge.
+        const [n, avs] = await Promise.all([contarBolsao(modulo), fetchAvisos(modulo)]);
         if (!active) return;
-        setBolsaoCount(leads.filter((l) => moduloDe(l) === modulo && noBolsao(l) && !l.descartado).length);
+        setBolsaoCount(n);
         setAvisos(avs);
       } catch (e) {
         // falha de rede não pode travar o chrome global (sino/bolsão) — só loga

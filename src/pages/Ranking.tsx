@@ -28,7 +28,8 @@ export function Ranking() {
       if (!supabase) { setLoading(false); return; }
       try {
         const r = rangeFor(periodo);
-        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,vendedor_nome,vendedor_id").gte("data_venda", r.gte);
+        // Venda CANCELADA não pontua — sem o filtro ela seguia no ranking.
+        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,vendedor_nome,vendedor_id").neq("status", "cancelada").gte("data_venda", r.gte);
         if (r.lte) qy = qy.lte("data_venda", r.lte);
         const [{ data }, perfis] = await Promise.all([
           qy.limit(5000),

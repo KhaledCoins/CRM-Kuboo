@@ -108,6 +108,10 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [modulo]);
   // Recalcula SLA/espera a cada 10s
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 10000); return () => clearInterval(t); }, []);
+  // Lead novo tem que APARECER sem F5 — a operação é uma corrida de SLA de
+  // 20min e esta é a página onde se pega lead. Re-busca a cada 30s (o loadReq
+  // já protege contra resposta atrasada atropelando a lista).
+  useEffect(() => { const t = setInterval(() => { load(); }, 30000); return () => clearInterval(t); /* eslint-disable-next-line */ }, [modulo]);
 
   // tick nas deps também recalcula o status (aberto/fechado pode mudar sozinho
   // quando o relógio cruza o fim da janela, sem precisar recarregar a config).
@@ -131,10 +135,18 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
     setClaiming(id);
     try {
       const ok = await pegarLead(id, user.id);
-      if (ok) toast.success("Lead é seu! Ele já está no seu Pipeline.");
-      else toast.warning("Esse lead acabou de ser pego por outro consultor.");
+      if (ok) {
+        // O próximo passo é SEMPRE abrir o lead pro 1º contato — 1 toque no toast.
+        toast.success("Lead é seu! Ele já está no seu Pipeline.", {
+          action: { label: "Abrir lead", onClick: () => navigate(`/${modulo}/leads/${id}`) },
+        });
+      } else {
+        toast.warning("Esse lead acabou de ser pego por outro consultor.");
+      }
       setLeads((prev) => prev.filter((l) => l.id !== id)); // sai da fila nos dois casos
     } catch (e) {
+      // Erro de rede/RLS NÃO é "outro pegou" (pegarLead agora lança nesses
+      // casos): o card FICA na tela e o vendedor tenta de novo.
       console.error("[bolsao] pegar:", e);
       toast.error("Não foi possível pegar o lead agora. Tente de novo.");
     } finally {
@@ -255,7 +267,12 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
                   {l.valor_potencial ? <Badge tone="green">{brl(l.valor_potencial)}</Badge> : null}
                 </div>
 
-                {l.telefone && <p className="text-xs text-muted flex items-center gap-1 mb-1"><Phone size={12} /> {l.telefone}</p>}
+                {l.telefone && (
+                  <a href={`tel:${l.telefone.replace(/[^\d+]/g, "")}`} title="Ligar"
+                    className="text-xs text-muted hover:text-brand-600 flex items-center gap-1 mb-1 w-fit">
+                    <Phone size={12} /> {l.telefone}
+                  </a>
+                )}
                 {l.mensagem && <p className="text-xs text-slate-500 line-clamp-2 mb-3">"{l.mensagem}"</p>}
 
                 <div className="flex items-center gap-2 mt-3">

@@ -178,7 +178,7 @@ export async function pegarLead(id: string, vendedorId: string): Promise<boolean
   const now = new Date().toISOString();
   const minutos = await limiteSlaMinutos();
   const sla = new Date(Date.now() + minutos * 60000).toISOString();
-  const { data } = await supabase.from("leads").update({
+  const { data, error } = await supabase.from("leads").update({
     vendedor_id: vendedorId,
     atribuido_em: now,
     sla_expira_em: sla,
@@ -186,7 +186,26 @@ export async function pegarLead(id: string, vendedorId: string): Promise<boolean
   }).eq("id", id)
     .or(`vendedor_id.is.null,and(primeiro_contato_em.is.null,sla_expira_em.lt.${now})`)
     .select("id");
+  // Erro (rede/RLS) LANÇA — false fica reservado pra corrida real ("outro
+  // pegou"). Antes a falha de rede sumia com o card e mentia pro vendedor.
+  if (error) throw new Error(error.message);
   return !!(data && data.length);
+}
+
+// Badge do bolsão no menu: só a CONTAGEM, via HEAD count — antes o Layout
+// baixava a base INTEIRA (fetchLeads, select *) a cada 60s por usuário logado
+// só pra contar. Mesma regra do noBolsao(): sem dono OU SLA estourado sem 1º
+// contato; mesma regra de módulo do moduloDe().
+export async function contarBolsao(modulo: "seguros" | "consorcios"): Promise<number> {
+  if (!supabase) return 0;
+  const agora = new Date().toISOString();
+  let q = supabase.from("leads").select("id", { count: "exact", head: true })
+    .eq("descartado", false)
+    .or(`vendedor_id.is.null,and(primeiro_contato_em.is.null,sla_expira_em.lt.${agora})`);
+  q = modulo === "consorcios" ? q.eq("modulo", "consorcios") : q.or("modulo.neq.consorcios,modulo.is.null");
+  const { count, error } = await q;
+  if (error) console.error("[leads] contarBolsao:", error.message);
+  return count ?? 0;
 }
 
 // ATENÇÃO ao padrão destas duas: `.select("id")` + conferir se voltou linha.
