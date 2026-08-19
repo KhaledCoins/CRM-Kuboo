@@ -1,0 +1,51 @@
+SNAPSHOT DNS COMPLETO — 3 dominios da Kuboo — gerado em 2026-08-19 08:41
+
+=========== kubooseguros.com.br ===========
+kubooseguros.com.br                        NS     ns2.dreamhost.com
+kubooseguros.com.br                        NS     ns1.dreamhost.com
+kubooseguros.com.br                        NS     ns3.dreamhost.com
+kubooseguros.com.br                        MX     0 mx2.mailchannels.net
+kubooseguros.com.br                        MX     0 mx1.mailchannels.net
+kubooseguros.com.br                        TXT    v=spf1 mx include:netblocks.dreamhost.com include:relay.mailchannels.net -all
+kubooseguros.com.br                        A      216.198.79.1
+www.kubooseguros.com.br                    A      64.29.17.1
+www.kubooseguros.com.br                    A      216.198.79.1
+www.kubooseguros.com.br                    CNAME  15b26206c394f5b5.vercel-dns-017.com
+mail.kubooseguros.com.br                   A      64.90.62.162
+mail.kubooseguros.com.br                   MX     0 mx1.mailchannels.net
+mail.kubooseguros.com.br                   MX     0 mx2.mailchannels.net
+webmail.kubooseguros.com.br                A      69.163.136.138
+mailboxes.kubooseguros.com.br              A      69.163.136.97
+autoconfig.kubooseguros.com.br             A      64.90.62.167
+autoconfig.kubooseguros.com.br             CNAME  autoconfig.dreamhost.com
+send.kubooseguros.com.br                   TXT    v=spf1 include:amazonses.com ~all
+_dmarc.kubooseguros.com.br                 TXT    v=DMARC1; p=none;
+resend._domainkey.kubooseguros.com.br      TXT    p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC4VnAbMNxgly3isUMp8NORkewTpjB283Rj31Wc0lYuXtS/FzaBQkepZ1xtbJDp2T4gA+uzzfBHjp6yjgGHOlM9xAuH1tjdeaSZH9h4bUJlM44FYMsFcArbw3qJLT+pMM0jeTlvL/x8+T3qvwnKnsNiqDHUNKeZo/VZu+9jdrj4zwIDAQAB
+
+=========== kuboosolucoesfinanceiras.com.br ===========
+kuboosolucoesfinanceiras.com.br            NS     ns2.dreamhost.com
+kuboosolucoesfinanceiras.com.br            NS     ns1.dreamhost.com
+kuboosolucoesfinanceiras.com.br            NS     ns3.dreamhost.com
+kuboosolucoesfinanceiras.com.br            MX     0 mx2.mailchannels.net
+kuboosolucoesfinanceiras.com.br            MX     0 mx1.mailchannels.net
+kuboosolucoesfinanceiras.com.br            TXT    v=spf1 mx include:netblocks.dreamhost.com include:relay.mailchannels.net -all
+kuboosolucoesfinanceiras.com.br            A      67.205.40.180
+www.kuboosolucoesfinanceiras.com.br        A      67.205.40.180
+mail.kuboosolucoesfinanceiras.com.br       A      64.90.62.162
+mail.kuboosolucoesfinanceiras.com.br       MX     0 mx2.mailchannels.net
+mail.kuboosolucoesfinanceiras.com.br       MX     0 mx1.mailchannels.net
+webmail.kuboosolucoesfinanceiras.com.br    A      69.163.136.138
+mailboxes.kuboosolucoesfinanceiras.com.br  A      69.163.136.97
+autoconfig.kuboosolucoesfinanceiras.com.br A      64.90.62.167
+autoconfig.kuboosolucoesfinanceiras.com.br CNAME  autoconfig.dreamhost.com
+ftp.kuboosolucoesfinanceiras.com.br        A      67.205.40.180
+ssh.kuboosolucoesfinanceiras.com.br        A      67.205.40.180
+
+=========== kubooconsorcios.com.br ===========
+kubooconsorcios.com.br                     NS     ns2.dreamhost.com
+kubooconsorcios.com.br                     NS     ns1.dreamhost.com
+kubooconsorcios.com.br                     NS     ns3.dreamhost.com
+kubooconsorcios.com.br                     A      67.205.40.180
+www.kubooconsorcios.com.br                 A      67.205.40.180
+ftp.kubooconsorcios.com.br                 A      67.205.40.180
+ssh.kubooconsorcios.com.br                 A      67.205.40.180
