@@ -25,6 +25,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { env, segredoConfere } from "./_env.js";
 import { decidirModulo } from "./_modulo.js";
+import { formatarTelefone } from "./_telefone.js";
 
 const ORIGENS_VALIDAS = ["chatbot", "formulario", "whatsapp", "indicacao", "portal", "manual", "webhook"];
 const ETAPAS_VALIDAS = ["novos", "contato", "cotacao", "negociacao", "ganho", "perdido"];
@@ -34,19 +35,6 @@ const txt = (v, max = 200) => {
   const s = String(v).trim();
   return s ? s.slice(0, max) : null;
 };
-const digits = (v) => String(v ?? "").replace(/\D/g, "");
-
-// Telefone no formato usado pelo resto do CRM (DDI removido, máscara BR)
-function formatarTelefone(bruto) {
-  let d = digits(bruto);
-  if (d.startsWith("55") && d.length >= 12) d = d.slice(2);
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  // Menos de 10 dígitos não é telefone ("0", "999", lixo de formulário) — vira
-  // null pra nunca virar chave de deduplicação e fundir leads distintos.
-  return null;
-}
-
 // lead_status.alias do C2S → etapa do funil do CRM
 function mapearEtapa(a) {
   const alias = String(a?.attributes?.lead_status?.alias || "").toLowerCase();

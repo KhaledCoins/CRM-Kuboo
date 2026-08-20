@@ -21,6 +21,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { env, segredoConfere } from "./_env.js";
 import { decidirModulo } from "./_modulo.js";
+import { formatarTelefone } from "./_telefone.js";
 
 const BUCKET = new Map();
 function rateLimited(ip) {
@@ -73,9 +74,14 @@ export default async function handler(req, res) {
       .join("\n").slice(0, 4000) || null;
   }
 
+  // Mesma máscara do c2s-webhook (via _telefone.js): a adoção de leads lá casa
+  // por igualdade EXATA de telefone — formato divergente = lead do Meta em dobro
+  // no período paralelo. Resposta que não parseia como telefone BR (texto livre
+  // da pergunta de WhatsApp, número estrangeiro) fica como veio: cru > perdido.
+  const telBruto = String(b.telefone || "").trim();
   const lead = {
     nome,
-    telefone: String(b.telefone || "").trim().slice(0, 30) || null,
+    telefone: telBruto ? (formatarTelefone(telBruto) ?? telBruto.slice(0, 30)) : null,
     email: String(b.email || "").trim().toLowerCase().slice(0, 200) || null,
     produto_interesse: String(b.produto_interesse || "").trim().slice(0, 120) || null,
     mensagem,
