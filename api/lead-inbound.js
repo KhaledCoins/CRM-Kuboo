@@ -7,9 +7,14 @@
 // Auth: header  x-webhook-token: $LEAD_WEBHOOK_TOKEN  (env no Vercel; gere um
 // token longo aleatório). Sem o token correto → 401.
 //
-// Body (JSON): { nome*, telefone, email, produto_interesse, mensagem, modulo
-//   ('seguros'|'consorcios'), origem, fonte, canal, campanha, formulario{},
-//   score, fb_pagina, fb_anuncio, fb_formulario }
+// Body (JSON): { nome*, telefone, telefone_alt, email, produto_interesse,
+//   mensagem, modulo ('seguros'|'consorcios'), origem, fonte, canal, campanha,
+//   formulario{}, score, fb_pagina, fb_anuncio, fb_formulario }
+//
+// telefone_alt: fallback quando `telefone` vem vazio. No Make, `telefone` mapeia
+// a pergunta CUSTOM de WhatsApp (existe só em alguns formulários do Meta) e
+// `telefone_alt` o campo nativo phone_number — um formulário novo sem a pergunta
+// custom continua entregando telefone.
 //
 // origem aceita: 'chatbot' | 'formulario' | 'whatsapp' | 'indicacao' |
 //   'portal' | 'manual' | 'webhook' (default deste endpoint quando omitido).
@@ -78,7 +83,7 @@ export default async function handler(req, res) {
   // por igualdade EXATA de telefone — formato divergente = lead do Meta em dobro
   // no período paralelo. Resposta que não parseia como telefone BR (texto livre
   // da pergunta de WhatsApp, número estrangeiro) fica como veio: cru > perdido.
-  const telBruto = String(b.telefone || "").trim();
+  const telBruto = String(b.telefone || "").trim() || String(b.telefone_alt || "").trim();
   const lead = {
     nome,
     telefone: telBruto ? (formatarTelefone(telBruto) ?? telBruto.slice(0, 30)) : null,
