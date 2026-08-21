@@ -123,14 +123,26 @@ export function moduloDe(l: Lead): "seguros" | "consorcios" {
 // MeusLeads) usa fetchLeadsArquivados, que pagina no SERVIDOR. Limite alto +
 // warning quando estourar, pra nunca truncar a base em silêncio.
 const FETCH_LIMIT = 3000;
-export async function fetchLeads(opts?: { incluirDescartados?: boolean }): Promise<Lead[]> {
-  if (!supabase) return [];
+
+// Devolve o ERRO junto, de propósito. Antes devolvia só `Lead[]`, e uma falha
+// de rede ou de sessão virava lista vazia — que as telas mostravam como
+// "Bolsão vazio", "Nenhum lead em atendimento", "Nada pra fazer agora". O
+// consultor concluía que não tinha trabalho e ia embora, com leads pagos
+// esperando. A assinatura mudou de propósito: assim o compilador obriga TODA
+// tela a decidir o que fazer com a falha, em vez de deixar passar em silêncio.
+export type LeadsCarregados = { leads: Lead[]; erro: string | null };
+
+export async function fetchLeads(opts?: { incluirDescartados?: boolean }): Promise<LeadsCarregados> {
+  if (!supabase) return { leads: [], erro: "Supabase não configurado" };
   let q = supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(FETCH_LIMIT);
   if (!opts?.incluirDescartados) q = q.eq("descartado", false);
   const { data, error } = await q;
-  if (error) console.error("[leads] fetchLeads:", error.message); // não engole em silêncio
+  if (error) {
+    console.error("[leads] fetchLeads:", error.message);
+    return { leads: [], erro: error.message };
+  }
   if (data && data.length === FETCH_LIMIT) console.warn(`[leads] fetchLeads atingiu o teto de ${FETCH_LIMIT} — leads mais antigos fora da lista; hora de paginar.`);
-  return (data as any) ?? [];
+  return { leads: (data as any) ?? [], erro: null };
 }
 
 // ─── Aba "Arquivados" pagina no SERVIDOR ────────────────────────────────────
@@ -252,15 +264,17 @@ export async function contarPerdidos(modulo: "seguros" | "consorcios"): Promise<
 // baixava a base INTEIRA (fetchLeads, select *) a cada 60s por usuário logado
 // só pra contar. Mesma regra do noBolsao(): sem dono OU SLA estourado sem 1º
 // contato; mesma regra de módulo do moduloDe().
-export async function contarBolsao(modulo: "seguros" | "consorcios"): Promise<number> {
-  if (!supabase) return 0;
+export async function contarBolsao(modulo: "seguros" | "consorcios"): Promise<number | null> {
+  if (!supabase) return null;
   const agora = new Date().toISOString();
   let q = supabase.from("leads").select("id", { count: "exact", head: true })
     .eq("descartado", false)
     .or(filtroBolsao(agora));
   q = modulo === "consorcios" ? q.eq("modulo", "consorcios") : q.or("modulo.neq.consorcios,modulo.is.null");
   const { count, error } = await q;
-  if (error) console.error("[leads] contarBolsao:", error.message);
+  // null = "não sei", 0 = "sei que está vazio". O Layout esconde o badge no
+  // null em vez de estampar um zero que ele não apurou.
+  if (error) { console.error("[leads] contarBolsao:", error.message); return null; }
   return count ?? 0;
 }
 
@@ -334,13 +348,31 @@ export async function descartarLead(id: string, motivo: string): Promise<boolean
  *  entre os vendedores, na ordem de prioridade. COMPLEMENTA o "pegar lead"
  *  manual — cada atribuição usa a mesma proteção de corrida do pegarLead,
  *  então leads pegos no meio do rodízio são simplesmente pulados. */
-export async function distribuirBolsao(leads: Lead[], vendedorIds: string[]): Promise<{ distribuidos: number; pulados: number }> {
-  if (!supabase || !vendedorIds.length) return { distribuidos: 0, pulados: leads.length };
-  const ordenados = [...leads].sort((a, b) => prioridadeLead(b) - prioridadeLead(a));
-  let distribuidos = 0, pulados = 0, i = 0;
-  for (const l of ordenados) {
-    const ok = await pegarLead(l.id, vendedorIds[i % vendedorIds.length]);
-    if (ok) { distribuidos++; i++; } else pulados++;
+export async function distribuirBolsao(
+  leads: Lead[], vendedorIds: string[], comecarEm = 0,
+): Promise<{ distribuidos: number; pulados: number; falhados: number; proximoIndice: number }> {
+  if (!supabase || !vendedorIds.length) {
+    return { distribuidos: 0, pulados: leads.length, falhados: 0, proximoIndice: comecarEm };
   }
-  return { distribuidos, pulados };
+  const ordenados = [...leads].sort((a, b) => prioridadeLead(b) - prioridadeLead(a));
+  let distribuidos = 0, pulados = 0, falhados = 0;
+  // O ponto de partida do rodízio vem de FORA e é persistido pelo chamador.
+  // Começando sempre em 0, quem estivesse no topo da lista recebia o 1º lead
+  // de TODA distribuição — e como o normal é distribuir poucos leads por vez,
+  // os primeiros da lista acumulavam e os últimos quase nunca eram alcançados.
+  let i = comecarEm;
+  for (const l of ordenados) {
+    try {
+      const ok = await pegarLead(l.id, vendedorIds[i % vendedorIds.length]);
+      if (ok) { distribuidos++; i++; } else pulados++;
+    } catch (e) {
+      // pegarLead LANÇA em falha de rede/RLS. Sem este catch, uma falha no
+      // meio abortava o laço inteiro: os leads seguintes não eram nem
+      // tentados, o botão ficava travado (o setDistribuindo(false) não rodava)
+      // e a tela não dizia o que tinha acontecido.
+      console.error("[leads] distribuirBolsao:", e);
+      falhados++;
+    }
+  }
+  return { distribuidos, pulados, falhados, proximoIndice: i % vendedorIds.length };
 }

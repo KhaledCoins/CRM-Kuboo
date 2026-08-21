@@ -5,7 +5,7 @@ import {
 } from "@dnd-kit/core";
 import { KanbanSquare, MessageCircle, User, Clock, DollarSign, CheckCircle2, AlertTriangle, Inbox, ListPlus, X, Archive } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, Button, KpiCard, Card, Spinner } from "../components/ui";
+import { Button, Card, ErroCarga, KpiCard, PageHeader, Spinner } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
 import { RegistrarVendaModal } from "../components/RegistrarVendaModal";
 import { criarColumnKeyboardCoordinateGetter } from "../lib/dndKeyboard";
@@ -219,10 +219,14 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
     useSensor(KeyboardSensor, { coordinateGetter: stageKeyboardCoordinateGetter }),
   );
 
+  // Falha de carga tem estado PRÓPRIO: "não consegui carregar" não é "vazio".
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
   useEffect(() => {
     (async () => {
       const [ls, mots] = await Promise.all([fetchLeads(), listar<MotivoArquivamento>("motivos_arquivamento", "nome")]);
-      setLeads(ls as LeadPipe[]);
+      // Falha de carga não pode virar "Nenhum lead em atendimento".
+      setErroCarga(ls.erro);
+      setLeads(ls.leads as LeadPipe[]);
       setMotivos(mots.filter((m) => m.ativo));
       if (supabase) {
         // Nomes da equipe (consultor no card, dono da venda, "Ver como")
@@ -361,6 +365,8 @@ export function Pipeline({ modulo = "seguros" }: { modulo?: Modulo }) {
 
       {loading ? (
         <Spinner label="Carregando funil..." />
+      ) : erroCarga ? (
+        <Card pad={false}><ErroCarga oQue="o funil" onTentarDeNovo={() => window.location.reload()} /></Card>
       ) : ativos.length === 0 ? (
         <Card pad={false}>
           <div className="text-center py-14 px-6">

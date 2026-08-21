@@ -19,7 +19,9 @@ export function Layout() {
   const modulo: Modulo = loc.pathname.startsWith("/consorcios") ? "consorcios" : "seguros";
   const groups = NAV[modulo];
   const role = user?.role ?? "vendedor";
-  const [bolsaoCount, setBolsaoCount] = useState(0);
+  // null = não consegui contar (rede/sessão). Estampar 0 aí seria dizer
+  // "bolsão vazio" sem ter apurado — o consultor deixa de abrir a tela.
+  const [bolsaoCount, setBolsaoCount] = useState<number | null>(0);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [avisosAbertos, setAvisosAbertos] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false); // drawer da sidebar no mobile
@@ -223,7 +225,7 @@ export function Layout() {
                     >
                       <it.icon size={17} className="shrink-0" />
                       <span className="truncate flex-1">{it.label}</span>
-                      {it.to.endsWith("/bolsao") && bolsaoCount > 0 && (
+                      {it.to.endsWith("/bolsao") && bolsaoCount !== null && bolsaoCount > 0 && (
                         <span className="shrink-0 text-[10px] font-extrabold bg-red-500 text-white rounded-full min-w-[18px] h-[18px] px-1 grid place-items-center animate-pulse">{bolsaoCount}</span>
                       )}
                     </NavLink>

@@ -68,7 +68,7 @@ export function DashboardConsorcios() {
           fetchLeads(),
         ]);
         if (!active) return;
-        setCotas(cotasR.data || []); setGrupos(gruposR.data || []); setLeads(ls);
+        setCotas(cotasR.data || []); setGrupos(gruposR.data || []); setLeads(ls.leads);
       } catch (e) {
         console.error("[dashboard-consorcios]", e);
       } finally {

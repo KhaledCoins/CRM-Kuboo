@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { WifiOff } from "lucide-react";
 
 /* ---------- Card ---------- */
 export function Card({ children, className = "", pad = true }: { children: ReactNode; className?: string; pad?: boolean }) {
@@ -122,6 +123,32 @@ export function EmptyState({ icon: Icon, title, hint, action }: { icon: LucideIc
       <p className="font-bold text-ink">{title}</p>
       {hint && <p className="text-sm text-muted mt-1 max-w-md mx-auto">{hint}</p>}
       {action && <div className="mt-5">{action}</div>}
+    </div>
+  );
+}
+
+/* ---------- Falha de carga ---------- */
+// "Não consegui carregar" NÃO é "está vazio". Uma falha de rede ou de sessão
+// vinha como lista vazia e as telas mostravam "Bolsão vazio", "Nenhum lead em
+// atendimento", "Nada pra fazer agora" — o consultor concluía que não tinha
+// trabalho e ia embora, com lead pago esperando na fila. Este estado diz a
+// verdade e oferece o caminho de volta.
+export function ErroCarga({ onTentarDeNovo, oQue = "os dados" }: { onTentarDeNovo?: () => void; oQue?: string }) {
+  return (
+    <div className="text-center py-16 px-6">
+      <span className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-500 grid place-items-center mx-auto mb-4">
+        <WifiOff size={26} />
+      </span>
+      <p className="font-bold text-ink">Não consegui carregar {oQue}</p>
+      <p className="text-sm text-muted mt-1 max-w-md mx-auto">
+        Isto <strong>não</strong> quer dizer que está vazio — a lista pode ter conteúdo.
+        Confira a conexão e tente de novo.
+      </p>
+      {onTentarDeNovo && (
+        <div className="mt-5">
+          <Button onClick={onTentarDeNovo}>Tentar de novo</Button>
+        </div>
+      )}
     </div>
   );
 }

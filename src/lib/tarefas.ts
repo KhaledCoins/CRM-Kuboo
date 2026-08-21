@@ -43,21 +43,31 @@ export async function criarTarefasLote(ts: Partial<Tarefa>[]): Promise<{ error: 
   return { error: error ? error.message : null };
 }
 
+// ATENÇÃO ao padrão das três abaixo: `.select("id")` + conferir se voltou
+// linha. UPDATE/DELETE barrado por RLS no PostgREST volta ZERO linhas SEM
+// erro — então `if (error)` sozinho dá "gravado com sucesso" pra escrita que
+// não aconteceu. No quadro de tarefas isso significava arrastar o card,
+// vê-lo ficar na coluna nova, e ele voltar no próximo carregamento.
+const NADA_GRAVADO = "0 linhas afetadas — RLS bloqueou ou o registro não existe mais.";
+
 export async function moverTarefa(id: string, status: Tarefa["status"]) {
   if (!supabase) return;
   // propaga o erro pra quem chama poder desfazer o card se a gravação falhar
-  const { error } = await supabase.from("tarefas").update({ status }).eq("id", id);
+  const { data, error } = await supabase.from("tarefas").update({ status }).eq("id", id).select("id");
   if (error) throw error;
+  if (!data?.length) throw new Error(NADA_GRAVADO);
 }
 
 export async function atualizarTarefa(id: string, patch: Partial<Tarefa>): Promise<{ error: string | null }> {
   if (!supabase) return { error: "Supabase não configurado" };
-  const { error } = await supabase.from("tarefas").update(patch).eq("id", id);
-  return { error: error ? error.message : null };
+  const { data, error } = await supabase.from("tarefas").update(patch).eq("id", id).select("id");
+  if (error) return { error: error.message };
+  return { error: data?.length ? null : NADA_GRAVADO };
 }
 
 export async function excluirTarefa(id: string): Promise<{ error: string | null }> {
   if (!supabase) return { error: "Supabase não configurado" };
-  const { error } = await supabase.from("tarefas").delete().eq("id", id);
-  return { error: error ? error.message : null };
+  const { data, error } = await supabase.from("tarefas").delete().eq("id", id).select("id");
+  if (error) return { error: error.message };
+  return { error: data?.length ? null : NADA_GRAVADO };
 }

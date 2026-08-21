@@ -1,0 +1,21 @@
+-- Aplicado em 21/08/2026 (migracao: rede_de_seguranca_das_etapas_na_rls_e_lock_no_rodizio).
+-- Duas correcoes da auditoria multi-agente:
+--
+-- [8] A rede de seguranca das etapas existia no front (noBolsao/filtroBolsao)
+--     mas NAO na RLS: a policy de UPDATE deixava qualquer consultor gravar num
+--     lead de OUTRO em 'negociacao' com SLA vencido — roubo direto pela API.
+--     Agora a funcao lead_no_bolsao() e a definicao do banco (8/8 casos
+--     provados contra o noBolsao do app), e leads_team_update usa ela.
+--     A policy de LEITURA ficou como estava (ver leads de colega e
+--     transparencia; gravar neles e que nao pode).
+--
+-- [9] distribuir_lead lia sem FOR UPDATE e atualizava sem `and vendedor_id is
+--     null`: o trigger de um lead novo e o botao "Redistribuir bolsao" podiam
+--     atribuir o MESMO lead a dois consultores, o segundo por cima do
+--     primeiro. Agora trava a linha e reconfere o dono em todo UPDATE
+--     (get diagnostics row_count; 0 linhas = perdeu a corrida, retorna).
+--     Provado em transacao com rollback: re-distribuir um lead ja atribuido
+--     nao troca o dono e nao gera linha extra de log.
+--
+-- A definicao completa esta na migracao homonimo no historico do Supabase.
+-- Este arquivo e o espelho de REFERENCIA do repo (fonte: supabase migration list).

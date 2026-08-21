@@ -134,8 +134,14 @@ export async function etiquetasDoLead(leadId: string): Promise<Etiqueta[]> {
 export async function alternarEtiqueta(leadId: string, etiquetaId: string, tem: boolean): Promise<boolean> {
   if (!supabase) return false;
   if (tem) {
-    const { error } = await supabase.from("lead_etiquetas").delete().eq("lead_id", leadId).eq("etiqueta_id", etiquetaId);
-    return err("removerEtiqueta", error);
+    // .select() + conferir linha: DELETE barrado por RLS volta zero linhas SEM
+    // erro, e a etiqueta sumia da tela mas continuava no banco — reaparecendo
+    // no próximo carregamento.
+    const { data, error } = await supabase.from("lead_etiquetas").delete()
+      .eq("lead_id", leadId).eq("etiqueta_id", etiquetaId).select("lead_id");
+    if (!err("removerEtiqueta", error)) return false;
+    if (!data?.length) { console.error("[c2s] removerEtiqueta: 0 linhas afetadas (RLS bloqueou ou já não existia)"); return false; }
+    return true;
   }
   const { error } = await supabase.from("lead_etiquetas").insert({ lead_id: leadId, etiqueta_id: etiquetaId });
   return err("adicionarEtiqueta", error);
@@ -151,8 +157,11 @@ export async function favoritosDoUsuario(userId: string): Promise<Set<string>> {
 export async function alternarFavorito(userId: string, leadId: string, fav: boolean): Promise<boolean> {
   if (!supabase) return false;
   if (fav) {
-    const { error } = await supabase.from("lead_favoritos").delete().eq("user_id", userId).eq("lead_id", leadId);
-    return err("desfavoritar", error);
+    const { data, error } = await supabase.from("lead_favoritos").delete()
+      .eq("user_id", userId).eq("lead_id", leadId).select("lead_id");
+    if (!err("desfavoritar", error)) return false;
+    if (!data?.length) { console.error("[c2s] desfavoritar: 0 linhas afetadas (RLS bloqueou ou já não existia)"); return false; }
+    return true;
   }
   const { error } = await supabase.from("lead_favoritos").insert({ user_id: userId, lead_id: leadId });
   return err("favoritar", error);

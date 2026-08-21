@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Inbox, Phone, MessageCircle, Hand, Clock, Flame, Tag, AlertTriangle, Snowflake, ThermometerSun, X, Shuffle, ExternalLink, MoonStar } from "lucide-react";
-import { PageHeader, Card, KpiCard, Button, Badge, EmptyState, Spinner, FilterBar, Select } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErroCarga, FilterBar, KpiCard, PageHeader, Select, Spinner } from "../components/ui";
 import { fetchLeads, pegarLead, descartarLead, distribuirBolsao, noBolsao, moduloDe, prioridadeLead, temperaturaLead, getBolsaoConfig, type Lead, type Temperatura } from "../lib/leads";
 import { DIAS_SEMANA, minutosLabel, type BolsaoConfig, type HorarioSemana } from "../lib/c2s";
 import { supabase } from "../lib/supabase";
@@ -95,11 +95,16 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
   // (só muda a prop) — sem o token, uma resposta atrasada do módulo anterior
   // sobrescreveria a lista do módulo atual.
   const loadReq = useRef(0);
+  // Falha de carga tem estado PRÓPRIO: "não consegui carregar" não é "vazio".
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
   async function load() {
     const req = ++loadReq.current;
     try {
-      const all = await fetchLeads();
+      const { leads: all, erro } = await fetchLeads();
       if (req !== loadReq.current) return;
+      // Falha de carga NÃO pode virar "Bolsão vazio": o consultor conclui que
+      // não tem trabalho e vai embora com lead pago esperando na fila.
+      setErroCarga(erro);
       // só os leads DESTE módulo (antes /seguros/bolsao e /consorcios/bolsao mostravam a mesma lista)
       setLeads(all.filter((l) => moduloDe(l) === modulo && noBolsao(l) && !l.descartado));
     } catch (e) {
@@ -166,18 +171,45 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
     // e gestor/admin não entram na conta do rodízio manual. Consultor (cargo
     // de SEGUROS em profiles.nivel) também fica fora: não entra em distribuição.
     const { data: vendedores } = await supabase.from("profiles")
-      .select("id,name,nivel,aprovado,disponivel").eq("role", "vendedor").limit(50);
+      .select("id,name,nivel,aprovado,disponivel").eq("role", "vendedor")
+      // Ordem ESTÁVEL: sem .order(), o Postgres devolve na ordem que quiser e
+      // o "próximo da vez" salvo não aponta pra mesma pessoa entre execuções.
+      .order("id", { ascending: true }).limit(50);
     const ids = (vendedores || [])
       .filter((v: any) => v.aprovado !== false && v.disponivel !== false && v.nivel !== "Consultor")
       .map((v: any) => v.id);
     if (!ids.length) { toast.error("Nenhum vendedor disponível (aprovado e com check-in) pra distribuir."); return; }
     if (!window.confirm(`Distribuir ${filtered.length} lead(s) em rodízio entre ${ids.length} membro(s) da equipe?`)) return;
     setDistribuindo(true);
-    const r = await distribuirBolsao(filtered, ids);
-    setDistribuindo(false);
-    if (r.distribuidos) toast.success(`${r.distribuidos} lead(s) distribuído(s)${r.pulados ? ` · ${r.pulados} pulado(s)` : ""}.`);
-    else toast.warning("Nada foi distribuído (leads já pegos ou sem permissão).");
-    load();
+    try {
+      // De onde o rodízio RETOMA. Começando sempre em 0, quem estava no topo
+      // da lista recebia o 1º lead de toda distribuição — e como o normal é
+      // distribuir poucos por vez, os primeiros acumulavam e os últimos quase
+      // nunca eram alcançados. Fica no aparelho de quem distribui, que é quem
+      // aperta o botão.
+      const CHAVE_RODIZIO = "kuboo_rodizio_manual_proximo";
+      const salvo = Number(localStorage.getItem(CHAVE_RODIZIO) ?? 0);
+      const inicio = Number.isFinite(salvo) && salvo >= 0 ? salvo % ids.length : 0;
+
+      const r = await distribuirBolsao(filtered, ids, inicio);
+      try { localStorage.setItem(CHAVE_RODIZIO, String(r.proximoIndice)); } catch { /* sem storage: recomeça do zero */ }
+
+      const detalhe = [
+        r.pulados ? `${r.pulados} pulado(s)` : "",
+        r.falhados ? `${r.falhados} com falha` : "",
+      ].filter(Boolean).join(" · ");
+      if (r.falhados && !r.distribuidos) toast.error(`Nenhum lead distribuído — ${r.falhados} falha(s) de gravação. Confira a conexão.`);
+      else if (r.distribuidos) toast.success(`${r.distribuidos} lead(s) distribuído(s)${detalhe ? ` · ${detalhe}` : ""}.`);
+      else toast.warning("Nada foi distribuído (leads já pegos ou sem permissão).");
+    } catch (e) {
+      console.error("[bolsao] distribuir:", e);
+      toast.error("A distribuição falhou. Nada foi perdido — tente de novo.");
+    } finally {
+      // finally: sem ele, uma falha no meio deixava o botão travado em
+      // "Distribuindo..." e a tela desatualizada.
+      setDistribuindo(false);
+      load();
+    }
   }
 
   async function handleDescartar(l: Lead) {
@@ -237,7 +269,9 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
         <Spinner label="Carregando o bolsão..." />
       ) : filtered.length === 0 ? (
         <Card pad={false}>
-          <EmptyState icon={Inbox} title="Bolsão vazio" hint="Nenhum lead aguardando. Assim que entrar um lead novo (site, Kubinho, WhatsApp) ou um SLA estourar, ele aparece aqui pra equipe pegar." />
+          erroCarga
+            ? <ErroCarga oQue="o bolsão" onTentarDeNovo={() => { setLoading(true); void load(); }} />
+            : <EmptyState icon={Inbox} title="Bolsão vazio" hint="Nenhum lead aguardando. Assim que entrar um lead novo (site, Kubinho, WhatsApp) ou um SLA estourar, ele aparece aqui pra equipe pegar." />
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

@@ -68,7 +68,7 @@ export function DashboardSeguros() {
           fetchLeads(),
         ]);
         if (!active) return;
-        setVendas(data || []); setLeads(ls);
+        setVendas(data || []); setLeads(ls.leads);
       } catch (e) {
         console.error("[dashboard-seguros]", e);
       } finally {

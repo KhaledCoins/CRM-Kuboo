@@ -5,7 +5,7 @@ import {
   MessageCircle, ListChecks, CalendarClock, Star, Layers, Clock,
   AlertTriangle, Tag, Phone, Users as UsersIcon, Plus, X, MapPin, Archive,
 } from "lucide-react";
-import { PageHeader, Card, Badge, EmptyState, Spinner, SearchInput, Select, Button } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErroCarga, PageHeader, SearchInput, Select, Spinner } from "../components/ui";
 import { ModalShell } from "../components/ModalShell";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
@@ -123,6 +123,8 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
 
   // guarda de corrida no load (mesmo padrão do Bolsao — /seguros/leads ↔
   // /consorcios/leads é o MESMO componente, só muda a prop `modulo`).
+  // Falha de carga tem estado PRÓPRIO: "não consegui carregar" não é "vazio".
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
   const loadReq = useRef(0);
   async function load() {
     const req = ++loadReq.current;
@@ -139,7 +141,10 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
       ]);
       if (req !== loadReq.current) return;
 
-      setLeads(todosLeads.filter((l) => moduloDe(l) === modulo) as LeadRico[]);
+      // Erro de carga vira estado próprio: "Nada pra fazer agora" numa falha
+      // de rede faz o consultor achar que está livre.
+      setErroCarga(todosLeads.erro);
+      setLeads(todosLeads.leads.filter((l) => moduloDe(l) === modulo) as LeadRico[]);
       setAvisoParity(!!ativsRes.error);
       const mapa = new Map<string, Atividade[]>();
       ((ativsRes.data as Atividade[]) ?? []).forEach((a) => {
@@ -565,7 +570,9 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
             if (hoje.length === 0 && semContato.length === 0) {
               return (
                 <Card pad={false}>
-                  <EmptyState icon={ListChecks} title="Nada pra fazer agora" hint="Nenhum lead atrasado, com atividade pra hoje ou sem primeiro contato." />
+                  erroCarga
+                    ? <ErroCarga oQue="seus leads" onTentarDeNovo={() => { void load(); }} />
+                    : <EmptyState icon={ListChecks} title="Nada pra fazer agora" hint="Nenhum lead atrasado, com atividade pra hoje ou sem primeiro contato." />
                 </Card>
               );
             }
