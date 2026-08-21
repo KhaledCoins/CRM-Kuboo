@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw, AlertTriangle, Clock, CheckCircle2, ListPlus, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { Card, KpiCard, PageHeader, Table, Th, Td, Tr, EmptyState, Badge, Spinner } from "../components/ui";
-import { brl, dateBR } from "../lib/format";
+import { brl, dateBR, diaLocalDe } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import { criarTarefa, criarTarefasLote } from "../lib/tarefas";
 
@@ -33,7 +33,7 @@ export function Renovacoes() {
     (async () => {
       if (!supabase) { setLoading(false); return; }
       try {
-      const limite = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+      const limite = diaLocalDe(new Date(Date.now() + 90 * 86400000));
 
       const [vendasR, apolicesR] = await Promise.all([
         supabase.from("vendas").select("id,cliente_nome,produto,seguradora,valor,vigencia_fim,status")

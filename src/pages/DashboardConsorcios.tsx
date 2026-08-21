@@ -4,7 +4,7 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recha
 import { Card, KpiCard, PageHeader, EmptyState, Badge } from "../components/ui";
 import { FunilConversaoCard } from "../components/FunilConversao";
 import { MetaRealizadoCard } from "../components/MetaRealizado";
-import { brl, dateBR } from "../lib/format";
+import { brl, dateBR, hojeLocal, mesLocal } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import { fetchLeads, moduloDe, type Lead } from "../lib/leads";
 
@@ -59,7 +59,7 @@ export function DashboardConsorcios() {
     (async () => {
       if (!supabase) { setLoading(false); return; }
       try {
-        const hoje = new Date().toISOString().slice(0, 10);
+        const hoje = hojeLocal();
         const [cotasR, gruposR, ls] = await Promise.all([
           supabase.from("cotas").select("valor_credito,administradora,tipo,status,created_at").limit(3000),
           supabase.from("grupos").select("id,administradora,numero,tipo,proxima_assembleia,participantes")
@@ -79,7 +79,7 @@ export function DashboardConsorcios() {
   }, []);
 
   const m = useMemo(() => {
-    const mesPrefix = new Date().toISOString().slice(0, 7);
+    const mesPrefix = mesLocal();
     let credito = 0, ativas = 0, contempladas = 0, nMes = 0, creditoMes = 0;
     for (const c of cotas) {
       const v = Number(c.valor_credito) || 0;
@@ -111,7 +111,7 @@ export function DashboardConsorcios() {
 
       <MetaRealizadoCard modulo="consorcios" />
 
-      <FunilConversaoCard leads={leads.filter((l) => moduloDe(l) === "consorcios")} />
+      <FunilConversaoCard modulo="consorcios" leads={leads.filter((l) => moduloDe(l) === "consorcios")} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card pad={false}>

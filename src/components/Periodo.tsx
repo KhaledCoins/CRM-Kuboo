@@ -1,3 +1,4 @@
+import { hojeLocal } from "../lib/format";
 export type PeriodoKey = "mes" | "mes_passado" | "tri" | "ano";
 
 export const PERIODOS: { key: PeriodoKey; label: string }[] = [
@@ -7,22 +8,49 @@ export const PERIODOS: { key: PeriodoKey; label: string }[] = [
   { key: "ano", label: "Este ano" },
 ];
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Primeiro e último dia de um mês (1-based), no calendário — sem Date local,
+// que muda de dia conforme o fuso da máquina de quem abriu a tela.
+const primeiroDia = (a: number, m: number) => `${a}-${String(m).padStart(2, "0")}-01`;
+const ultimoDia = (a: number, m: number) =>
+  `${a}-${String(m).padStart(2, "0")}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, "0")}`;
 
-// Retorna o intervalo de datas (YYYY-MM-DD) para filtrar data_venda.
-export function rangeFor(key: PeriodoKey): { gte: string; lte?: string } {
-  const n = new Date();
+// Intervalo de datas (YYYY-MM-DD) para filtrar data_venda.
+//
+// TODO período tem TETO. "Mês passado" era o único que tinha — e por isso era o
+// único lugar onde o número voltava ao normal. Sem teto, uma venda digitada com
+// o ano errado (2027 no lugar de 2026) entra em "Este mês", "Últimos 3 meses" e
+// "Este ano", e continua entrando em todos eles pelo resto do ano: infla a
+// produção, estampa "Meta batida" com dinheiro que não existe, sobe o consultor
+// no Ranking e aparece na comissão.
+//
+// O "hoje" vem do fuso da OPERAÇÃO (America/Sao_Paulo), não do relógio da
+// máquina: depois das 21h de Brasília o UTC já virou o dia.
+export function rangeFor(key: PeriodoKey): { gte: string; lte: string } {
+  const hoje = hojeLocal();
+  const [ano, mes] = hoje.split("-").map(Number);
   switch (key) {
-    case "mes_passado":
-      return { gte: iso(new Date(n.getFullYear(), n.getMonth() - 1, 1)), lte: iso(new Date(n.getFullYear(), n.getMonth(), 0)) };
-    case "tri":
-      return { gte: iso(new Date(n.getFullYear(), n.getMonth() - 2, 1)) };
+    case "mes_passado": {
+      const a = mes === 1 ? ano - 1 : ano;
+      const m = mes === 1 ? 12 : mes - 1;
+      return { gte: primeiroDia(a, m), lte: ultimoDia(a, m) };
+    }
+    case "tri": {
+      let a = ano, m = mes - 2;
+      while (m < 1) { m += 12; a -= 1; }
+      return { gte: primeiroDia(a, m), lte: hoje };
+    }
     case "ano":
-      return { gte: iso(new Date(n.getFullYear(), 0, 1)) };
+      return { gte: `${ano}-01-01`, lte: hoje };
     case "mes":
     default:
-      return { gte: iso(new Date(n.getFullYear(), n.getMonth(), 1)) };
+      return { gte: primeiroDia(ano, mes), lte: hoje };
   }
+}
+
+/** Primeiro e último dia do mês corrente na operação. */
+export function mesCorrente(): { gte: string; lte: string } {
+  const [ano, mes] = hojeLocal().split("-").map(Number);
+  return { gte: primeiroDia(ano, mes), lte: ultimoDia(ano, mes) };
 }
 
 export function labelDe(key: PeriodoKey) {

@@ -92,3 +92,16 @@ export function normalizarTimestamp(v: string): string {
 export function hojeLocal(): string {
   return diaLocal(new Date().toISOString());
 }
+
+/** Uma Date qualquer no dia da operação, como YYYY-MM-DD. */
+export function diaLocalDe(d: Date): string {
+  return diaLocal(d.toISOString());
+}
+
+/** Mês corrente no fuso da operação, como YYYY-MM.
+ *  Depois das 21h de Brasília o relógio UTC já virou o dia — e virava o MÊS
+ *  no dia 31. Às 21h05 de 31/08 a TV do Salão mostrava produção do mês R$ 0,00
+ *  e ranking vazio, com a equipe no push final olhando. */
+export function mesLocal(): string {
+  return hojeLocal().slice(0, 7);
+}

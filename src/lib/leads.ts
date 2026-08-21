@@ -226,6 +226,28 @@ export async function pegarLead(id: string, vendedorId: string): Promise<boolean
   return pegou;
 }
 
+// Leads FECHADOS SEM VENDA do módulo — só a contagem, via HEAD count.
+//
+// O funil calculava a taxa de conversão sobre os leads ATIVOS, e lead perdido
+// sempre nasce com descartado=true (Pipeline.tsx marca os dois juntos). Ou
+// seja: o denominador nunca tinha perdido nenhum e a taxa ficava travada em
+// 100%. Em 21/08 o card de Consórcios estampava "Taxa de conversão 100%" com
+// 1 ganho e 775 perdidos na base — conversão real de 0,13%. É o número que o
+// gestor usa pra decidir dobrar (ou não) a verba de anúncio.
+//
+// Contagem no servidor de propósito: baixar as 778 linhas descartadas só pra
+// contá-las custaria mais que o resto do dashboard inteiro.
+export async function contarPerdidos(modulo: "seguros" | "consorcios"): Promise<number> {
+  if (!supabase) return 0;
+  let q = supabase.from("leads").select("id", { count: "exact", head: true })
+    .not("etapa", "eq", "ganho")             // ganho arquivado é VENDA, não perda
+    .or("descartado.eq.true,etapa.eq.perdido");
+  q = modulo === "consorcios" ? q.eq("modulo", "consorcios") : q.or("modulo.neq.consorcios,modulo.is.null");
+  const { count, error } = await q;
+  if (error) { console.error("[leads] contarPerdidos:", error.message); return 0; }
+  return count ?? 0;
+}
+
 // Badge do bolsão no menu: só a CONTAGEM, via HEAD count — antes o Layout
 // baixava a base INTEIRA (fetchLeads, select *) a cada 60s por usuário logado
 // só pra contar. Mesma regra do noBolsao(): sem dono OU SLA estourado sem 1º

@@ -15,7 +15,7 @@ import { listar, atualizar, type MotivoArquivamento } from "../lib/c2s";
 const TEMP_DOT: Record<string, string> = { quente: "#ef4444", morno: "#f59e0b", frio: "#5bc4f5" };
 import { criarTarefa } from "../lib/tarefas";
 import { useAuth } from "../context/AuthContext";
-import { brl, brlShort, waLink } from "../lib/format";
+import { brl, brlShort, diaLocalDe, waLink } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import type { Modulo } from "../lib/nav";
 
@@ -116,7 +116,7 @@ function LeadCard({ lead, consultor, ativ, onContato, onAbrir }: {
               descricao: lead.produto_interesse ? `Interesse: ${lead.produto_interesse}` : undefined,
               cliente_nome: lead.nome, status: "a_fazer", prioridade: "media", modulo: moduloDe(lead),
               responsavel_nome: user?.name ?? null,
-              vencimento: amanha.toISOString().slice(0, 10),
+              vencimento: diaLocalDe(amanha),
             });
             if (error) toast.error("Não foi possível criar a tarefa"); else toast.success("Tarefa criada no quadro — sua, pra amanhã!");
           }}

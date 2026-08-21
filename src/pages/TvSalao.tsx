@@ -2,12 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Zap, TrendingUp, Target, Settings, Trophy, Crown, Medal, PartyPopper } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { brl } from "../lib/format";
+import { brl, hojeLocal, mesLocal } from "../lib/format";
+import { mesCorrente } from "../components/Periodo";
 
 interface Venda { id?: string; valor: number | null; data_venda: string | null; vendedor_nome: string | null; produto?: string | null; created_at?: string | null; }
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
-const monthPrefix = () => new Date().toISOString().slice(0, 7); // YYYY-MM
+// Fuso da operação (ver DashboardSeguros): às 21h05 de 31/08 a TV mostrava
+// produção do mês R$ 0,00 e ranking vazio, no push final do mês.
+const todayISO = () => hojeLocal();
+const monthPrefix = () => mesLocal(); // YYYY-MM
 
 export function TvSalao() {
   const navigate = useNavigate();
@@ -34,7 +37,7 @@ export function TvSalao() {
       const [{ data: vs }, { data: ms }] = await Promise.all([
         // neq cancelada: venda cancelada não pode celebrar na TV nem somar no mês
         supabase.from("vendas").select("id,valor,data_venda,vendedor_nome,produto,created_at").or("status.is.null,status.neq.cancelada").gte("data_venda", monthPrefix() + "-01").order("created_at", { ascending: false }).limit(2000),
-        supabase.from("metas").select("valor_meta,escopo,mes").eq("escopo", "corretora").gte("mes", monthPrefix() + "-01").order("mes", { ascending: false }).limit(10),
+        supabase.from("metas").select("valor_meta,escopo,mes").eq("escopo", "corretora").gte("mes", monthPrefix() + "-01").lte("mes", mesCorrente().lte).order("mes", { ascending: false }).limit(10),
       ]);
       if (!active) return;
       const lista = vs || [];

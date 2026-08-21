@@ -5,9 +5,10 @@ import { Button } from "./ui";
 import { ModalShell } from "./ModalShell";
 import { useAuth } from "../context/AuthContext";
 import { paraNumero } from "../lib/num";
-import { brl } from "../lib/format";
+import { brl, hojeLocal } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import type { Lead } from "../lib/leads";
+import { moduloDe } from "../lib/leads";
 
 // ─── Lead → Venda em 1 clique ─────────────────────────────────────────────────
 // Abre ao soltar um lead em "Fechado": registra a venda pré-preenchida e gera
@@ -16,7 +17,10 @@ export function RegistrarVendaModal({
   lead, pessoas, onClose, onSaved,
 }: { lead: Lead; pessoas: Record<string, string>; onClose: () => void; onSaved: () => void }) {
   const { user } = useAuth();
-  const hoje = new Date().toISOString().slice(0, 10);
+  // Data de nascimento da venda no fuso da operação. Venda fechada às 21h30
+  // de 31/08 nascia com data 01/09: saía da produção de agosto, o consultor
+  // perdia o batimento da meta e a comissão era liberada um mês depois.
+  const hoje = hojeLocal();
   // A venda e a comissão são do DONO do lead — não de quem arrastou o card.
   // (Gestor movendo card de consultor na visão Equipe corrompia Produção/Ranking/comissão.)
   const donoId = lead.vendedor_id ?? user?.id ?? null;
@@ -50,6 +54,10 @@ export function RegistrarVendaModal({
 
       // 1) Venda
       const { data: venda, error: e1 } = await supabase.from("vendas").insert({
+        // De qual negócio é esta venda. Sem isto, a produção de Seguros era
+        // creditada na meta de Consórcios (a tabela não tinha módulo e o card
+        // somava tudo). Vem do lead que originou a venda.
+        modulo: moduloDe(lead),
         data_venda: form.data_venda,
         cliente_nome: lead.nome,
         vendedor_id: donoId,
@@ -83,6 +91,7 @@ export function RegistrarVendaModal({
       const lib = new Date(dv); lib.setMonth(lib.getMonth() + 1);
       const { error: e3 } = await supabase.from("comissoes").insert({
         venda_id: venda.id, vendedor_id: donoId, valor: comissaoValor, pct,
+        modulo: moduloDe(lead),
         liberacao: lib.toISOString().slice(0, 10), status: "a_pagar",
       });
       if (e3) throw e3;

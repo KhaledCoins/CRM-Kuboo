@@ -4,6 +4,7 @@ import { Card, EmptyState } from "./ui";
 import { supabase } from "../lib/supabase";
 import { brl, brlShort } from "../lib/format";
 import type { Modulo } from "../lib/nav";
+import { mesCorrente } from "./Periodo";
 
 // ─── Meta × Realizado ────────────────────────────────────────────────────────
 // A tela de Metas só cadastrava o número — nada no CRM comparava a meta com a
@@ -60,11 +61,21 @@ export function MetaRealizadoCard({ modulo }: { modulo: Modulo }) {
     let vivo = true;
     (async () => {
       if (!supabase) { setCarregando(false); return; }
-      const ini = inicioDoMes();
+      // TETO nas duas pontas. Sem ele, meta de mês FUTURO virava a meta do mês
+      // corrente (a query pegava tudo >= dia 1 e não desempatava), e venda com
+      // data futura entrava como realizado — "Meta batida" com dinheiro que
+      // não existe. O mês vem do fuso da operação, não do relógio UTC.
+      const { gte: ini, lte: fim } = mesCorrente();
       const [mRes, vRes, pRes] = await Promise.all([
-        supabase.from("metas").select("id,escopo,vendedor_id,mes,valor_meta,modulo").gte("mes", ini).limit(200),
+        supabase.from("metas").select("id,escopo,vendedor_id,mes,valor_meta,modulo").gte("mes", ini).lte("mes", fim).limit(200),
         // neq cancelada: venda cancelada não conta como meta realizada
-        supabase.from("vendas").select("valor,vendedor_id,vendedor_nome").or("status.is.null,status.neq.cancelada").gte("data_venda", ini).limit(3000),
+        supabase.from("vendas").select("valor,vendedor_id,vendedor_nome")
+          .or("status.is.null,status.neq.cancelada")
+          // Só a produção DESTE módulo: as metas já eram filtradas por módulo,
+          // as vendas não — e o realizado de Seguros aparecia na meta de
+          // Consórcios. A coluna nasceu em 21/08 com default 'seguros'.
+          .eq("modulo", modulo)
+          .gte("data_venda", ini).lte("data_venda", fim).limit(3000),
         supabase.from("profiles").select("id,name").in("role", ["admin", "gestor", "vendedor"]).limit(100),
       ]);
       if (!vivo) return;

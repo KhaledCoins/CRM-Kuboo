@@ -249,7 +249,11 @@ export const Parcelas = () => (
     ]}
     computeKpis={(r) => [
       { label: "Parcelas", value: String(r.length), icon: Receipt, accent: "brand" },
-      { label: "A receber", value: brlShort(sum(r.filter((x) => x.status !== "paga"), "valor")), icon: DollarSign, accent: "warning" },
+      // Inclusão EXPLÍCITA, não "tudo que não é paga": parcela CANCELADA
+      // (o gatilho de cancelamento em cascata marca todas as abertas assim
+      // quando a venda cai) contava como dinheiro a entrar. E qualquer status
+      // novo que aparecer no futuro entraria sozinho na conta.
+      { label: "A receber", value: brlShort(sum(r.filter((x) => x.status === "aberta" || x.status === "atrasada" || x.status == null), "valor")), icon: DollarSign, accent: "warning" },
       { label: "Recebido", value: brlShort(sum(r.filter((x) => x.status === "paga"), "valor")), icon: DollarSign, accent: "success" },
       { label: "Em atraso", value: String(count(r, (x) => x.status === "atrasada")), icon: ShieldAlert, accent: "danger" },
     ]}

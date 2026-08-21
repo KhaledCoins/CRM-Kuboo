@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { Filter } from "lucide-react";
 import { Card, EmptyState } from "./ui";
-import type { Lead } from "../lib/leads";
+import { contarPerdidos, type Lead } from "../lib/leads";
 
 // Funil de conversão de leads — compartilhado pelos dashboards de Seguros e
 // Consórcios (cada um passa só os leads do próprio módulo).
@@ -13,14 +14,21 @@ const FUNIL_STAGES = [
   { id: "ganho", label: "Fechado", color: "#16A34A" },
 ];
 
-function Funil({ leads }: { leads: Lead[] }) {
+function Funil({ leads, perdidosFechados }: { leads: Lead[]; perdidosFechados: number }) {
   const ativos = leads.filter((l) => !l.descartado);
   const cont = (id: string) => ativos.filter((l) => (l.etapa ?? "novos") === id).length;
   const stages = FUNIL_STAGES.map((s) => ({ ...s, n: cont(s.id) }));
   const max = Math.max(...stages.map((s) => s.n), 1);
-  const ganhos = cont("ganho"), perdidos = cont("perdido");
-  const emAberto = ativos.length - ganhos - perdidos;
-  const winRate = ganhos + perdidos ? (ganhos / (ganhos + perdidos)) * 100 : 0;
+  const ganhos = cont("ganho");
+  // Lead perdido SEMPRE nasce arquivado (Pipeline marca etapa='perdido' e
+  // descartado=true juntos), e a lista que chega aqui só traz os ativos. Contar
+  // perdidos sobre `ativos` dava zero, o denominador virava só os ganhos e a
+  // taxa ficava presa em 100% — com 775 leads perdidos na base. O número vem
+  // do servidor (contarPerdidos), não desta lista.
+  const perdidos = perdidosFechados;
+  const emAberto = ativos.length - ganhos;
+  const fechados = ganhos + perdidos;
+  const winRate = fechados ? (ganhos / fechados) * 100 : 0;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-5 p-5 pt-3">
@@ -55,15 +63,24 @@ function Funil({ leads }: { leads: Lead[] }) {
   );
 }
 
-export function FunilConversaoCard({ leads }: { leads: Lead[] }) {
+export function FunilConversaoCard({ leads, modulo }: { leads: Lead[]; modulo: "seguros" | "consorcios" }) {
+  // Os perdidos não estão em `leads` (a lista só traz ativos) e são centenas —
+  // vem só a CONTAGEM do servidor, que é tudo que a taxa precisa.
+  const [perdidos, setPerdidos] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    contarPerdidos(modulo).then((n) => { if (vivo) setPerdidos(n); });
+    return () => { vivo = false; };
+  }, [modulo]);
+
   return (
     <Card pad={false} className="mb-6">
       <div className="p-5 pb-0">
         <h3 className="text-lg text-ink flex items-center gap-2"><Filter size={18} className="text-brand-500" /> Funil de Conversão</h3>
         <p className="text-sm text-muted">Onde estão seus leads agora — do primeiro contato ao fechamento</p>
       </div>
-      {leads.length
-        ? <Funil leads={leads} />
+      {leads.length || perdidos
+        ? <Funil leads={leads} perdidosFechados={perdidos} />
         : <EmptyState icon={Filter} title="Sem leads no funil ainda" hint="Assim que entrarem leads (site, Kubinho, WhatsApp) o funil aparece aqui." />}
     </Card>
   );

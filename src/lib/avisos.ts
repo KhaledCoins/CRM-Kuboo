@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { slaRestanteMin, type Lead } from "./leads";
 import { minutosLabel, type AlertaConfig } from "./c2s";
+import { diaLocalDe, hojeLocal } from "./format";
 
 // Central de avisos da equipe — computada no cliente a partir dos dados
 // (sem cron/tabela nova): SLA estourando, renovações da semana, escada de
@@ -21,8 +22,8 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
   const seguros = modulo === "seguros"; // renovações (vendas/apólices) só existem no módulo seguros
   try {
     const avisos: Aviso[] = [];
-    const em7d = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-    const hoje = new Date().toISOString().slice(0, 10);
+    const em7d = diaLocalDe(new Date(Date.now() + 7 * 86400000));
+    const hoje = hojeLocal();
     // uid uma vez só — usado pelo aviso de "lead novo" (só o dono vê) e pela
     // escada de sem-atendimento lá embaixo.
     const { data: userData } = await supabase.auth.getUser();

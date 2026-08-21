@@ -4,14 +4,16 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { Card, KpiCard, PageHeader, EmptyState } from "../../components/ui";
 import { FunilConversaoCard } from "../../components/FunilConversao";
 import { MetaRealizadoCard } from "../../components/MetaRealizado";
-import { brl, brlShort } from "../../lib/format";
+import { brl, brlShort, hojeLocal, mesLocal } from "../../lib/format";
 import { supabase } from "../../lib/supabase";
 import { fetchLeads, moduloDe, type Lead } from "../../lib/leads";
 
 interface Venda { valor: number | null; comissao_valor: number | null; data_venda: string | null; produto: string | null; seguradora: string | null; vendedor_nome: string | null; }
 
-const monthPrefix = () => new Date().toISOString().slice(0, 7);
-const todayISO = () => new Date().toISOString().slice(0, 10);
+// Fuso da operação, não UTC: depois das 21h de Brasília o dia (e no dia 31,
+// o MÊS) já virou pro relógio UTC, e o painel zerava com a equipe olhando.
+const monthPrefix = () => mesLocal();
+const todayISO = () => hojeLocal();
 
 function groupTop(rows: Venda[], key: keyof Venda, n = 5) {
   const map: Record<string, number> = {};
@@ -111,7 +113,7 @@ export function DashboardSeguros() {
 
       <MetaRealizadoCard modulo="seguros" />
 
-      <FunilConversaoCard leads={leads.filter((l) => moduloDe(l) === "seguros")} />
+      <FunilConversaoCard modulo="seguros" leads={leads.filter((l) => moduloDe(l) === "seguros")} />
 
       <Card className="mb-6">
         <h3 className="text-lg text-ink mb-1 flex items-center gap-2"><TrendingUp size={18} className="text-brand-500" /> Produção Diária do Mês</h3>
