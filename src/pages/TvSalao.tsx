@@ -33,7 +33,7 @@ export function TvSalao() {
       try {
       const [{ data: vs }, { data: ms }] = await Promise.all([
         // neq cancelada: venda cancelada não pode celebrar na TV nem somar no mês
-        supabase.from("vendas").select("id,valor,data_venda,vendedor_nome,produto,created_at").neq("status", "cancelada").gte("data_venda", monthPrefix() + "-01").order("created_at", { ascending: false }).limit(2000),
+        supabase.from("vendas").select("id,valor,data_venda,vendedor_nome,produto,created_at").or("status.is.null,status.neq.cancelada").gte("data_venda", monthPrefix() + "-01").order("created_at", { ascending: false }).limit(2000),
         supabase.from("metas").select("valor_meta,escopo,mes").eq("escopo", "corretora").gte("mes", monthPrefix() + "-01").order("mes", { ascending: false }).limit(10),
       ]);
       if (!active) return;

@@ -64,7 +64,7 @@ export function MetaRealizadoCard({ modulo }: { modulo: Modulo }) {
       const [mRes, vRes, pRes] = await Promise.all([
         supabase.from("metas").select("id,escopo,vendedor_id,mes,valor_meta,modulo").gte("mes", ini).limit(200),
         // neq cancelada: venda cancelada não conta como meta realizada
-        supabase.from("vendas").select("valor,vendedor_id,vendedor_nome").neq("status", "cancelada").gte("data_venda", ini).limit(3000),
+        supabase.from("vendas").select("valor,vendedor_id,vendedor_nome").or("status.is.null,status.neq.cancelada").gte("data_venda", ini).limit(3000),
         supabase.from("profiles").select("id,name").in("role", ["admin", "gestor", "vendedor"]).limit(100),
       ]);
       if (!vivo) return;

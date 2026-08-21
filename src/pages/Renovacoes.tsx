@@ -37,10 +37,10 @@ export function Renovacoes() {
 
       const [vendasR, apolicesR] = await Promise.all([
         supabase.from("vendas").select("id,cliente_nome,produto,seguradora,valor,vigencia_fim,status")
-          .not("vigencia_fim", "is", null).neq("status", "cancelada").lte("vigencia_fim", limite)
+          .not("vigencia_fim", "is", null).or("status.is.null,status.neq.cancelada").lte("vigencia_fim", limite)
           .order("vigencia_fim", { ascending: true }).limit(1000),
         supabase.from("apolices").select("id,tipo,seguradora,premio_anual,premio_mensal,vigencia_fim,status,profiles(name)")
-          .not("vigencia_fim", "is", null).neq("status", "cancelada").lte("vigencia_fim", limite)
+          .not("vigencia_fim", "is", null).or("status.is.null,status.neq.cancelada").lte("vigencia_fim", limite)
           .order("vigencia_fim", { ascending: true }).limit(1000),
       ]);
       if (!active) return;

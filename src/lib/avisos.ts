@@ -69,8 +69,8 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
     const [leadsR, vendasR, apolR] = await Promise.all([
       leadsQ,
       // Só busca renovações no módulo seguros (evita avisos que apontam p/ /consorcios/renovacoes, rota inexistente).
-      seguros ? supabase.from("vendas").select("id,cliente_nome,vigencia_fim").not("vigencia_fim", "is", null).neq("status", "cancelada").gte("vigencia_fim", hoje).lte("vigencia_fim", em7d).limit(50) : Promise.resolve({ data: [] as any[] }),
-      seguros ? supabase.from("apolices").select("id,tipo,vigencia_fim,profiles(name)").not("vigencia_fim", "is", null).neq("status", "cancelada").gte("vigencia_fim", hoje).lte("vigencia_fim", em7d).limit(50) : Promise.resolve({ data: [] as any[] }),
+      seguros ? supabase.from("vendas").select("id,cliente_nome,vigencia_fim").not("vigencia_fim", "is", null).or("status.is.null,status.neq.cancelada").gte("vigencia_fim", hoje).lte("vigencia_fim", em7d).limit(50) : Promise.resolve({ data: [] as any[] }),
+      seguros ? supabase.from("apolices").select("id,tipo,vigencia_fim,profiles(name)").not("vigencia_fim", "is", null).or("status.is.null,status.neq.cancelada").gte("vigencia_fim", hoje).lte("vigencia_fim", em7d).limit(50) : Promise.resolve({ data: [] as any[] }),
     ]);
 
     // SLA de 1º contato: estourando (≤10min) ou estourado. E o aviso que

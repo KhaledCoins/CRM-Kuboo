@@ -66,7 +66,7 @@ export function Producao() {
       try {
         const r = rangeFor(periodo);
         // Venda CANCELADA não é produção — sem o filtro ela seguia somando.
-        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,vendedor_id,tipo,cliente_nome").neq("status", "cancelada").gte("data_venda", r.gte);
+        let qy: any = supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome,vendedor_id,tipo,cliente_nome").or("status.is.null,status.neq.cancelada").gte("data_venda", r.gte);
         if (r.lte) qy = qy.lte("data_venda", r.lte);
         const [{ data }, perfis] = await Promise.all([
           qy.limit(5000),

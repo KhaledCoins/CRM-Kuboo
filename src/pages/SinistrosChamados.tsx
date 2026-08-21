@@ -140,11 +140,19 @@ export function SinistrosChamados() {
     if (!user) return;
     setSalvando(true);
     const atualizado_em = new Date().toISOString();
-    const ok = await atualizar("sinistros_chamados", c.id, { responsavel_id: user.id, atualizado_em });
+    // Assumir TAMBÉM tira o chamado de "novo": o alerta vermelho do sino é
+    // keyed em status='novo' (lib/avisos.ts) e a Ajuda documenta o fluxo como
+    // "quem pegar clica em Assumir", sem pedir pra mexer no Status. Sem isto o
+    // alerta de prioridade máxima nunca sumia — os 8 consultores seguiam vendo
+    // um chamado que já tem dono e ligavam de novo pra vítima do acidente.
+    // Só avança a partir de 'novo'; status já trabalhado é preservado.
+    const patch: Record<string, string> = { responsavel_id: user.id, atualizado_em };
+    if (c.status === "novo") patch.status = "em_analise";
+    const ok = await atualizar("sinistros_chamados", c.id, patch);
     setSalvando(false);
     if (ok) {
       toast.success("Chamado assumido — ele é seu.");
-      patchLocal(c.id, { responsavel_id: user.id, atualizado_em });
+      patchLocal(c.id, patch as Partial<SinistroChamado>);
     } else {
       toast.error("Não foi possível assumir o chamado agora.");
     }

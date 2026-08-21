@@ -62,7 +62,7 @@ export function DashboardSeguros() {
       try {
         const [{ data }, ls] = await Promise.all([
           // neq cancelada: venda cancelada não entra nos KPIs do dashboard
-          supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome").neq("status", "cancelada").gte("data_venda", monthPrefix() + "-01").limit(3000),
+          supabase.from("vendas").select("valor,comissao_valor,data_venda,produto,seguradora,vendedor_nome").or("status.is.null,status.neq.cancelada").gte("data_venda", monthPrefix() + "-01").limit(3000),
           fetchLeads(),
         ]);
         if (!active) return;
