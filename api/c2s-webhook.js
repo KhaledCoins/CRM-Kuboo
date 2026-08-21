@@ -52,12 +52,65 @@ function mapearEtapa(a) {
 }
 
 // Entre os leads sem c2s_lead_id que dividem o telefone, qual é ESTE lead do
-// C2S. Nome idêntico ganha; senão, o mais recente (a lista já vem ordenada).
-// Exportada para teste — ver api/__tests__/c2s-webhook.test.mjs.
-export function escolherExistente(candidatos, nomeC2S) {
-  const lista = candidatos || [];
-  const alvo = nomeC2S?.toLowerCase();
-  return (alvo && lista.find((c) => String(c.nome).toLowerCase() === alvo)) || lista[0] || null;
+// C2S — ou NENHUM, e aí o evento vira lead novo.
+//
+// A regra antiga caía em `lista[0]` (o mais recente) sempre que o nome não
+// batia. Dois estragos, os dois medidos na base em 21/08:
+//  1. Cliente que VOLTA. Ele preencheu em abril, ninguém conseguiu contato,
+//     foi arquivado (734 leads da base estão nesse estado). Em setembro ele
+//     preenche de novo — lead pago, novo, quente. O C2S manda um id novo, a
+//     busca por id não acha, e a adoção pegava a linha ARQUIVADA de abril.
+//     Como montarPatch é blindado contra desarquivar e contra rebaixar etapa,
+//     o lead continuava invisível: sem dono, sem SLA, sem bolsão. E o trigger
+//     de rodízio é AFTER INSERT — UPDATE não distribui nada.
+//  2. Telefone compartilhado (casal, família). Existe 1 telefone na base hoje
+//     em 2 linhas com primeiros nomes DIFERENTES. Como a adoção também
+//     sobrescreve nome e e-mail, a linha de uma pessoa passava a carregar a
+//     identidade da outra.
+//
+// Agora exige CONCORDÂNCIA DE IDENTIDADE (nome ou e-mail). Adotar lead
+// arquivado continua permitido — a costura da migração depende disso (45 das
+// linhas já carimbadas estão arquivadas) —, mas só quando é comprovadamente a
+// MESMA pessoa. Sem concordância, o evento vira lead NOVO: passa pelo trigger,
+// entra no rodízio, ganha SLA e aparece pro consultor.
+const chaveIdent = (s) =>
+  String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ").trim();
+
+/** Este candidato é comprovadamente a mesma pessoa do evento do C2S? */
+export function concordaIdentidade(cand, nomeC2S, emailC2S) {
+  const nome = chaveIdent(nomeC2S), email = chaveIdent(emailC2S);
+  if (nome && chaveIdent(cand?.nome) === nome) return true;
+  if (email && chaveIdent(cand?.email) === email) return true;
+  return false;
+}
+
+export function escolherExistente(candidatos, nomeC2S, emailC2S, eventoAtivo = false) {
+  let lista = candidatos || [];
+  if (!lista.length) return null;
+
+  // Evento ATIVO batendo em linha ARQUIVADA = cliente que volta (mesmo nome!).
+  // A identidade concordar não ajuda aqui — é a mesma pessoa de propósito. O
+  // que denuncia é o estado: o C2S diz "lead vivo" e a linha diz "encerrado".
+  // Esse par nunca é adoção: o ciclo antigo acabou, o contato novo merece
+  // linha nova (INSERT → trigger → rodízio → SLA). A costura da migração não
+  // passa por aqui: os eventos dela chegam com o MESMO estado da linha.
+  if (eventoAtivo) lista = lista.filter((c) => !c.descartado);
+  if (!lista.length) return null;
+
+  // 1) Mesma pessoa, provada por nome ou e-mail. Vale para lead arquivado.
+  const porIdentidade = lista.find((c) => concordaIdentidade(c, nomeC2S, emailC2S));
+  if (porIdentidade) return porIdentidade;
+
+  // 2) Sem prova de identidade, só adota o caso inequívoco da migração: um
+  //    ÚNICO candidato e ele está ATIVO. Cobre o lead importado cujo nome foi
+  //    editado no CRM depois. Lead arquivado nunca entra por aqui — é
+  //    justamente o cliente que volta, e ele merece linha nova.
+  const ativos = lista.filter((c) => !c.descartado);
+  if (ativos.length === 1 && lista.length === 1) return ativos[0];
+
+  // 3) Ambíguo (vários candidatos, ou o único é arquivado): não adota.
+  return null;
 }
 
 // Etapa avançada no C2S = a equipe JÁ FALOU com o cliente (lá). Sem espelhar o
@@ -145,6 +198,9 @@ export function montarPatch(linha, existente, nomeC2S) {
   // Motivo escolhido pela equipe NO CRM manda: o C2S só preenche o que está
   // vazio (senão um evento atrasado desfaz a classificação do gestor).
   if (existente.motivo_descarte) delete patch.motivo_descarte;
+  // O 60 de nascimento é pro INSERT; num lead que já existe ele apagaria o
+  // score que alguém (ou a base histórica) já definiu.
+  delete patch.score;
   return patch;
 }
 
@@ -223,6 +279,11 @@ export default async function handler(req, res) {
       fonte,
       canal,
       campanha,
+      // Mesmo score de nascimento do lead-inbound (60 = neutro). Sem isto o
+      // default 0 da coluna fazia TODO lead espelhado do C2S nascer "frio" e
+      // afundar no fim da fila de prioridade do bolsão — 839 dos 845 leads da
+      // base estavam assim. 0 é um julgamento ("lead ruim"); ninguém julgou.
+      score: 60,
       fb_pagina: txt(fb.page_name, 120),
       fb_anuncio: txt(fb.ad_name, 120),
       fb_formulario: txt(fb.form_name, 120),
@@ -253,18 +314,24 @@ export default async function handler(req, res) {
     // um lead já carimbado pertence a OUTRO id e não pode ser roubado — é o que
     // impede a fusão de pessoas diferentes que dividem o telefone (casal,
     // família), que era o motivo do fallback antigo ter sido restringido.
+    let adotadoPorTelefone = false;
     if (!existente && telefone) {
       const { data } = await admin.from("leads")
-        .select("id, etapa, descartado, nome, fonte, primeiro_contato_em, motivo_descarte")
+        .select("id, etapa, descartado, nome, email, fonte, primeiro_contato_em, motivo_descarte")
         .eq("telefone", telefone).is("c2s_lead_id", null)
         .order("created_at", { ascending: false }).limit(5);
-      existente = escolherExistente(data, nomeC2S);
+      existente = escolherExistente(data, nomeC2S, email, descartado === false);
+      if (existente) adotadoPorTelefone = !concordaIdentidade(existente, nomeC2S, email);
     }
 
     if (existente) {
       // Atualização (on_update/on_close): não sobrescreve o dono já definido no
       // CRM nem apaga campos que o C2S mandou vazios.
       const patch = montarPatch(linha, existente, nomeC2S);
+      // Adotado só por telefone, sem nome nem e-mail batendo: pode não ser a
+      // mesma pessoa. Espelha o funil e a campanha, mas NÃO reescreve quem o
+      // lead é — era assim que a linha de um virava a identidade do outro.
+      if (adotadoPorTelefone) { delete patch.nome; delete patch.email; }
       const { error } = await admin.from("leads").update(patch).eq("id", existente.id);
       if (error) throw new Error(error.message);
       return res.status(200).json({ ok: true, acao: "atualizado", id: existente.id });

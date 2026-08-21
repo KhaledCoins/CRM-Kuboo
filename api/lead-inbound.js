@@ -79,11 +79,17 @@ export function formularioDoRaw(itens) {
 export const CAMPOS_ENRIQUECIVEIS = [
   "formulario", "fb_anuncio", "fb_formulario", "fb_pagina",
   "campanha", "produto_interesse", "email", "mensagem",
+  // telefone e nome entram na MESMA regra de só-preencher-buraco: o espelho
+  // do C2S cria lead sem telefone (número que a máscara BR rejeita) ou com o
+  // rótulo "Sem nome — ..." — e o Make chega logo depois com o dado real.
+  "telefone", "nome",
 ];
 
 const vazio = (v) => {
   if (v === null || v === undefined) return true;
-  if (typeof v === "string") return !v.trim();
+  // O rótulo de nascimento do espelho do C2S não é um nome: é a ausência de
+  // um, escrita por extenso. Conta como buraco pro nome real entrar.
+  if (typeof v === "string") return !v.trim() || v.startsWith("Sem nome —");
   if (typeof v === "object") return !Object.keys(v).length; // formulario {} é vazio
   return false;
 };
@@ -95,6 +101,33 @@ export function camposParaEnriquecer(novo, existente) {
     if (!vazio(novo?.[k]) && vazio(existente?.[k])) patch[k] = novo[k];
   }
   return patch;
+}
+
+// O nome pode NAO vir mapeado: a agencia publica um formulario onde o nome e
+// pergunta custom ("Qual e o seu nome?") ou vem partido em first_name +
+// last_name. O Make segue mandando a chave antiga, agora vazia — e a campanha
+// INTEIRA caia no 400, com telefone, e-mail e respostas no payload. Ninguem
+// descobre ate alguem abrir o historico do Make e ver os runs vermelhos.
+export function nomeDoRaw(itens) {
+  // `_` conta como caractere de PALAVRA em regex, entao  nao casa em
+  // "seu_nome" nem em "nome_completo" — as chaves do Meta sao todas assim.
+  const alvo = (i) => `${i.chave} ${i.pergunta}`.replace(/_/g, " ");
+  const achar = (re) => itens.find((i) => re.test(alvo(i)))?.resposta;
+  const cheio = achar(/\bfull[_ ]?name\b/i);
+  if (cheio && String(cheio).trim()) return String(cheio).trim();
+  const primeiro = achar(/\bfirst[_ ]?name\b/i);
+  const ultimo = achar(/\blast[_ ]?name\b/i);
+  const partido = [primeiro, ultimo].filter((v) => String(v ?? "").trim()).join(" ").trim();
+  if (partido) return partido;
+  // Pergunta custom: "Qual é o seu nome?" / "Nome completo". Exclui o que só
+  // PARECE nome ("nome da empresa") e o telefone disfarçado de resposta.
+  const ehNome = /\b(nome|name)\b/i;
+  const naoEhPessoa = /empresa|company|social|fantasia|usuario|username/i;
+  const soDigitosEPontuacao = /^[0-9()+.\s-]+$/;
+  const custom = itens.find((i) =>
+    ehNome.test(alvo(i)) && !naoEhPessoa.test(alvo(i)) &&
+    String(i.resposta ?? "").trim() && !soDigitosEPontuacao.test(String(i.resposta).trim()));
+  return custom ? String(custom.resposta).trim() : "";
 }
 
 export function telefoneDoRaw(itens) {
@@ -145,8 +178,22 @@ export default async function handler(req, res) {
   const admin = createClient(supaUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
   const b = req.body ?? {};
-  const nome = String(b.nome || "").trim().slice(0, 200);
-  if (!nome) return res.status(400).json({ error: "nome é obrigatório" });
+  // O raw e lido ANTES de validar: e dele que sai o nome quando a chave
+  // mapeada no Make vem vazia (formulario novo). Antes a validacao vinha
+  // primeiro e o payload inteiro — telefone, e-mail, respostas — ia pro lixo.
+  const rawItens = extrairRespostas(b.respostas_raw);
+  const telBrutoPreliminar = String(b.telefone || "").trim() || String(b.telefone_alt || "").trim() || telefoneDoRaw(rawItens);
+  const emailPreliminar = String(b.email || "").trim().toLowerCase().slice(0, 160);
+  let nome = String(b.nome || "").trim().slice(0, 200) || nomeDoRaw(rawItens).slice(0, 200);
+  // Sem contato nao ha lead: ninguem consegue ligar nem escrever. Ai o 400 e
+  // honesto. Com contato, lead SEM nome vira lead COM rotulo — mesmo fallback
+  // que o espelho do C2S ja usa (a coluna nome e NOT NULL).
+  if (!nome) {
+    if (!telBrutoPreliminar && !emailPreliminar) {
+      return res.status(400).json({ error: "lead sem nome e sem contato (telefone ou e-mail)" });
+    }
+    nome = `Sem nome — ${formatarTelefone(telBrutoPreliminar) || telBrutoPreliminar || emailPreliminar}`.slice(0, 200);
+  }
 
   // origem fora do catálogo do CHECK do banco viraria 500 e o lead pago do Meta
   // seria PERDIDO em silêncio (quem monta o Make mapeia "facebook"/"instagram"
@@ -161,7 +208,6 @@ export default async function handler(req, res) {
   // Make ainda não conhece) → reconstrói das respostas brutas. Objeto só com
   // valores vazios é descartado — 5 perguntas em branco no lead 360º é pior
   // que nada.
-  const rawItens = extrairRespostas(b.respostas_raw);
   let formulario = b.formulario && typeof b.formulario === "object" ? b.formulario : null;
   const temConteudo = !!formulario && Object.values(formulario).some((v) => String(v ?? "").trim() !== "");
   if (!temConteudo) formulario = formularioDoRaw(rawItens);
@@ -181,7 +227,7 @@ export default async function handler(req, res) {
   // da pergunta de WhatsApp, número estrangeiro) fica como veio: cru > perdido.
   // Cadeia: pergunta custom de WhatsApp > phone_number nativo > qualquer
   // resposta bruta que pareça telefone (formulário novo sem mapeamento).
-  const telBruto = String(b.telefone || "").trim() || String(b.telefone_alt || "").trim() || telefoneDoRaw(rawItens);
+  const telBruto = telBrutoPreliminar;  // ja resolvido la em cima, junto com o nome
   const lead = {
     nome,
     telefone: telBruto ? (formatarTelefone(telBruto) ?? telBruto.slice(0, 30)) : null,
@@ -236,7 +282,12 @@ export default async function handler(req, res) {
   const chaveTelefone = (t) => soDigitos(formatarTelefone(t) ?? "");
   const mesmoTelefone = (a, b) => {
     if (a.length < 10 || b.length < 10) return false; // menor telefone BR válido: DDD+8
-    return a === b || a.endsWith(b) || b.endsWith(a); // "5512988..." casa "12988..."
+    // Igualdade EXATA. Os dois lados já passaram por chaveTelefone (máscara BR
+    // + só dígitos), então o DDI 55 que o endsWith existia pra cobrir já foi
+    // removido antes de chegar aqui. O que o endsWith ainda conseguia fazer
+    // era só o estrago: fixo do DDD 29 ("2988776655") casando o final do
+    // celular do DDD 12 ("1 2988776655") — duas pessoas fundidas numa.
+    return a === b;
   };
   try {
     const digitos = chaveTelefone(lead.telefone);

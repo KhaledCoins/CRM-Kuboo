@@ -2,12 +2,16 @@
 // (1) qual lead existente o evento do C2S está falando, (2) o que ele pode
 // sobrescrever. Rodar com:  npx vite-node api/__tests__/c2s-webhook.test.mjs
 import assert from "node:assert/strict";
-import { escolherExistente, montarPatch, contatoDaEtapa, motivoDoC2S } from "../c2s-webhook.js";
+import { concordaIdentidade, escolherExistente, montarPatch, contatoDaEtapa, motivoDoC2S } from "../c2s-webhook.js";
 
 let ok = 0;
 const t = (nome, fn) => { fn(); ok++; console.log(`  ok  ${nome}`); };
 
 // ── escolherExistente ───────────────────────────────────────────────────────
+// A regra mudou em 21/08 (auditoria): adotar exige PROVA de identidade (nome
+// ou e-mail). O comportamento antigo — cair no mais recente quando o nome não
+// batia — foi o que deixava o cliente-que-volta preso numa linha arquivada e
+// misturava a identidade de duas pessoas que dividem telefone.
 t("sem candidatos devolve null (vira lead novo)", () => {
   assert.equal(escolherExistente([], "Maria"), null);
   assert.equal(escolherExistente(null, "Maria"), null);
@@ -19,12 +23,51 @@ t("telefone de casal: escolhe quem tem o mesmo nome, não o mais recente", () =>
   assert.equal(escolherExistente(cands, "João Silva").id, "b");
 });
 
-t("nome com caixa diferente ainda casa", () => {
+t("nome com caixa e acento diferentes ainda casa", () => {
   assert.equal(escolherExistente([{ id: "a", nome: "MARIA SILVA" }], "maria silva").id, "a");
+  assert.equal(escolherExistente([{ id: "a", nome: "José Antônio" }], "Jose Antonio").id, "a");
 });
 
-t("C2S sem nome: cai no mais recente (lista já vem ordenada desc)", () => {
-  assert.equal(escolherExistente([{ id: "novo", nome: "X" }, { id: "velho", nome: "Y" }], null).id, "novo");
+t("e-mail igual prova identidade mesmo com nome divergente (apelido)", () => {
+  const cands = [{ id: "a", nome: "Zé da Silva", email: "jose@x.com" }];
+  assert.equal(escolherExistente(cands, "José da Silva Filho", "jose@x.com").id, "a");
+});
+
+t("identidade provada adota até lead ARQUIVADO (é a costura da migração)", () => {
+  const cands = [{ id: "a", nome: "Maria Silva", descartado: true }];
+  assert.equal(escolherExistente(cands, "Maria Silva").id, "a");
+});
+
+t("sem prova de identidade: único candidato ATIVO ainda é adotado (nome editado no CRM)", () => {
+  assert.equal(escolherExistente([{ id: "a", nome: "Nome Corrigido", descartado: false }], "Nome Antigo").id, "a");
+});
+
+t("sem prova + único candidato ARQUIVADO = null — o cliente que volta vira lead NOVO", () => {
+  // O caso do fantasma: linha de abril arquivada, cliente preenche de novo em
+  // setembro com outro id do C2S. Adotar prenderia o lead pago numa linha que
+  // montarPatch nunca desarquiva, invisível pra rodízio (trigger é AFTER INSERT).
+  assert.equal(escolherExistente([{ id: "abril", nome: "Outro Nome", descartado: true }], "Cliente Que Volta"), null);
+});
+
+t("sem prova + vários candidatos = null (não chuta identidade de ninguém)", () => {
+  const cands = [{ id: "novo", nome: "X" }, { id: "velho", nome: "Y" }];
+  assert.equal(escolherExistente(cands, null), null);
+  assert.equal(escolherExistente(cands, "Terceiro Nome"), null);
+});
+
+t("cliente que VOLTA (evento ativo x linha arquivada) vira lead NOVO mesmo com o MESMO nome", () => {
+  // O caso do fantasma em que a identidade bate de propósito: é a mesma
+  // pessoa preenchendo o anúncio de novo meses depois. O que denuncia é o
+  // estado do evento (vivo) contra o da linha (encerrada).
+  const abril = [{ id: "abril", nome: "Cliente Que Volta", descartado: true }];
+  assert.equal(escolherExistente(abril, "Cliente Que Volta", null, true), null);
+  // Já a costura da migração chega com o MESMO estado (arquivado x arquivado):
+  assert.equal(escolherExistente(abril, "Cliente Que Volta", null, false).id, "abril");
+});
+
+t("concordaIdentidade: nome vazio dos dois lados NÃO é concordância", () => {
+  assert.equal(concordaIdentidade({ nome: "", email: "" }, "", ""), false);
+  assert.equal(concordaIdentidade({ nome: null }, null, null), false);
 });
 
 // ── montarPatch ─────────────────────────────────────────────────────────────
