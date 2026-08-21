@@ -77,9 +77,12 @@ export function diaLocal(iso?: string | null): string {
 }
 
 // O Postgres devolve "2026-08-21 05:44:33.801542+00": espaço em vez de T e
-// offset SEM minutos. `new Date()` não parseia isso em todo runtime — devolvia
-// Invalid Date e o gráfico perdia o dia inteiro. Normaliza antes de parsear.
-function normalizarTimestamp(v: string): string {
+// offset SEM minutos. O V8 (Node/Chrome) é tolerante e parseia assim mesmo, mas
+// Safari/iOS é ESTRITO e devolve Invalid Date — o gráfico perderia o dia
+// inteiro justamente no aparelho que metade da equipe usa na rua.
+// Exportada porque só dá pra provar a regra olhando a STRING normalizada: um
+// teste rodando no Node passaria mesmo sem a normalização (ver tools/mutantes.mjs).
+export function normalizarTimestamp(v: string): string {
   let s = String(v).trim().replace(" ", "T");
   s = s.replace(/([+-]\d{2})$/, "$1:00"); // "+00" → "+00:00"
   return s;
