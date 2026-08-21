@@ -447,7 +447,22 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
                   // já conversando (mesmo fluxo do "Abrir WhatsApp" do 360º).
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!l.primeiro_contato_em) void registrarContato(l.id).then((ok) => { if (ok) toast.success("1º contato registrado — SLA parado."); });
+                    if (l.primeiro_contato_em) return; // já registrado: não regrava
+                    void registrarContato(l.id).then((ok) => {
+                      if (!ok) {
+                        // Falha (RLS/rede) era 100% muda: o consultor abria o
+                        // WhatsApp achando que o SLA tinha parado e o lead caía
+                        // no bolsão no meio da conversa.
+                        toast.error("Abri o WhatsApp, mas não consegui registrar o 1º contato — o SLA continua correndo.");
+                        return;
+                      }
+                      toast.success("1º contato registrado — SLA parado.");
+                      // Sem atualizar a lista, a linha seguia como "sem contato"
+                      // e um 2º clique REESCREVIA primeiro_contato_em — que é a
+                      // base do "tempo médio de 1º contato" que o gestor lê.
+                      const agora = new Date().toISOString();
+                      setLeads((prev) => prev.map((x) => (x.id === l.id ? { ...x, primeiro_contato_em: agora, interagido_em: agora } : x)));
+                    });
                   }}
                   title="WhatsApp" aria-label={`WhatsApp de ${l.nome}`}
                   className="text-muted hover:text-[#25d366] transition-colors p-1.5 rounded-lg hover:bg-green-50">

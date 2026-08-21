@@ -708,6 +708,14 @@ export function LeadDetalhe() {
 
   async function onDevolverBolsao() {
     if (!lead) return;
+    // Ação irreversível na prática: a partir daqui qualquer um dos consultores
+    // pode pegar o lead, e não há desfazer. O botão fica colado em outros três
+    // numa linha que quebra no celular — sem confirmar, um toque errado entrega
+    // o cliente pra fila pública. (Bolsão já confirma até pra distribuir.)
+    const nome = lead.nome || "este lead";
+    if (!window.confirm(`Devolver ${nome} ao bolsão?
+
+Qualquer consultor poderá pegá-lo, e não dá pra desfazer.`)) return;
     // Só mexe na tela DEPOIS de confirmar que gravou — o toast de sucesso era
     // incondicional e mentia quando o update não passava.
     const ok = await devolverBolsao(lead.id);
@@ -884,13 +892,17 @@ export function LeadDetalhe() {
               {lead.origem && <Badge tone="slate">{lead.origem}</Badge>}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-sm text-muted">
+              {/* Ligar e WhatsApp do cabeçalho SÃO atendimento: sem registrar o
+                  1º contato aqui, o SLA seguia correndo e o lead caía no bolsão
+                  com o consultor já no telefone com o cliente. O mesmo clique
+                  no Pipeline e no Meus Leads já registrava — este ficara de fora. */}
               {lead.telefone && (
-                <a href={telLink(lead.telefone) ?? undefined} title="Ligar" className="flex items-center gap-1.5 hover:text-brand-600">
+                <a href={telLink(lead.telefone) ?? undefined} title="Ligar" onClick={() => void onUsarWhatsapp()} className="flex items-center gap-1.5 hover:text-brand-600">
                   <Phone size={13} /> {lead.telefone}
                 </a>
               )}
               {waHref && (
-                <a href={waHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg">
+                <a href={waHref} target="_blank" rel="noopener noreferrer" onClick={() => void onUsarWhatsapp()} className="inline-flex items-center gap-1 text-xs font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg">
                   <MessageCircle size={12} /> WhatsApp
                 </a>
               )}
