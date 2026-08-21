@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Card, PageHeader, EmptyState, Select, Button, Spinner } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import { exportarCsv } from "../lib/csv";
-import { dateBR, pct } from "../lib/format";
+import { dateBR, pct, diaLocal } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 
 // Dashboards de leads — clone melhorado dos "Dashboards personalizados" do
@@ -103,10 +103,10 @@ function porDiaData(leads: LeadRow[], dias: number): { dia: string; total: numbe
   for (let i = dias - 1; i >= 0; i--) {
     const d = new Date(hoje);
     d.setDate(d.getDate() - i);
-    map.set(d.toISOString().slice(0, 10), 0);
+    map.set(diaLocal(d.toISOString()), 0);
   }
   for (const l of leads) {
-    const key = (l.created_at || "").slice(0, 10);
+    const key = diaLocal(l.created_at);
     if (map.has(key)) map.set(key, (map.get(key) ?? 0) + 1);
   }
   return Array.from(map.entries()).map(([key, total]) => {
@@ -161,11 +161,11 @@ function tempoRespostaPorDiaData(leads: LeadRow[], dias: number): { dia: string;
   for (let i = dias - 1; i >= 0; i--) {
     const d = new Date(hoje);
     d.setDate(d.getDate() - i);
-    map.set(d.toISOString().slice(0, 10), { soma: 0, n: 0 });
+    map.set(diaLocal(d.toISOString()), { soma: 0, n: 0 });
   }
   for (const l of leads) {
     if (!l.primeiro_contato_em) continue;
-    const key = (l.created_at || "").slice(0, 10);
+    const key = diaLocal(l.created_at);
     const entry = map.get(key);
     if (!entry) continue;
     const diffMin = (new Date(l.primeiro_contato_em).getTime() - new Date(l.created_at).getTime()) / 60000;

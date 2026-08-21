@@ -58,3 +58,34 @@ export function formatarDocumento(valor?: string | null): string {
   if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
   return String(valor ?? "");
 }
+
+// ─── Datas no fuso da operação ──────────────────────────────────────────────
+// O banco guarda timestamp em UTC; a corretora vive em America/Sao_Paulo
+// (UTC-3). Cortar o ISO com .slice(0,10) devolve o dia UTC: um lead das 22h de
+// Brasília (01:00Z do dia seguinte) era contado no dia seguinte nos gráficos
+// diários — justamente o horário em que anúncio de madrugada gera lead.
+// Use SEMPRE isto para agrupar/rotular por dia.
+export const FUSO_OPERACAO = "America/Sao_Paulo";
+
+/** "2026-08-21T01:00:00Z" → "2026-08-20" (o dia que a equipe viveu). */
+export function diaLocal(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(normalizarTimestamp(iso));
+  if (Number.isNaN(d.getTime())) return "";
+  // en-CA formata como YYYY-MM-DD, que é o formato usado como chave.
+  return d.toLocaleDateString("en-CA", { timeZone: FUSO_OPERACAO });
+}
+
+// O Postgres devolve "2026-08-21 05:44:33.801542+00": espaço em vez de T e
+// offset SEM minutos. `new Date()` não parseia isso em todo runtime — devolvia
+// Invalid Date e o gráfico perdia o dia inteiro. Normaliza antes de parsear.
+function normalizarTimestamp(v: string): string {
+  let s = String(v).trim().replace(" ", "T");
+  s = s.replace(/([+-]\d{2})$/, "$1:00"); // "+00" → "+00:00"
+  return s;
+}
+
+/** Hoje no fuso da operação, como YYYY-MM-DD. */
+export function hojeLocal(): string {
+  return diaLocal(new Date().toISOString());
+}

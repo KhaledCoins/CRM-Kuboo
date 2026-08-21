@@ -74,7 +74,10 @@ export const Vendas = () => (
       { key: "parcelas", label: "Parcelas", type: "number" },
       { key: "comissao_valor", label: "Comissão (R$)", type: "currency" },
       { key: "vendedor_nome", label: "Vendedor" },
-      { key: "status", label: "Status", type: "select", options: optStatusVenda },
+      // required: status vazio faz a venda SUMIR de Produção/Ranking/Meta/TV/
+      // Dashboard (em SQL, `status != 'cancelada'` é NULL quando status é NULL).
+      // As queries já toleram o legado, mas dado novo não entra mais torto.
+      { key: "status", label: "Status", type: "select", options: optStatusVenda, required: true },
     ]}
     computeKpis={(r) => [
       { label: "Vendas", value: String(r.length), icon: Receipt, accent: "brand" },
