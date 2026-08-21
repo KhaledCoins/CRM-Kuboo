@@ -59,7 +59,11 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
     // literal ('seguros'|'consorcios'), não entrada do usuário → .or() seguro.
     let leadsQ = supabase.from("leads")
       .select("id,nome,vendedor_id,sla_expira_em,primeiro_contato_em,etapa,modulo")
-      .not("vendedor_id", "is", null).is("primeiro_contato_em", null).not("sla_expira_em", "is", null).limit(200);
+      .not("vendedor_id", "is", null).is("primeiro_contato_em", null).not("sla_expira_em", "is", null)
+      // Arquivado não tem SLA correndo — sem isto o sino cobrava eternamente o
+      // atendimento de lead que a equipe já descartou (a consulta irmã, logo
+      // abaixo, sempre filtrou; esta tinha ficado de fora).
+      .eq("descartado", false).limit(200);
     leadsQ = seguros ? leadsQ.or("modulo.eq.seguros,modulo.is.null") : leadsQ.eq("modulo", "consorcios");
 
     const [leadsR, vendasR, apolR] = await Promise.all([

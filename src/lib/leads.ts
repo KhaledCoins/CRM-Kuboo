@@ -80,6 +80,10 @@ export function prioridadeLead(l: Lead): number {
 /** Lead está no bolsão? (sem dono OU sem 1º contato e SLA estourado) */
 export function noBolsao(l: Lead): boolean {
   if (!l.vendedor_id) return true;
+  // Rede de segurança: lead que já avançou no funil está SENDO trabalhado —
+  // não pode ser reciclado pro bolsão nem que o 1º contato não tenha sido
+  // registrado (dado antigo, evento do C2S fora de ordem, etc).
+  if (ETAPAS_DE_ATENDIMENTO.includes(String(l.etapa ?? ""))) return false;
   if (!l.primeiro_contato_em && l.sla_expira_em && new Date(l.sla_expira_em).getTime() < Date.now()) return true;
   return false;
 }
@@ -178,11 +182,14 @@ export async function pegarLead(id: string, vendedorId: string): Promise<boolean
   const now = new Date().toISOString();
   const minutos = await limiteSlaMinutos();
   const sla = new Date(Date.now() + minutos * 60000).toISOString();
+  // primeiro_contato_em NÃO entra no patch: o ramo `vendedor_id.is.null` da
+  // guarda abaixo também casa lead SEM DONO que JÁ FOI ATENDIDO (devolvido ao
+  // bolsão depois da conversa). Zerar apagaria o histórico de 1ª resposta e
+  // reiniciaria um SLA que já tinha sido cumprido.
   const { data, error } = await supabase.from("leads").update({
     vendedor_id: vendedorId,
     atribuido_em: now,
     sla_expira_em: sla,
-    primeiro_contato_em: null,
   }).eq("id", id)
     .or(`vendedor_id.is.null,and(primeiro_contato_em.is.null,sla_expira_em.lt.${now})`)
     .select("id");
@@ -245,18 +252,33 @@ export async function devolverBolsao(id: string): Promise<boolean> {
   return !error && !!(data && data.length);
 }
 
+// Etapas que só existem depois de falar com o cliente. Mover pra uma delas é
+// atendimento: tem que PARAR o relógio do SLA, senão o lead segue "não
+// atendido", o SLA estoura e ele volta pro BOLSÃO no meio da negociação —
+// qualquer colega pode pegá-lo. Mesmo estrago que o espelho do C2S causava
+// (lead Antonio, 20/08), agora pelo lado do CRM.
+const ETAPAS_DE_ATENDIMENTO = ["contato", "cotacao", "negociacao", "ganho"];
+
 export async function moverEtapa(id: string, etapa: string) {
   if (!supabase) return;
+  const agora = new Date().toISOString();
   // interagido_em junto: mover de coluna é interação — mesma regra do registrarContato.
   // propaga o erro pra quem chama (Pipeline usa try/catch p/ desfazer o card se falhar)
+  const patch: Record<string, string> = { etapa, interagido_em: agora };
   const { data, error } = await supabase.from("leads")
-    .update({ etapa, interagido_em: new Date().toISOString() })
+    .update(patch)
     .eq("id", id)
-    .select("id");
+    .select("id, primeiro_contato_em");
   if (error) throw error;
   // Zero linhas = RLS barrou sem erro. Sem isto o card ficava na coluna nova na
   // tela e voltava sozinho no próximo F5, sem ninguém entender o motivo.
   if (!data || data.length === 0) throw new Error("Sem permissão para mover este lead.");
+  // Só depois de saber que o UPDATE passou: carimba o 1º contato se ainda não
+  // existir. Em UPDATE separado porque o valor depende do que estava gravado.
+  if (ETAPAS_DE_ATENDIMENTO.includes(etapa) && !data[0]?.primeiro_contato_em) {
+    await supabase.from("leads").update({ primeiro_contato_em: agora })
+      .eq("id", id).is("primeiro_contato_em", null);
+  }
 }
 
 /** Descarta um lead do bolsão (soft-delete: não some do banco, só sai da fila).
