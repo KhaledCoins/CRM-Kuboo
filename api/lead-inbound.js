@@ -64,6 +64,39 @@ export function formularioDoRaw(itens) {
   if (!custom.length) return null;
   return Object.fromEntries(custom.map((i) => [i.pergunta.slice(0, 200), i.resposta.slice(0, 1000)]));
 }
+// ─── Enriquecimento no dedup ────────────────────────────────────────────────
+// O C2S é instantâneo; o Make passa por fila. Quando o C2S ganha a corrida, o
+// lead nasce SEM as respostas do formulário e SEM o nome do anúncio — coisas
+// que só o Make traz. Aí o payload do Make caía no dedup e era jogado fora
+// INTEIRO. Medido em 21/08: dos 51 leads de Facebook, 51 sem fb_anuncio e 50
+// sem as respostas. O consultor perdia o orçamento que o cliente declarou
+// ("crédito de R$100mil, parcela até R$1.500") e a agência perdia a atribuição
+// por anúncio — o número que ela usa pra decidir onde colocar verba.
+//
+// Só preenche BURACO. Nunca sobrescreve o que já está lá, e nunca encosta em
+// dono, etapa, valor ou telefone: identidade e posse do lead não se mexe por
+// enriquecimento.
+export const CAMPOS_ENRIQUECIVEIS = [
+  "formulario", "fb_anuncio", "fb_formulario", "fb_pagina",
+  "campanha", "produto_interesse", "email", "mensagem",
+];
+
+const vazio = (v) => {
+  if (v === null || v === undefined) return true;
+  if (typeof v === "string") return !v.trim();
+  if (typeof v === "object") return !Object.keys(v).length; // formulario {} é vazio
+  return false;
+};
+
+/** O que o lead novo tem e o existente não. {} = nada a fazer. */
+export function camposParaEnriquecer(novo, existente) {
+  const patch = {};
+  for (const k of CAMPOS_ENRIQUECIVEIS) {
+    if (!vazio(novo?.[k]) && vazio(existente?.[k])) patch[k] = novo[k];
+  }
+  return patch;
+}
+
 export function telefoneDoRaw(itens) {
   // A pergunta casar com /whats/ NÃO basta: "Podemos te chamar no WhatsApp?"
   // é sim/não e gravaria telefone="Sim" — lead pago sem como ligar, e ainda
@@ -210,7 +243,7 @@ export default async function handler(req, res) {
     if (digitos.length >= 10 || lead.email) {
       const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data: recentes } = await admin
-        .from("leads").select("id, vendedor_id, telefone, email, mensagem")
+        .from("leads").select(`id, vendedor_id, telefone, ${CAMPOS_ENRIQUECIVEIS.join(", ")}`)
         .gte("created_at", desde)
         // Lead ARQUIVADO não absorve contato novo. O ciclo dele terminou: se o
         // cliente preencheu o anúncio de manhã, o consultor não conseguiu falar
@@ -242,7 +275,24 @@ export default async function handler(req, res) {
         } catch (e) {
           console.error(JSON.stringify({ level: "warn", fn: "lead-inbound", msg: `atividade de reenvio falhou: ${String(e).slice(0, 150)}` }));
         }
-        return res.status(200).json({ ok: true, id: existente.id, duplicado: true, distribuido_para: existente.vendedor_id ?? null });
+        // Preenche os buracos que só o Make sabe. Depois da checagem de reenvio
+        // acima, que compara a mensagem ANTIGA. Falhar aqui não muda a
+        // resposta: o dedup já cumpriu o papel dele.
+        let enriquecido = [];
+        try {
+          const patch = camposParaEnriquecer(lead, existente);
+          if (Object.keys(patch).length) {
+            // .select() + conferir linha: UPDATE barrado por RLS volta ZERO
+            // linhas SEM erro — sem isto o "enriquecido" seria mentira.
+            const { data: upd, error: errUpd } = await admin
+              .from("leads").update(patch).eq("id", existente.id).select("id");
+            if (errUpd) throw new Error(errUpd.message);
+            if (upd?.length) enriquecido = Object.keys(patch);
+          }
+        } catch (e) {
+          console.error(JSON.stringify({ level: "warn", fn: "lead-inbound", msg: `enriquecer falhou: ${String(e).slice(0, 150)}` }));
+        }
+        return res.status(200).json({ ok: true, id: existente.id, duplicado: true, enriquecido, distribuido_para: existente.vendedor_id ?? null });
       }
     }
   } catch (err) {

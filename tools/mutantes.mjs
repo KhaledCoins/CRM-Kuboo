@@ -63,6 +63,12 @@ const MUTACOES = [
   // ─── Bolsão / SLA ─────────────────────────────────────────────────────────
   ["src/lib/leads.ts", "lead em negociação volta a cair no bolsão",
     '  if (ETAPAS_DE_ATENDIMENTO.includes(String(l.etapa ?? ""))) return false;', ''],
+  ["api/lead-inbound.js", "enriquecimento SOBRESCREVE dado que ja estava no lead",
+    'if (!vazio(novo?.[k]) && vazio(existente?.[k])) patch[k] = novo[k];', 'if (!vazio(novo?.[k])) patch[k] = novo[k];'],
+  ["api/lead-inbound.js", "enriquecimento passa a mexer em dono/etapa/valor",
+    'const CAMPOS_ENRIQUECIVEIS = [', 'const CAMPOS_ENRIQUECIVEIS = ["vendedor_id", "etapa", "valor_potencial",'],
+  ["api/lead-inbound.js", "dedup volta a jogar fora o payload do Make",
+    'const patch = camposParaEnriquecer(lead, existente);', 'const patch = {};'],
   ["api/_teste.js", "lead de teste da Meta volta a entrar como lead real",
     'MARCADORES.some((re) => re.test(v))', 'false'],
   ["api/_teste.js", "barreira fica gulosa e barra cliente de verdade chamado Teste",

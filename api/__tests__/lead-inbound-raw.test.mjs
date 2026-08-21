@@ -4,7 +4,7 @@
 //   npx vite-node api/__tests__/lead-inbound-raw.test.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { extrairRespostas, formularioDoRaw, telefoneDoRaw } from "../lead-inbound.js";
+import { camposParaEnriquecer, extrairRespostas, formularioDoRaw, telefoneDoRaw } from "../lead-inbound.js";
 
 let ok = 0;
 const t = (nome, fn) => { fn(); ok++; console.log(`  ok  ${nome}`); };
@@ -90,6 +90,60 @@ t("a consulta de dedup exclui leads arquivados", () => {
   const fim = src.indexOf("const existente");
   assert.ok(ini > 0 && fim > ini, "nao achei o bloco de dedup");
   assert.ok(src.slice(ini, fim).includes('.eq("descartado", false)'), "o dedup precisa ignorar lead arquivado");
+});
+
+// ── Enriquecimento no dedup ────────────────────────────────────────────────
+// O C2S é instantâneo, o Make passa por fila. Quando o C2S cria o lead
+// primeiro, o payload do Make caía no dedup e era jogado fora inteiro — junto
+// iam as respostas do formulário e o nome do anúncio, que SÓ o Make traz.
+t("preenche o que falta no lead que o C2S criou primeiro", () => {
+  const doMake = { formulario: { "Valor do crédito?": "R$ 100.000" }, fb_anuncio: "AUTO - VIDEO ANA", campanha: "CAMPANHA AUTO" };
+  const doC2S = { formulario: null, fb_anuncio: null, campanha: "CAMPANHA AUTO" };
+  assert.deepEqual(camposParaEnriquecer(doMake, doC2S), {
+    formulario: { "Valor do crédito?": "R$ 100.000" },
+    fb_anuncio: "AUTO - VIDEO ANA",
+  }, "campanha já estava lá: não entra no patch");
+});
+
+t("NUNCA sobrescreve o que já está preenchido", () => {
+  const patch = camposParaEnriquecer(
+    { campanha: "OUTRA", email: "novo@x.com", mensagem: "outra msg", produto_interesse: "outro" },
+    { campanha: "CAMPANHA AUTO", email: "cliente@x.com", mensagem: "msg original", produto_interesse: "Consórcio" },
+  );
+  assert.deepEqual(patch, {});
+});
+
+t("dono, etapa, valor e telefone NÃO são enriquecíveis (posse e identidade)", () => {
+  const patch = camposParaEnriquecer(
+    { vendedor_id: "invasor", etapa: "ganho", valor_potencial: 999999, telefone: "(11) 90000-0000", descartado: false },
+    { vendedor_id: null, etapa: null, valor_potencial: null, telefone: null, descartado: null },
+  );
+  assert.deepEqual(patch, {}, "enriquecimento não pode roubar lead nem mexer no funil");
+});
+
+t("formulário vazio {} conta como buraco, não como preenchido", () => {
+  const cheio = { "Valor?": "R$ 50.000" };
+  assert.deepEqual(camposParaEnriquecer({ formulario: cheio }, { formulario: {} }), { formulario: cheio });
+  assert.deepEqual(camposParaEnriquecer({ formulario: {} }, { formulario: null }), {}, "vazio não preenche nada");
+});
+
+t("string só com espaço é buraco, dos dois lados", () => {
+  assert.deepEqual(camposParaEnriquecer({ fb_anuncio: "   " }, { fb_anuncio: null }), {});
+  assert.deepEqual(camposParaEnriquecer({ fb_anuncio: "ANUNCIO X" }, { fb_anuncio: "   " }), { fb_anuncio: "ANUNCIO X" });
+});
+
+t("lead torto não quebra", () => {
+  assert.deepEqual(camposParaEnriquecer(undefined, undefined), {});
+  assert.deepEqual(camposParaEnriquecer({}, {}), {});
+});
+
+// O UPDATE do enriquecimento tem que conferir se voltou linha: PostgREST
+// devolve ZERO linhas SEM erro quando a RLS barra.
+t("o update do enriquecimento confere se a linha voltou", () => {
+  const src = readFileSync(new URL("../lead-inbound.js", import.meta.url), "utf8");
+  const bloco = src.slice(src.indexOf("const patch = camposParaEnriquecer"), src.indexOf("enriquecer falhou"));
+  assert.ok(bloco.includes('.select("id")'), "sem .select() o enriquecido seria mentira");
+  assert.ok(bloco.includes("upd?.length"), "precisa conferir se voltou linha");
 });
 
 console.log(`\n${ok} testes de respostas_raw passaram`);
