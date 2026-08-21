@@ -32,6 +32,7 @@ import { createClient } from "@supabase/supabase-js";
 import { env, segredoConfere } from "./_env.js";
 import { decidirModulo } from "./_modulo.js";
 import { formatarTelefone } from "./_telefone.js";
+import { ehLeadDeTeste, MOTIVO_TESTE } from "./_teste.js";
 
 // ─── Respostas brutas do Meta (à prova de formulário novo) ──────────────────
 // O body do Make mapeia as perguntas do formulário ATUAL por chave fixa — um
@@ -174,6 +175,14 @@ export default async function handler(req, res) {
     status: "novo",
     score: Number.isFinite(+b.score) ? Math.max(0, Math.min(100, +b.score)) : 60,
   };
+
+  // A ferramenta de teste da Meta dispara lead falso pelo MESMO webhook do
+  // lead real. Ele é ARQUIVADO, não recusado: guardar deixa rastro pra agência
+  // conferir que o formulário publicou, sem gastar consultor nem sujar relatório.
+  if (ehLeadDeTeste({ nome: lead.nome, email: lead.email, mensagem: lead.mensagem, produto_interesse: lead.produto_interesse })) {
+    lead.descartado = true;
+    lead.motivo_descarte = MOTIVO_TESTE;
+  }
 
   // ─── Idempotência (24h por telefone/e-mail) ────────────────────────────────
   // Make/Zapier fazem RETRY automático quando a resposta demora (cold start +

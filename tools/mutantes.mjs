@@ -16,6 +16,7 @@ const SUITES = {
   "api/c2s-webhook.js": ["api/__tests__/c2s-webhook.test.mjs"],
   "api/_env.js": ["api/__tests__/env.test.mjs"],
   "api/_documento.js": ["api/__tests__/documento.test.mjs"],
+  "api/_teste.js": ["api/__tests__/teste-meta.test.mjs"],
   "src/lib/num.ts": ["src/lib/__tests__/num.test.mjs"],
   "src/lib/leads.ts": ["src/lib/__tests__/bolsao.test.mjs"],
   "src/lib/format.ts": ["src/lib/__tests__/data-fuso.test.mjs"],
@@ -62,6 +63,10 @@ const MUTACOES = [
   // ─── Bolsão / SLA ─────────────────────────────────────────────────────────
   ["src/lib/leads.ts", "lead em negociação volta a cair no bolsão",
     '  if (ETAPAS_DE_ATENDIMENTO.includes(String(l.etapa ?? ""))) return false;', ''],
+  ["api/_teste.js", "lead de teste da Meta volta a entrar como lead real",
+    'MARCADORES.some((re) => re.test(v))', 'false'],
+  ["api/_teste.js", "barreira fica gulosa e barra cliente de verdade chamado Teste",
+    'const MARCADORES = [', 'const MARCADORES = [/test/i,'],
   ["src/lib/leads.ts", "query do banco esquece a rede de segurança das etapas (colega rouba lead em negociação)",
     'or(etapa.is.null,etapa.not.in.(${ETAPAS_DE_ATENDIMENTO.join(",")}))', 'etapa.not.is.null'],
   ["src/lib/leads.ts", "lead SEM etapa some do bolsão (null not in = NULL no SQL)",
@@ -93,12 +98,19 @@ for (const [arquivo, descricao, de, para] of MUTACOES) {
     sobreviventes.push({ arquivo, descricao, motivo: "ÂNCORA NÃO ENCONTRADA (mutação não aplicada)" });
     continue;
   }
+  const suites = SUITES[arquivo] ?? [];
+  // Sem suíte registrada NENHUM teste roda e a mutação "sobreviveria" calada —
+  // o harness estaria mentindo. Isso é defeito do harness, não código sem teste.
+  if (!suites.length) {
+    sobreviventes.push({ arquivo, descricao, motivo: "SEM SUÍTE REGISTRADA em SUITES (defeito do harness)" });
+    continue;
+  }
   const backup = `${arquivo}.mutbak`;
   copyFileSync(arquivo, backup);
   try {
     writeFileSync(arquivo, src.replace(de, para));
     let alguemGritou = false;
-    for (const suite of SUITES[arquivo] ?? []) {
+    for (const suite of suites) {
       try {
         execSync(`npx vite-node ${suite}`, { stdio: "pipe", timeout: 120000 });
       } catch {

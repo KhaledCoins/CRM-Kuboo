@@ -26,6 +26,7 @@ import { createClient } from "@supabase/supabase-js";
 import { env, segredoConfere } from "./_env.js";
 import { decidirModulo } from "./_modulo.js";
 import { formatarTelefone } from "./_telefone.js";
+import { ehLeadDeTeste, MOTIVO_TESTE } from "./_teste.js";
 
 const ORIGENS_VALIDAS = ["chatbot", "formulario", "whatsapp", "indicacao", "portal", "manual", "webhook"];
 const ETAPAS_VALIDAS = ["novos", "contato", "cotacao", "negociacao", "ganho", "perdido"];
@@ -269,6 +270,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, acao: "atualizado", id: existente.id });
     }
 
+    // Mesma barreira do lead-inbound: o lead de teste da Meta chega pelo C2S
+    // também — foi por aqui que ele entrou em 21/08, virou lead "em
+    // negociação" com consultor e sem telefone pra ligar.
+    if (ehLeadDeTeste({ nome: linha.nome, email: linha.email, mensagem: linha.mensagem, produto_interesse: linha.produto_interesse })) {
+      linha.descartado = true;
+      linha.motivo_descarte = MOTIVO_TESTE;
+    }
     if (vendedorId) {
       linha.vendedor_id = vendedorId;
       linha.atribuido_em = new Date().toISOString();
