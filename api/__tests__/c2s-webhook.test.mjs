@@ -70,6 +70,24 @@ t("lead ainda sem fonte GANHA a fonte do C2S", () => {
   assert.equal(p.fonte, "Instagram Leads");
 });
 
+t("etapa avançada no C2S espelha o 1º contato (para o relógio do CRM)", () => {
+  const linha = { ...linhaBase, primeiro_contato_em: "2026-08-20T21:43:41Z" };
+  const p = montarPatch(linha, { etapa: "novos", descartado: false }, "Maria Silva");
+  assert.equal(p.primeiro_contato_em, "2026-08-20T21:43:41Z");
+});
+
+t("1º contato já gravado é fato histórico — evento não move o timestamp", () => {
+  const linha = { ...linhaBase, primeiro_contato_em: "2026-08-21T10:00:00Z" };
+  const p = montarPatch(linha, { etapa: "novos", descartado: false, primeiro_contato_em: "2026-08-20T21:43:41Z" }, "Maria Silva");
+  assert.equal("primeiro_contato_em" in p, false);
+});
+
+t("evento sem atendimento (etapa novos) não inventa 1º contato", () => {
+  const linha = { ...linhaBase, primeiro_contato_em: null };
+  const p = montarPatch(linha, { etapa: "novos", descartado: false }, "Maria Silva");
+  assert.equal("primeiro_contato_em" in p, false, "null não pode entrar no patch");
+});
+
 t("etapa só AVANÇA: evento atrasado não rebaixa negociacao para contato", () => {
   const p = montarPatch(linhaBase, { etapa: "negociacao", descartado: false }, "Maria Silva");
   assert.equal("etapa" in p, false);

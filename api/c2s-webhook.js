@@ -91,6 +91,9 @@ export function montarPatch(linha, existente, nomeC2S) {
   // só entra em lead que ainda não tem fonte — visto no 1º lead real do
   // paralelo (Antonio, 20/08): o espelho do C2S apagava a fonte do Make.
   if (existente.fonte) delete patch.fonte;
+  // 1º contato é FATO histórico: uma vez gravado, evento nenhum o move — o
+  // relatório de tempo de 1ª resposta depende do timestamp original.
+  if (existente.primeiro_contato_em) delete patch.primeiro_contato_em;
   return patch;
 }
 
@@ -179,12 +182,21 @@ export default async function handler(req, res) {
       mensagem: primeiraMsg,
       c2s_lead_id: c2sId,
       interagido_em: at.read_at || at.replied_at || null,
+      // Etapa avançada no C2S = a equipe JÁ FALOU com o cliente (lá). Sem
+      // espelhar o 1º contato, o CRM acha o lead "não atendido": o SLA estoura,
+      // o lead volta pro BOLSÃO no meio da negociação (outro vendedor pode
+      // pegá-lo) e o sino grita SLA estourado — aconteceu com o 1º lead real
+      // do paralelo (Antonio, 20/08). 'perdido' fica de fora: arquivar sem
+      // nunca ter falado existe (lead lixo).
+      primeiro_contato_em: ["contato", "cotacao", "negociacao", "ganho"].includes(etapa)
+        ? (at.replied_at || at.read_at || new Date().toISOString())
+        : null,
     };
 
     // Já existe? SEMPRE pelo id do C2S quando ele vier.
     let existente = null;
     if (c2sId) {
-      const { data } = await admin.from("leads").select("id, etapa, descartado, fonte").eq("c2s_lead_id", c2sId).limit(1);
+      const { data } = await admin.from("leads").select("id, etapa, descartado, fonte, primeiro_contato_em").eq("c2s_lead_id", c2sId).limit(1);
       existente = data?.[0] ?? null;
     }
 
@@ -199,7 +211,7 @@ export default async function handler(req, res) {
     // família), que era o motivo do fallback antigo ter sido restringido.
     if (!existente && telefone) {
       const { data } = await admin.from("leads")
-        .select("id, etapa, descartado, nome, fonte")
+        .select("id, etapa, descartado, nome, fonte, primeiro_contato_em")
         .eq("telefone", telefone).is("c2s_lead_id", null)
         .order("created_at", { ascending: false }).limit(5);
       existente = escolherExistente(data, nomeC2S);
