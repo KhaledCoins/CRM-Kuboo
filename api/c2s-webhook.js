@@ -86,6 +86,11 @@ export function montarPatch(linha, existente, nomeC2S) {
   if ((RANK[patch.etapa] ?? 0) <= (RANK[existente.etapa] ?? 0)) delete patch.etapa;
   // Idem para o arquivamento: pode arquivar, nunca desarquivar sozinho.
   if (patch.descartado === false && existente.descartado === true) delete patch.descartado;
+  // Fonte de NASCIMENTO é identidade do lead: quem chegou primeiro batizou
+  // ("Meta Lead Ads" via Make). O rótulo genérico do C2S ("Facebook Leads")
+  // só entra em lead que ainda não tem fonte — visto no 1º lead real do
+  // paralelo (Antonio, 20/08): o espelho do C2S apagava a fonte do Make.
+  if (existente.fonte) delete patch.fonte;
   return patch;
 }
 
@@ -179,7 +184,7 @@ export default async function handler(req, res) {
     // Já existe? SEMPRE pelo id do C2S quando ele vier.
     let existente = null;
     if (c2sId) {
-      const { data } = await admin.from("leads").select("id, etapa, descartado").eq("c2s_lead_id", c2sId).limit(1);
+      const { data } = await admin.from("leads").select("id, etapa, descartado, fonte").eq("c2s_lead_id", c2sId).limit(1);
       existente = data?.[0] ?? null;
     }
 
@@ -194,7 +199,7 @@ export default async function handler(req, res) {
     // família), que era o motivo do fallback antigo ter sido restringido.
     if (!existente && telefone) {
       const { data } = await admin.from("leads")
-        .select("id, etapa, descartado, nome")
+        .select("id, etapa, descartado, nome, fonte")
         .eq("telefone", telefone).is("c2s_lead_id", null)
         .order("created_at", { ascending: false }).limit(5);
       existente = escolherExistente(data, nomeC2S);

@@ -60,6 +60,16 @@ t("C2S sem nome não substitui o nome por 'Sem nome — telefone'", () => {
   assert.equal("nome" in p, false);
 });
 
+t("fonte de nascimento não é sobrescrita (Make batizou 'Meta Lead Ads', C2S não apaga)", () => {
+  const p = montarPatch(linhaBase, { etapa: "novos", descartado: false, fonte: "Meta Lead Ads" }, "Maria Silva");
+  assert.equal("fonte" in p, false, "fonte existente não deveria estar no patch");
+});
+
+t("lead ainda sem fonte GANHA a fonte do C2S", () => {
+  const p = montarPatch(linhaBase, { etapa: "novos", descartado: false, fonte: null }, "Maria Silva");
+  assert.equal(p.fonte, "Instagram Leads");
+});
+
 t("etapa só AVANÇA: evento atrasado não rebaixa negociacao para contato", () => {
   const p = montarPatch(linhaBase, { etapa: "negociacao", descartado: false }, "Maria Silva");
   assert.equal("etapa" in p, false);
