@@ -9,7 +9,7 @@ import { PageHeader, Card, Badge, EmptyState, Spinner, SearchInput, Select, Butt
 import { ModalShell } from "../components/ModalShell";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { fetchLeads, fetchLeadsArquivados, moduloDe, limiteSlaMinutos, type Lead } from "../lib/leads";
+import { fetchLeads, fetchLeadsArquivados, moduloDe, limiteSlaMinutos, registrarContato, type Lead } from "../lib/leads";
 import {
   type Atividade, type Etiqueta, TIPOS_ATIVIDADE, atividadeAtual, atividadeAtrasada,
   favoritosDoUsuario, alternarFavorito, listarEquipe, inserir, listar,
@@ -438,7 +438,14 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
             </div>
             <div className="flex items-center gap-1 shrink-0">
               {wa && (
-                <a href={wa} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                <a href={wa} target="_blank" rel="noopener noreferrer"
+                  // Abrir o WhatsApp É o 1º contato — sem registrar, o SLA
+                  // seguia correndo e o lead voltava pro bolsão com o vendedor
+                  // já conversando (mesmo fluxo do "Abrir WhatsApp" do 360º).
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!l.primeiro_contato_em) void registrarContato(l.id).then((ok) => { if (ok) toast.success("1º contato registrado — SLA parado."); });
+                  }}
                   title="WhatsApp" aria-label={`WhatsApp de ${l.nome}`}
                   className="text-muted hover:text-[#25d366] transition-colors p-1.5 rounded-lg hover:bg-green-50">
                   <MessageCircle size={16} />

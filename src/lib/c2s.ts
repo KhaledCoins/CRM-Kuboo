@@ -169,7 +169,7 @@ export async function logDoLead(leadId: string): Promise<DistribuicaoLog[]> {
 // ─── Mensagens prontas: substituição de variáveis ───────────────────────────
 export function renderTemplate(
   conteudo: string,
-  ctx: { nomeContato?: string | null; nomeVendedor?: string | null; telefoneVendedor?: string | null; assinatura?: string | null; produto?: string | null; campanha?: string | null; nomeAtividade?: string | null; dataAtividade?: string | null }
+  ctx: { nomeContato?: string | null; nomeVendedor?: string | null; telefoneVendedor?: string | null; assinatura?: string | null; produto?: string | null; modulo?: string | null; campanha?: string | null; nomeAtividade?: string | null; dataAtividade?: string | null }
 ): string {
   const primeiro = (ctx.nomeContato || "").trim().split(/\s+/)[0] || "";
   const rep = (s: string, de: string, para: string) => s.split(de).join(para);
@@ -178,7 +178,10 @@ export function renderTemplate(
   out = rep(out, "[NOME_VENDEDOR]", ctx.nomeVendedor || "");
   out = rep(out, "[TELEFONE_VENDEDOR]", ctx.telefoneVendedor || "");
   out = rep(out, "[ASSINATURA]", ctx.assinatura || "");
-  out = rep(out, "[PRODUTO]", ctx.produto || "");
+  // Lead do Meta chega sem produto_interesse — [PRODUTO] vazio deixava buraco
+  // no meio da "Mensagem de abertura" ("interesse em  e vou cuidar..."). O
+  // módulo do lead é o fallback honesto: consórcio ou seguro.
+  out = rep(out, "[PRODUTO]", ctx.produto || (ctx.modulo === "seguros" ? "seguro" : "consórcio"));
   out = rep(out, "[CAMPANHA]", ctx.campanha || "");
   out = rep(out, "[NOME_ATIVIDADE]", ctx.nomeAtividade || "");
   out = rep(out, "[DATA_ATIVIDADE]", ctx.dataAtividade || "");

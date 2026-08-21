@@ -121,25 +121,47 @@ export default async function handler(req, res) {
   // (Make não re-tenta). Depois de 24h, contato novo é interesse novo: vira
   // lead e a fila de retorno (memória 16d) devolve ao mesmo consultor.
   // Falha na checagem NUNCA segura a captação — lead pago não se perde.
+  // A CHAVE de dedup só pode ser telefone que PARSEIA como BR (formatarTelefone
+  // ok, 10-11 dígitos). O texto cru que guardamos como fallback ("me liga às
+  // 18h", CEP, data de nascimento) tem 8+ dígitos e o casamento por sufixo
+  // fundiria duas pessoas do mesmo CEP — o 2º lead pago sumiria em silêncio.
+  // Guardar é uma coisa; chavear é outra.
   const soDigitos = (s) => String(s || "").replace(/\D/g, "");
+  const chaveTelefone = (t) => soDigitos(formatarTelefone(t) ?? "");
   const mesmoTelefone = (a, b) => {
-    if (a.length < 8 || b.length < 8) return false;
+    if (a.length < 10 || b.length < 10) return false; // menor telefone BR válido: DDD+8
     return a === b || a.endsWith(b) || b.endsWith(a); // "5512988..." casa "12988..."
   };
   try {
-    const digitos = soDigitos(lead.telefone);
-    if (digitos.length >= 8 || lead.email) {
+    const digitos = chaveTelefone(lead.telefone);
+    if (digitos.length >= 10 || lead.email) {
       const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data: recentes } = await admin
-        .from("leads").select("id, vendedor_id, telefone, email")
+        .from("leads").select("id, vendedor_id, telefone, email, mensagem")
         .gte("created_at", desde)
         .order("created_at", { ascending: false }).limit(200);
       const existente = (recentes ?? []).find((r) =>
-        mesmoTelefone(soDigitos(r.telefone), digitos) ||
+        mesmoTelefone(chaveTelefone(r.telefone), digitos) ||
         (lead.email && r.email && r.email.toLowerCase() === lead.email)
       );
       if (existente) {
         console.log(JSON.stringify({ level: "info", fn: "lead-inbound", msg: `dedup 24h: reaproveitando lead ${existente.id}` }));
+        // Retry do Make manda payload IDÊNTICO — silêncio é o correto. Mensagem
+        // DIFERENTE é o cliente reenviando o formulário (está quente): vira
+        // atividade pendente "retornar" pro dono ver na aba A fazer. Falha aqui
+        // nunca muda a resposta — o dedup já cumpriu o papel dele.
+        try {
+          if (lead.mensagem && existente.mensagem && lead.mensagem !== existente.mensagem) {
+            await admin.from("lead_atividades").insert({
+              lead_id: existente.id,
+              tipo: "retornar",
+              titulo: "Cliente reenviou o formulário do anúncio — respondeu de novo, está quente",
+              quando: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.error(JSON.stringify({ level: "warn", fn: "lead-inbound", msg: `atividade de reenvio falhou: ${String(e).slice(0, 150)}` }));
+        }
         return res.status(200).json({ ok: true, id: existente.id, duplicado: true, distribuido_para: existente.vendedor_id ?? null });
       }
     }

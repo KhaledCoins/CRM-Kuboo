@@ -280,7 +280,18 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
                     {claiming === l.id ? "Pegando..." : !bolsaoAberto ? "Fora do horário" : "Pegar lead"}
                   </Button>
                   {wa && (
-                    <a href={wa} target="_blank" rel="noopener noreferrer">
+                    <a
+                      href={wa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      // Conversar sem pegar deixava DOIS consultores no mesmo
+                      // cliente: o card seguia no bolsão pra outro pegar e o
+                      // relógio de SLA de quem já atendia nem existia. O clique
+                      // agora também PEGA o lead (mesma corrida protegida do
+                      // botão) — se outro pegou antes, o toast avisa e o
+                      // vendedor interrompe a conversa.
+                      onClick={() => { if (bolsaoAberto && claiming !== l.id) void handlePegar(l.id); }}
+                    >
                       <Button size="sm" variant="wa" icon={MessageCircle}>WhatsApp</Button>
                     </a>
                   )}

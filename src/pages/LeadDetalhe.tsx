@@ -346,6 +346,7 @@ function CardWhatsapp({ lead, atual, mensagens, user, meuPerfil, onUsar }: {
     nomeVendedor: user?.name,
     telefoneVendedor: meuPerfil?.phone,
     produto: lead.produto_interesse,
+    modulo: lead.modulo,
     campanha: lead.campanha,
     nomeAtividade: atual ? rotuloTipo(atual.tipo) : undefined,
     dataAtividade: atual ? dateTimeBR(atual.quando) ?? undefined : undefined,

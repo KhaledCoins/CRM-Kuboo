@@ -23,6 +23,10 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
     const avisos: Aviso[] = [];
     const em7d = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const hoje = new Date().toISOString().slice(0, 10);
+    // uid uma vez só — usado pelo aviso de "lead novo" (só o dono vê) e pela
+    // escada de sem-atendimento lá embaixo.
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData?.user?.id ?? null;
 
     // Sinistros triados pelo Kubinho — prioridade MÁXIMA, sempre no TOPO da
     // lista (na frente de SLA/renovações). Só existe no módulo seguros.
@@ -65,12 +69,16 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
       seguros ? supabase.from("apolices").select("id,tipo,vigencia_fim,profiles(name)").not("vigencia_fim", "is", null).neq("status", "cancelada").gte("vigencia_fim", hoje).lte("vigencia_fim", em7d).limit(50) : Promise.resolve({ data: [] as any[] }),
     ]);
 
-    // SLA de 1º contato: estourando (≤10min) ou estourado
+    // SLA de 1º contato: estourando (≤10min) ou estourado. E o aviso que
+    // faltava: LEAD NOVO — antes, o dono só ficava sabendo do lead quando o
+    // SLA já tinha queimado metade (primeiro sinal aos 10min restantes).
+    // Agora o sino avisa no primeiro poll depois da atribuição.
     for (const l of (leadsR.data || []) as Lead[]) {
       const min = slaRestanteMin(l);
       if (min == null) continue;
       if (min < 0) avisos.push({ id: `sla-${l.id}`, tone: "red", titulo: `SLA estourado — ${l.nome}`, detalhe: `1º contato atrasado ${Math.abs(min)} min · lead voltou pro bolsão`, to: `/${modulo}/bolsao` });
       else if (min <= 10) avisos.push({ id: `sla-${l.id}`, tone: "amber", titulo: `SLA em ${min} min — ${l.nome}`, detalhe: "Registre o 1º contato antes de estourar", to: `/${modulo}/pipeline` });
+      else if (l.vendedor_id === uid) avisos.push({ id: `novo-${l.id}`, tone: "blue", titulo: `Lead novo — ${l.nome}`, detalhe: `distribuído pra você · 1º contato em até ${min} min`, to: `/${modulo}/leads/${l.id}` });
     }
 
     // Renovações da semana (vendas do CRM + carteira de apólices) — só no módulo seguros
@@ -87,8 +95,6 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
       const { data: alertasData } = await supabase.from("alertas_config").select("*").eq("ativo", true);
       const alertas = (alertasData as AlertaConfig[]) ?? [];
       if (alertas.length) {
-        const { data: userData } = await supabase.auth.getUser();
-        const uid = userData?.user?.id;
         if (uid) {
           const { data: perfil } = await supabase.from("profiles").select("role").eq("id", uid).maybeSingle();
           const isManager = ["gestor", "admin"].includes((perfil as any)?.role ?? "");
@@ -133,7 +139,12 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
       console.error("[avisos] escada sem-atendimento:", e);
     }
 
-    return avisos.slice(0, 20);
+    // Severidade manda no corte, não a ordem de montagem: numa semana cheia de
+    // renovações (azuis, entram antes), a escada vermelha caía fora do top-20.
+    // sort é estável — dentro do mesmo tom, a ordem original (sinistros no
+    // topo, SLA antes de renovação) se preserva.
+    const peso = { red: 0, amber: 1, blue: 2 } as const;
+    return avisos.sort((a, b) => peso[a.tone] - peso[b.tone]).slice(0, 20);
   } catch (e) {
     console.error("[avisos] fetchAvisos:", e);
     return [];

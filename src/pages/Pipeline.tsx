@@ -98,7 +98,8 @@ function LeadCard({ lead, consultor, ativ, onContato, onAbrir }: {
         <p className="text-[10px] text-muted mb-1.5 flex items-center gap-1"><User size={10} /> {consultor}</p>
       )}
       <div className="flex items-center gap-1.5" onPointerDown={(e) => e.stopPropagation()}>
-        {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg"><MessageCircle size={12} /> WhatsApp</a>}
+        {/* Abrir o WhatsApp É o 1º contato — registra pelo mesmo fluxo do botão "Contato" (o SLA parava só se o vendedor lembrasse do 2º clique). */}
+        {wa && <a href={wa} target="_blank" rel="noopener noreferrer" onClick={() => { if (!lead.primeiro_contato_em) onContato(lead.id); }} className="flex items-center gap-1 text-[11px] font-bold text-[#25d366] bg-green-50 px-2 py-1 rounded-lg"><MessageCircle size={12} /> WhatsApp</a>}
         {!lead.primeiro_contato_em && (
           <button onClick={() => onContato(lead.id)} className="flex items-center gap-1 text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-lg">
             <CheckCircle2 size={12} /> Contato
