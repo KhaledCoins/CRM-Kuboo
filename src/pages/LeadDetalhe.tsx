@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -606,6 +606,9 @@ export function LeadDetalhe() {
 
   const [showTransferir, setShowTransferir] = useState(false);
   const [showPorque, setShowPorque] = useState(false);
+  // Última observação de WhatsApp gravada — evita a linha duplicada quando o
+  // consultor copia o template e em seguida abre o WhatsApp (dois gatilhos).
+  const ultimaObsWa = useRef<{ texto: string; em: number }>({ texto: "", em: 0 });
   const [showArquivar, setShowArquivar] = useState(false);
   const [showProposta, setShowProposta] = useState(false);
   const [showEditar, setShowEditar] = useState(false);
@@ -728,10 +731,20 @@ export function LeadDetalhe() {
     setLead((p) => (p ? { ...p, interagido_em: now, primeiro_contato_em: marcouContato ? (p.primeiro_contato_em ?? now) : p.primeiro_contato_em } : p));
     // Paridade com o chat do C2S (o que der via wa.me): o texto enviado fica
     // registrado como observação — o gestor vê O QUE foi dito, não só quando.
+    // O fluxo natural é COPIAR e depois ABRIR o WhatsApp: sem esta trava, o
+    // mesmo texto virava duas observações idênticas seguidas.
     if (info?.texto && user) {
       const cab = info.template ? `📨 WhatsApp — "${info.template}":` : "📨 WhatsApp:";
-      const ok = await inserir("lead_observacoes", { lead_id: lead.id, texto: `${cab}\n${info.texto}`.slice(0, 2000), criado_por: user.id });
-      if (ok) reload();
+      const linha = `${cab}\n${info.texto}`.slice(0, 2000);
+      const agora = Date.now();
+      const igualRecente = ultimaObsWa.current.texto === linha && agora - ultimaObsWa.current.em < 5 * 60000;
+      if (!igualRecente) {
+        ultimaObsWa.current = { texto: linha, em: agora };
+        const ok = await inserir("lead_observacoes", { lead_id: lead.id, texto: linha, criado_por: user.id });
+        // Registro que não gravou não pode virar histórico fantasma pro gestor.
+        if (ok) reload();
+        else { ultimaObsWa.current = { texto: "", em: 0 }; toast.error("Não consegui registrar a mensagem no histórico do lead."); }
+      }
     }
   }
 

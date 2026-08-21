@@ -44,6 +44,25 @@ t("sem pergunta de WhatsApp, qualquer resposta que pareça telefone serve", () =
   assert.equal(telefoneDoRaw(extrairRespostas([{ name: "phone_number", values: ["+5512988776655"] }])), "+5512988776655");
 });
 
+// A regressão que a auditoria de 21/08 pegou: casar a PERGUNTA não basta.
+t("pergunta sim/não sobre WhatsApp NÃO vira telefone (era 'Sim' no campo)", () => {
+  const raw = [
+    { name: "podemos_te_chamar_no_whatsapp?", values: ["Sim"] },
+    { name: "phone_number", values: ["+5512988776655"] },
+  ];
+  assert.equal(telefoneDoRaw(extrairRespostas(raw)), "+5512988776655", "tem que cair no número real, não no 'Sim'");
+});
+
+t("resposta de texto livre em pergunta de contato NÃO vira telefone", () => {
+  assert.equal(telefoneDoRaw(extrairRespostas([{ name: "melhor_horario_de_contato?", values: ["Depois das 18h"] }])), "");
+  assert.equal(telefoneDoRaw(extrairRespostas([{ name: "prefere_contato_por?", values: ["Email"] }])), "");
+});
+
+t("número absurdo (CPF, valor, ano) não é aceito como telefone", () => {
+  assert.equal(telefoneDoRaw(extrairRespostas([{ name: "qual_valor?", values: ["2026"] }])), "", "4 dígitos não é telefone");
+  assert.equal(telefoneDoRaw(extrairRespostas([{ name: "documento", values: ["1234567890123456789"] }])), "", "19 dígitos não é telefone");
+});
+
 t("sem nada que pareça telefone devolve vazio (não inventa)", () => {
   assert.equal(telefoneDoRaw(extrairRespostas([{ name: "renda", values: ["R$ 5.000"] }])), "");
 });

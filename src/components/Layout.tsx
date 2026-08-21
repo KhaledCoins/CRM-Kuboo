@@ -61,9 +61,36 @@ export function Layout() {
   // sino — e um lead recém-atribuído nem qualificava pra aviso. O Realtime
   // respeita a RLS de leads (supabase/realtime-leads.sql).
   const notificados = useRef<Set<string>>(new Set());
+  const navRef = useRef(nav);
+  navRef.current = nav; // nav muda de identidade a cada rota; a ref mantém o
+  // efeito preso só ao usuário — assinar/desassinar a cada navegação é corrida
+  // desnecessária num canal que deve viver a sessão inteira.
+
+  // Lead que o PRÓPRIO usuário pegou do bolsão também chega como atribuição a
+  // ele — sem isto, ele recebia "Lead novo" do lead que acabou de clicar.
+  useEffect(() => {
+    const marcar = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id;
+      if (id) notificados.current.add(id);
+    };
+    window.addEventListener("kuboo:lead-pego", marcar);
+    return () => window.removeEventListener("kuboo:lead-pego", marcar);
+  }, []);
+
   useEffect(() => {
     const uid = user?.id;
     if (!supabase || !uid) return;
+    // Rajada (importação em massa cai no rodízio e distribui centenas de uma
+    // vez): acima de 3 leads em 10s vira UM toast agregado, senão o consultor
+    // levava ~90 toasts + ~90 notificações do sistema de enfiada.
+    let naJanela = 0;
+    let agregados = 0;
+    let janela: ReturnType<typeof setTimeout> | null = null;
+    let resumo: ReturnType<typeof setTimeout> | null = null;
+    const abrirJanela = () => {
+      if (janela) return;
+      janela = setTimeout(() => { janela = null; naJanela = 0; }, 10000);
+    };
     const ch = supabase
       .channel(`leads-vendedor-${uid}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "leads", filter: `vendedor_id=eq.${uid}` }, (payload) => {
@@ -74,10 +101,30 @@ export function Layout() {
         if (!l.atribuido_em || Date.now() - new Date(l.atribuido_em).getTime() > 15 * 60000) return;
         if (notificados.current.has(l.id)) return;
         notificados.current.add(l.id);
+
+        naJanela += 1;
+        abrirJanela();
+        if (naJanela > 3) {
+          // Modo rajada: acumula e mostra um resumo só, sem notificação do SO.
+          agregados += 1;
+          if (resumo) clearTimeout(resumo);
+          resumo = setTimeout(() => {
+            const n = agregados;
+            agregados = 0;
+            toast.info(`${n} leads novos distribuídos pra você`, {
+              description: "Abra Meus Leads para trabalhar a fila.",
+              action: { label: "Abrir", onClick: () => navRef.current(`/${modulo}/leads`) },
+              duration: 12000,
+            });
+            setTick((t) => t + 1);
+          }, 1500);
+          return;
+        }
+
         const rota = `/${l.modulo === "consorcios" ? "consorcios" : "seguros"}/leads/${l.id}`;
         toast.info(`Lead novo — ${l.nome ?? "sem nome"}`, {
           description: "Distribuído pra você. Faça o 1º contato dentro do SLA.",
-          action: { label: "Abrir", onClick: () => nav(rota) },
+          action: { label: "Abrir", onClick: () => navRef.current(rota) },
           duration: 12000,
         });
         try {
@@ -88,8 +135,12 @@ export function Layout() {
         setTick((t) => t + 1); // sino + badge do bolsão refletem o lead já
       })
       .subscribe();
-    return () => { void supabase?.removeChannel(ch); };
-  }, [user?.id, nav]);
+    return () => {
+      if (janela) clearTimeout(janela);
+      if (resumo) clearTimeout(resumo);
+      void supabase?.removeChannel(ch);
+    };
+  }, [user?.id, modulo]);
 
   // Permissão de notificação: pedida no PRIMEIRO clique (gesto real — pedir no
   // load é bloqueado/ignorado pelos browsers). Uma vez só; recusou, respeita.

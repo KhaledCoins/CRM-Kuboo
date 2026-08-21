@@ -64,11 +64,22 @@ export function formularioDoRaw(itens) {
   return Object.fromEntries(custom.map((i) => [i.pergunta.slice(0, 200), i.resposta.slice(0, 1000)]));
 }
 export function telefoneDoRaw(itens) {
-  // Pergunta de WhatsApp primeiro — é o número que o cliente DIGITOU pra ser
-  // chamado; o phone_number nativo (prefill do perfil) é o plano B.
-  const whats = itens.find((i) => /whats/i.test(`${i.chave} ${i.pergunta}`));
-  const tel = whats ?? itens.find((i) => /telefone|phone|celular|contato/i.test(`${i.chave} ${i.pergunta}`));
-  return tel?.resposta ?? "";
+  // A pergunta casar com /whats/ NÃO basta: "Podemos te chamar no WhatsApp?"
+  // é sim/não e gravaria telefone="Sim" — lead pago sem como ligar, e ainda
+  // poluindo a chave de dedup. A RESPOSTA tem que parecer telefone (>= 8
+  // dígitos, que é o mínimo do formatarTelefone; <= 15 é o teto do E.164).
+  const pareceTelefone = (v) => {
+    const d = String(v ?? "").replace(/\D/g, "");
+    return d.length >= 8 && d.length <= 15;
+  };
+  const candidatos = itens.filter((i) => pareceTelefone(i.resposta));
+  if (!candidatos.length) return "";
+  // Entre os que parecem telefone: a pergunta de WhatsApp ganha (é o número
+  // que o cliente DIGITOU pra ser chamado); depois telefone/celular/contato;
+  // por último qualquer outro campo numérico plausível.
+  const whats = candidatos.find((i) => /whats/i.test(`${i.chave} ${i.pergunta}`));
+  const tel = candidatos.find((i) => /telefone|phone|celular|contato/i.test(`${i.chave} ${i.pergunta}`));
+  return (whats ?? tel)?.resposta ?? "";
 }
 
 const BUCKET = new Map();

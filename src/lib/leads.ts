@@ -189,7 +189,14 @@ export async function pegarLead(id: string, vendedorId: string): Promise<boolean
   // Erro (rede/RLS) LANÇA — false fica reservado pra corrida real ("outro
   // pegou"). Antes a falha de rede sumia com o card e mentia pro vendedor.
   if (error) throw new Error(error.message);
-  return !!(data && data.length);
+  const pegou = !!(data && data.length);
+  // Este UPDATE casa com o filtro do canal Realtime de quem clicou (é uma
+  // atribuição a ele mesmo, agorinha, sem 1º contato) — sem avisar o Layout,
+  // o vendedor recebia "Lead novo" do lead que ELE acabou de pegar.
+  if (pegou && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("kuboo:lead-pego", { detail: { id } }));
+  }
+  return pegou;
 }
 
 // Badge do bolsão no menu: só a CONTAGEM, via HEAD count — antes o Layout

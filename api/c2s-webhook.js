@@ -59,6 +59,19 @@ export function escolherExistente(candidatos, nomeC2S) {
   return (alvo && lista.find((c) => String(c.nome).toLowerCase() === alvo)) || lista[0] || null;
 }
 
+// Etapa avançada no C2S = a equipe JÁ FALOU com o cliente (lá). Sem espelhar o
+// 1º contato, o CRM acha o lead "não atendido": o SLA estoura, o lead volta pro
+// BOLSÃO no meio da negociação (outro vendedor pode pegá-lo) e o sino grita SLA
+// estourado — aconteceu com o 1º lead real do paralelo (Antonio, 20/08).
+// 'perdido' fica de fora: arquivar sem nunca ter falado existe (lead lixo).
+// Exportada porque o handler não é testável (faz I/O) — sem isto, apagar a
+// regra inteira mantinha a suíte verde. Ver __tests__/c2s-webhook.test.mjs.
+const ETAPAS_COM_CONTATO = ["contato", "cotacao", "negociacao", "ganho"];
+export function contatoDaEtapa(etapa, at = {}, agoraISO = new Date().toISOString()) {
+  if (!ETAPAS_COM_CONTATO.includes(etapa)) return null;
+  return at.replied_at || at.read_at || agoraISO;
+}
+
 // Campos que o C2S NUNCA pode reescrever num lead que já existe aqui:
 //   modulo   — deduzido por regex ("seguro" no texto), então um lead de seguros
 //              classificado pela equipe voltaria pra consórcios a cada evento.
@@ -182,15 +195,7 @@ export default async function handler(req, res) {
       mensagem: primeiraMsg,
       c2s_lead_id: c2sId,
       interagido_em: at.read_at || at.replied_at || null,
-      // Etapa avançada no C2S = a equipe JÁ FALOU com o cliente (lá). Sem
-      // espelhar o 1º contato, o CRM acha o lead "não atendido": o SLA estoura,
-      // o lead volta pro BOLSÃO no meio da negociação (outro vendedor pode
-      // pegá-lo) e o sino grita SLA estourado — aconteceu com o 1º lead real
-      // do paralelo (Antonio, 20/08). 'perdido' fica de fora: arquivar sem
-      // nunca ter falado existe (lead lixo).
-      primeiro_contato_em: ["contato", "cotacao", "negociacao", "ganho"].includes(etapa)
-        ? (at.replied_at || at.read_at || new Date().toISOString())
-        : null,
+      primeiro_contato_em: contatoDaEtapa(etapa, at),
     };
 
     // Já existe? SEMPRE pelo id do C2S quando ele vier.

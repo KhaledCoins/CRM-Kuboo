@@ -2,7 +2,7 @@
 // (1) qual lead existente o evento do C2S está falando, (2) o que ele pode
 // sobrescrever. Rodar com:  npx vite-node api/__tests__/c2s-webhook.test.mjs
 import assert from "node:assert/strict";
-import { escolherExistente, montarPatch } from "../c2s-webhook.js";
+import { escolherExistente, montarPatch, contatoDaEtapa } from "../c2s-webhook.js";
 
 let ok = 0;
 const t = (nome, fn) => { fn(); ok++; console.log(`  ok  ${nome}`); };
@@ -68,6 +68,28 @@ t("fonte de nascimento não é sobrescrita (Make batizou 'Meta Lead Ads', C2S n�
 t("lead ainda sem fonte GANHA a fonte do C2S", () => {
   const p = montarPatch(linhaBase, { etapa: "novos", descartado: false, fonte: null }, "Maria Silva");
   assert.equal(p.fonte, "Instagram Leads");
+});
+
+// ── contatoDaEtapa ──────────────────────────────────────────────────────────
+// A regra vivia SOLTA dentro do handler (que faz I/O e nenhum teste importa):
+// apagá-la inteira mantinha a suíte verde. Agora é função exportada e testada.
+t("etapa de atendimento no C2S gera 1º contato; 'novos' e 'perdido' não", () => {
+  const at = { replied_at: "2026-08-20T21:43:41Z", read_at: "2026-08-20T21:40:00Z" };
+  for (const etapa of ["contato", "cotacao", "negociacao", "ganho"]) {
+    assert.equal(contatoDaEtapa(etapa, at), "2026-08-20T21:43:41Z", `${etapa} devia espelhar`);
+  }
+  assert.equal(contatoDaEtapa("novos", at), null);
+  assert.equal(contatoDaEtapa("perdido", at), null, "arquivar sem nunca ter falado existe");
+});
+
+t("prefere replied_at; sem ele usa read_at; sem os dois, o agora", () => {
+  assert.equal(contatoDaEtapa("contato", { read_at: "2026-08-20T21:40:00Z" }), "2026-08-20T21:40:00Z");
+  assert.equal(contatoDaEtapa("contato", {}, "2026-08-21T10:00:00Z"), "2026-08-21T10:00:00Z");
+  assert.equal(contatoDaEtapa("contato", undefined, "2026-08-21T10:00:00Z"), "2026-08-21T10:00:00Z");
+});
+
+t("etapa desconhecida não inventa contato", () => {
+  assert.equal(contatoDaEtapa("qualquer_coisa", { replied_at: "x" }), null);
 });
 
 t("etapa avançada no C2S espelha o 1º contato (para o relógio do CRM)", () => {
