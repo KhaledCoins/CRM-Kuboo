@@ -3,6 +3,7 @@
 // telefone via respostas_raw. Rodar com:
 //   npx vite-node api/__tests__/lead-inbound-raw.test.mjs
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { extrairRespostas, formularioDoRaw, telefoneDoRaw } from "../lead-inbound.js";
 
 let ok = 0;
@@ -75,6 +76,20 @@ t("lixo não derruba: null, item torto, values vazio, tudo ignorado", () => {
 
 t("respostas custom vazias não criam formulário fantasma", () => {
   assert.equal(formularioDoRaw(extrairRespostas([{ name: "full_name", values: ["Zé"] }])), null);
+});
+
+// ── Dedup: lead ARQUIVADO não absorve contato novo ─────────────────────────
+// Achado no teste real de ponta a ponta (21/08): o dedup de 24h devolveu um
+// lead perdido/arquivado e o contato novo evaporou. Cenário real: cliente
+// arquivado de manhã ("não consegui contato") volta à tarde decidido — esse
+// contato PRECISA virar lead e ir pro rodízio. A regra vive na query, então o
+// teste verifica o código do endpoint.
+t("a consulta de dedup exclui leads arquivados", () => {
+  const src = readFileSync(new URL("../lead-inbound.js", import.meta.url), "utf8");
+  const ini = src.indexOf("const { data: recentes }");
+  const fim = src.indexOf("const existente");
+  assert.ok(ini > 0 && fim > ini, "nao achei o bloco de dedup");
+  assert.ok(src.slice(ini, fim).includes('.eq("descartado", false)'), "o dedup precisa ignorar lead arquivado");
 });
 
 console.log(`\n${ok} testes de respostas_raw passaram`);

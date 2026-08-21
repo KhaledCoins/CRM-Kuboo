@@ -203,6 +203,13 @@ export default async function handler(req, res) {
       const { data: recentes } = await admin
         .from("leads").select("id, vendedor_id, telefone, email, mensagem")
         .gte("created_at", desde)
+        // Lead ARQUIVADO não absorve contato novo. O ciclo dele terminou: se o
+        // cliente preencheu o anúncio de manhã, o consultor não conseguiu falar
+        // e arquivou, e à tarde ele preenche DE NOVO — agora decidido —, esse
+        // contato tem que virar lead e ir pro rodízio. Sem este filtro o dedup
+        // devolvia o lead morto, ninguém era avisado e o lead pago evaporava.
+        // (Achado no teste real de ponta a ponta, 21/08.)
+        .eq("descartado", false)
         .order("created_at", { ascending: false }).limit(200);
       const existente = (recentes ?? []).find((r) =>
         mesmoTelefone(chaveTelefone(r.telefone), digitos) ||
