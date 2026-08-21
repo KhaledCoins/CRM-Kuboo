@@ -16,6 +16,11 @@
 // `telefone_alt` o campo nativo phone_number — um formulário novo sem a pergunta
 // custom continua entregando telefone.
 //
+// respostas_raw: field_data BRUTO do lead ([{name|field_key|field_label,
+// values[]}]) — o Make manda o mappable_field_data inteiro. É a rede final:
+// formulário novo que o mapeamento fixo não conhece ainda entrega formulário,
+// mensagem e telefone (ver extrairRespostas/formularioDoRaw/telefoneDoRaw).
+//
 // origem aceita: 'chatbot' | 'formulario' | 'whatsapp' | 'indicacao' |
 //   'portal' | 'manual' | 'webhook' (default deste endpoint quando omitido).
 //
@@ -27,6 +32,44 @@ import { createClient } from "@supabase/supabase-js";
 import { env, segredoConfere } from "./_env.js";
 import { decidirModulo } from "./_modulo.js";
 import { formatarTelefone } from "./_telefone.js";
+
+// ─── Respostas brutas do Meta (à prova de formulário novo) ──────────────────
+// O body do Make mapeia as perguntas do formulário ATUAL por chave fixa — um
+// formulário novo chegaria com formulario{} vazio e o lead perderia as
+// respostas (e, sem a pergunta custom de WhatsApp, até o telefone).
+// respostas_raw carrega o field_data bruto do lead (mappable_field_data do
+// Make / field_data da Graph API): [{ name|field_key|field_label, values[] }].
+// O parse é tolerante às variantes de chave porque o formato exato depende da
+// versão da app do Make. Exportadas para teste.
+const CAMPOS_PADRAO = new Set(["full_name", "first_name", "last_name", "email", "phone_number"]);
+export function extrairRespostas(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const chave = String(item.field_key ?? item.name ?? "").trim();
+      const pergunta = String(item.field_label ?? item.label ?? item.name ?? item.field_key ?? "").trim();
+      const v = item.values ?? item.value;
+      const valores = (Array.isArray(v) ? v : v == null ? [] : [v])
+        .filter((x) => x != null) // null dentro do array viraria a string "null"
+        .map((x) => String(x).trim()).filter(Boolean);
+      if (!pergunta || valores.length === 0) return null;
+      return { chave: (chave || pergunta).toLowerCase(), pergunta, resposta: valores.join(", ") };
+    })
+    .filter(Boolean);
+}
+export function formularioDoRaw(itens) {
+  const custom = itens.filter((i) => !CAMPOS_PADRAO.has(i.chave));
+  if (!custom.length) return null;
+  return Object.fromEntries(custom.map((i) => [i.pergunta.slice(0, 200), i.resposta.slice(0, 1000)]));
+}
+export function telefoneDoRaw(itens) {
+  // Pergunta de WhatsApp primeiro — é o número que o cliente DIGITOU pra ser
+  // chamado; o phone_number nativo (prefill do perfil) é o plano B.
+  const whats = itens.find((i) => /whats/i.test(`${i.chave} ${i.pergunta}`));
+  const tel = whats ?? itens.find((i) => /telefone|phone|celular|contato/i.test(`${i.chave} ${i.pergunta}`));
+  return tel?.resposta ?? "";
+}
 
 const BUCKET = new Map();
 function rateLimited(ip) {
@@ -69,10 +112,18 @@ export default async function handler(req, res) {
   const fonteBruta = String(b.fonte || "").trim().slice(0, 80);
   const fonte = fonteBruta || (origem !== origemBruta ? origemBruta : "") || null;
 
+  // Formulário: o mapeado por chave fixa ganha; vazio (formulário novo que o
+  // Make ainda não conhece) → reconstrói das respostas brutas. Objeto só com
+  // valores vazios é descartado — 5 perguntas em branco no lead 360º é pior
+  // que nada.
+  const rawItens = extrairRespostas(b.respostas_raw);
+  let formulario = b.formulario && typeof b.formulario === "object" ? b.formulario : null;
+  const temConteudo = !!formulario && Object.values(formulario).some((v) => String(v ?? "").trim() !== "");
+  if (!temConteudo) formulario = formularioDoRaw(rawItens);
+
   // No C2S a 1ª mensagem do lead É o formulário respondido — se o cenário do
   // Make só mapear formulario{}, sintetizamos a mensagem a partir dele.
   let mensagem = String(b.mensagem || "").trim().slice(0, 4000) || null;
-  const formulario = b.formulario && typeof b.formulario === "object" ? b.formulario : null;
   if (!mensagem && formulario) {
     mensagem = Object.entries(formulario)
       .map(([p, r]) => `• ${String(p).slice(0, 120)}: ${String(r).slice(0, 300)}`)
@@ -83,7 +134,9 @@ export default async function handler(req, res) {
   // por igualdade EXATA de telefone — formato divergente = lead do Meta em dobro
   // no período paralelo. Resposta que não parseia como telefone BR (texto livre
   // da pergunta de WhatsApp, número estrangeiro) fica como veio: cru > perdido.
-  const telBruto = String(b.telefone || "").trim() || String(b.telefone_alt || "").trim();
+  // Cadeia: pergunta custom de WhatsApp > phone_number nativo > qualquer
+  // resposta bruta que pareça telefone (formulário novo sem mapeamento).
+  const telBruto = String(b.telefone || "").trim() || String(b.telefone_alt || "").trim() || telefoneDoRaw(rawItens);
   const lead = {
     nome,
     telefone: telBruto ? (formatarTelefone(telBruto) ?? telBruto.slice(0, 30)) : null,
