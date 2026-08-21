@@ -62,6 +62,10 @@ const MUTACOES = [
   // ─── Bolsão / SLA ─────────────────────────────────────────────────────────
   ["src/lib/leads.ts", "lead em negociação volta a cair no bolsão",
     '  if (ETAPAS_DE_ATENDIMENTO.includes(String(l.etapa ?? ""))) return false;', ''],
+  ["src/lib/leads.ts", "query do banco esquece a rede de segurança das etapas (colega rouba lead em negociação)",
+    'or(etapa.is.null,etapa.not.in.(${ETAPAS_DE_ATENDIMENTO.join(",")}))', 'etapa.not.is.null'],
+  ["src/lib/leads.ts", "lead SEM etapa some do bolsão (null not in = NULL no SQL)",
+    'or(etapa.is.null,etapa.not.in.', 'or(etapa.not.in.'],
   ["src/lib/leads.ts", "lead sem dono deixa de aparecer no bolsão",
     '  if (!l.vendedor_id) return true;', ''],
 

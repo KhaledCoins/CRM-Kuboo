@@ -77,6 +77,26 @@ export function prioridadeLead(l: Lead): number {
   return score + espera * 0.5 + bonusUrg;
 }
 
+// Etapas que só existem depois de falar com o cliente. Mover pra uma delas é
+// atendimento: tem que PARAR o relógio do SLA, senão o lead segue "não
+// atendido", o SLA estoura e ele volta pro BOLSÃO no meio da negociação —
+// qualquer colega pode pegá-lo. Mesmo estrago que o espelho do C2S causava
+// (lead Antonio, 20/08), agora pelo lado do CRM.
+export const ETAPAS_DE_ATENDIMENTO = ["contato", "cotacao", "negociacao", "ganho"];
+
+// Espelho do noBolsao() em PostgREST — fonte ÚNICA do "está no bolsão?" pro
+// banco. A regra tinha três donos (noBolsao, pegarLead e contarBolsao) e só o
+// primeiro conhecia a rede de segurança das etapas: o badge contava lead em
+// negociação (número que a lista não mostrava) e, muito pior, pegarLead
+// deixava OUTRO consultor TOMAR um lead já em atendimento — exatamente o
+// estrago que a rede de segurança existe pra impedir.
+// `etapa.is.null` junto porque no SQL `null not in (...)` é NULL, não true: o
+// lead sem etapa sumiria do bolsão em vez de entrar nele.
+function filtroBolsao(agora: string): string {
+  const emAtendimento = `or(etapa.is.null,etapa.not.in.(${ETAPAS_DE_ATENDIMENTO.join(",")}))`;
+  return `vendedor_id.is.null,and(primeiro_contato_em.is.null,sla_expira_em.lt.${agora},${emAtendimento})`;
+}
+
 /** Lead está no bolsão? (sem dono OU sem 1º contato e SLA estourado) */
 export function noBolsao(l: Lead): boolean {
   if (!l.vendedor_id) return true;
@@ -191,7 +211,7 @@ export async function pegarLead(id: string, vendedorId: string): Promise<boolean
     atribuido_em: now,
     sla_expira_em: sla,
   }).eq("id", id)
-    .or(`vendedor_id.is.null,and(primeiro_contato_em.is.null,sla_expira_em.lt.${now})`)
+    .or(filtroBolsao(now))
     .select("id");
   // Erro (rede/RLS) LANÇA — false fica reservado pra corrida real ("outro
   // pegou"). Antes a falha de rede sumia com o card e mentia pro vendedor.
@@ -215,7 +235,7 @@ export async function contarBolsao(modulo: "seguros" | "consorcios"): Promise<nu
   const agora = new Date().toISOString();
   let q = supabase.from("leads").select("id", { count: "exact", head: true })
     .eq("descartado", false)
-    .or(`vendedor_id.is.null,and(primeiro_contato_em.is.null,sla_expira_em.lt.${agora})`);
+    .or(filtroBolsao(agora));
   q = modulo === "consorcios" ? q.eq("modulo", "consorcios") : q.or("modulo.neq.consorcios,modulo.is.null");
   const { count, error } = await q;
   if (error) console.error("[leads] contarBolsao:", error.message);
@@ -251,13 +271,6 @@ export async function devolverBolsao(id: string): Promise<boolean> {
   if (error) console.error("[leads] devolverBolsao:", error.message);
   return !error && !!(data && data.length);
 }
-
-// Etapas que só existem depois de falar com o cliente. Mover pra uma delas é
-// atendimento: tem que PARAR o relógio do SLA, senão o lead segue "não
-// atendido", o SLA estoura e ele volta pro BOLSÃO no meio da negociação —
-// qualquer colega pode pegá-lo. Mesmo estrago que o espelho do C2S causava
-// (lead Antonio, 20/08), agora pelo lado do CRM.
-const ETAPAS_DE_ATENDIMENTO = ["contato", "cotacao", "negociacao", "ganho"];
 
 export async function moverEtapa(id: string, etapa: string) {
   if (!supabase) return;
