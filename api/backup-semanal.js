@@ -38,11 +38,41 @@ async function exportarTabela(admin, tabela) {
   const linhas = [];
   for (let de = 0; de < 200000; de += PAGINA) {
     const { data, error } = await admin.from(tabela).select("*").range(de, de + PAGINA - 1);
-    if (error) return { erro: error.message, linhas: [] };
+    // Falha no meio da paginação NÃO joga fora o que já veio: backup parcial
+    // (com o erro registrado no resumo) vale muito mais que tabela vazia numa
+    // restauração de emergência. Antes, um timeout na última página apagava
+    // as 800 linhas já baixadas e o resumo dizia só "ERRO".
+    if (error) return { erro: error.message, linhas, parcial: linhas.length > 0 };
     linhas.push(...(data ?? []));
     if (!data || data.length < PAGINA) break;
   }
-  return { erro: null, linhas };
+  return { erro: null, linhas, parcial: false };
+}
+
+// Inventário do Storage (não os binários — só o que existe, onde e quanto pesa).
+// O plano do Supabase é FREE: não há backup gerenciado nem PITR, e este job
+// cobria só as 33 tabelas. Sem o inventário, uma restauração não saberia sequer
+// QUAIS documentos de cliente existiam. Os binários ficam de fora de propósito:
+// o backup é gravado no MESMO projeto, então copiar arquivo pra dentro dele não
+// protege contra a perda do projeto (ver docs/BACKUP.md).
+async function inventarioStorage(admin) {
+  const inventario = {};
+  try {
+    const { data: buckets, error } = await admin.storage.listBuckets();
+    if (error) return { erro: error.message, inventario };
+    for (const b of buckets ?? []) {
+      const { data: arquivos, error: e2 } = await admin.storage.from(b.name).list("", { limit: 1000, sortBy: { column: "name", order: "asc" } });
+      if (e2) { inventario[b.name] = `ERRO: ${e2.message}`; continue; }
+      inventario[b.name] = (arquivos ?? []).map((a) => ({
+        nome: a.name,
+        tamanho: a.metadata?.size ?? null,
+        criado_em: a.created_at ?? null,
+      }));
+    }
+    return { erro: null, inventario };
+  } catch (e) {
+    return { erro: String(e).slice(0, 200), inventario };
+  }
 }
 
 export default async function handler(req, res) {
@@ -60,10 +90,12 @@ export default async function handler(req, res) {
     const resumo = {};
     const tabelas = {};
     for (const t of TABELAS) {
-      const { erro, linhas } = await exportarTabela(admin, t);
+      const { erro, linhas, parcial } = await exportarTabela(admin, t);
       if (erro) {
-        // Tabela com problema não pode matar o backup das outras.
-        resumo[t] = `ERRO: ${erro}`;
+        // Tabela com problema não pode matar o backup das outras — e o que já
+        // foi baixado é guardado do mesmo jeito, marcado como PARCIAL.
+        resumo[t] = parcial ? `PARCIAL (${linhas.length} linhas) — ${erro}` : `ERRO: ${erro}`;
+        if (parcial) tabelas[t] = linhas;
       } else {
         tabelas[t] = linhas;
         resumo[t] = linhas.length;
@@ -72,7 +104,10 @@ export default async function handler(req, res) {
 
     const agora = new Date();
     const nome = `backup-${agora.toISOString().slice(0, 10)}.json`;
-    const corpo = JSON.stringify({ gerado_em: agora.toISOString(), resumo, tabelas });
+    const { erro: erroStorage, inventario } = await inventarioStorage(admin);
+    resumo._storage = erroStorage ? `ERRO: ${erroStorage}` : Object.fromEntries(Object.entries(inventario).map(([b, v]) => [b, Array.isArray(v) ? v.length : v]));
+
+    const corpo = JSON.stringify({ gerado_em: agora.toISOString(), resumo, tabelas, storage: inventario });
 
     const { error: upErr } = await admin.storage.from("backups")
       .upload(nome, new Blob([corpo], { type: "application/json" }), { upsert: true, contentType: "application/json" });
