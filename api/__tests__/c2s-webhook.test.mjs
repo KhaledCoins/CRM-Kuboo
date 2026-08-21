@@ -2,7 +2,7 @@
 // (1) qual lead existente o evento do C2S está falando, (2) o que ele pode
 // sobrescrever. Rodar com:  npx vite-node api/__tests__/c2s-webhook.test.mjs
 import assert from "node:assert/strict";
-import { escolherExistente, montarPatch, contatoDaEtapa } from "../c2s-webhook.js";
+import { escolherExistente, montarPatch, contatoDaEtapa, motivoDoC2S } from "../c2s-webhook.js";
 
 let ok = 0;
 const t = (nome, fn) => { fn(); ok++; console.log(`  ok  ${nome}`); };
@@ -68,6 +68,46 @@ t("fonte de nascimento não é sobrescrita (Make batizou 'Meta Lead Ads', C2S n�
 t("lead ainda sem fonte GANHA a fonte do C2S", () => {
   const p = montarPatch(linhaBase, { etapa: "novos", descartado: false, fonte: null }, "Maria Silva");
   assert.equal(p.fonte, "Instagram Leads");
+});
+
+
+// ── motivoDoC2S ─────────────────────────────────────────────────────────────
+// O C2S manda alias interno; sem traduzir, o lead virava "perdido sem motivo"
+// e o gráfico de motivos do gestor nascia furado (42 leads em 14-21/08).
+t("traduz os aliases reais do C2S para o catálogo do CRM", () => {
+  const caso = (alias) => motivoDoC2S({ lost_reasons: { name: alias } }, true);
+  assert.equal(caso("inactive"), "Falta de interação do usuário");
+  assert.equal(caso("return_delay"), "Cliente não responde");
+  assert.equal(caso("invalid"), "Contato inválido");
+  assert.equal(caso("bought_elsewhere"), "Fechou com concorrente");
+  assert.equal(caso("duplicated"), "Lead duplicado");
+  assert.equal(caso("z_others"), "Outros");
+});
+
+t("alias novo/desconhecido vira 'Outros' (melhor que null no relatório)", () => {
+  assert.equal(motivoDoC2S({ lost_reasons: { name: "alias_que_nao_existe" } }, true), "Outros");
+});
+
+t("lead NÃO descartado nunca ganha motivo", () => {
+  assert.equal(motivoDoC2S({ lost_reasons: { name: "inactive" } }, false), null);
+});
+
+t("arquivado sem motivo na origem continua sem motivo (não inventa)", () => {
+  assert.equal(motivoDoC2S({ lost_reasons: { name: null } }, true), null);
+  assert.equal(motivoDoC2S({}, true), null);
+  assert.equal(motivoDoC2S(undefined, true), null);
+});
+
+t("motivo escolhido no CRM não é sobrescrito por evento do C2S", () => {
+  const linha = { ...linhaBase, descartado: true, motivo_descarte: "Falta de interação do usuário" };
+  const p = montarPatch(linha, { etapa: "novos", descartado: false, motivo_descarte: "Preço alto" }, "Maria Silva");
+  assert.equal("motivo_descarte" in p, false, "o gestor manda no motivo");
+});
+
+t("lead sem motivo no CRM RECEBE o motivo do C2S", () => {
+  const linha = { ...linhaBase, descartado: true, motivo_descarte: "Contato inválido" };
+  const p = montarPatch(linha, { etapa: "novos", descartado: false, motivo_descarte: null }, "Maria Silva");
+  assert.equal(p.motivo_descarte, "Contato inválido");
 });
 
 // ── contatoDaEtapa ──────────────────────────────────────────────────────────

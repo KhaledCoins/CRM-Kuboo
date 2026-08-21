@@ -72,6 +72,40 @@ export function contatoDaEtapa(etapa, at = {}, agoraISO = new Date().toISOString
   return at.replied_at || at.read_at || agoraISO;
 }
 
+// Motivo do arquivamento: o C2S manda o ALIAS interno em lost_reasons.name
+// ("inactive", "return_delay"...). Sem traduzir, o CRM marcava o lead como
+// perdido SEM motivo — 42 leads arquivados entre 14 e 21/08 ficaram assim, e o
+// gráfico de motivos de perda do gestor nasce furado (piora a cada dia).
+// O mapa foi DERIVADO do banco real: cruzei a distribuição dos aliases no
+// backup da extração com a dos motivos já gravados (invalid=17 ↔ "Contato
+// inválido"=17, without_qualification=10 ↔ "Tratada sem qualificação"=10 ...).
+// Alias desconhecido vira "Outros" — é melhor que null no relatório.
+const MOTIVO_C2S = {
+  inactive: "Falta de interação do usuário",
+  return_delay: "Cliente não responde",
+  invalid: "Contato inválido",
+  without_qualification: "Tratada sem qualificação",
+  with_qualification: "Tratada com qualificação",
+  just_researching: "Apenas pesquisando",
+  bought_elsewhere: "Fechou com concorrente",
+  underprivileged: "Não possui renda",
+  impossible_proposal: "Proposta inviável",
+  duplicated: "Lead duplicado",
+  not_ready_to_buy: "Compra adiada",
+  service_problem: "Problema no atendimento",
+  product_not_satisfy: "Produto não agradou",
+  from_spreadsheet: "De planilha",
+  problem_delivery_date: "Prazo de entrega",
+  z_others: "Outros",
+};
+// Exportada para teste — o handler faz I/O e não é testável.
+export function motivoDoC2S(at = {}, descartado = false) {
+  if (!descartado) return null;
+  const alias = String((at?.lost_reasons || {}).name || "").trim();
+  if (!alias) return null;
+  return MOTIVO_C2S[alias] || "Outros";
+}
+
 // Campos que o C2S NUNCA pode reescrever num lead que já existe aqui:
 //   modulo   — deduzido por regex ("seguro" no texto), então um lead de seguros
 //              classificado pela equipe voltaria pra consórcios a cada evento.
@@ -107,6 +141,9 @@ export function montarPatch(linha, existente, nomeC2S) {
   // 1º contato é FATO histórico: uma vez gravado, evento nenhum o move — o
   // relatório de tempo de 1ª resposta depende do timestamp original.
   if (existente.primeiro_contato_em) delete patch.primeiro_contato_em;
+  // Motivo escolhido pela equipe NO CRM manda: o C2S só preenche o que está
+  // vazio (senão um evento atrasado desfaz a classificação do gestor).
+  if (existente.motivo_descarte) delete patch.motivo_descarte;
   return patch;
 }
 
@@ -196,12 +233,13 @@ export default async function handler(req, res) {
       c2s_lead_id: c2sId,
       interagido_em: at.read_at || at.replied_at || null,
       primeiro_contato_em: contatoDaEtapa(etapa, at),
+      motivo_descarte: motivoDoC2S(at, descartado),
     };
 
     // Já existe? SEMPRE pelo id do C2S quando ele vier.
     let existente = null;
     if (c2sId) {
-      const { data } = await admin.from("leads").select("id, etapa, descartado, fonte, primeiro_contato_em").eq("c2s_lead_id", c2sId).limit(1);
+      const { data } = await admin.from("leads").select("id, etapa, descartado, fonte, primeiro_contato_em, motivo_descarte").eq("c2s_lead_id", c2sId).limit(1);
       existente = data?.[0] ?? null;
     }
 
@@ -216,7 +254,7 @@ export default async function handler(req, res) {
     // família), que era o motivo do fallback antigo ter sido restringido.
     if (!existente && telefone) {
       const { data } = await admin.from("leads")
-        .select("id, etapa, descartado, nome, fonte, primeiro_contato_em")
+        .select("id, etapa, descartado, nome, fonte, primeiro_contato_em, motivo_descarte")
         .eq("telefone", telefone).is("c2s_lead_id", null)
         .order("created_at", { ascending: false }).limit(5);
       existente = escolherExistente(data, nomeC2S);
