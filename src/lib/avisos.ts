@@ -105,14 +105,18 @@ export async function fetchAvisos(modulo: "seguros" | "consorcios"): Promise<Avi
           // fica ambíguo e o PostgREST devolve 300/PGRST201 — a consulta falhava
           // calada e o sino dizia "tudo em dia" mesmo com SLA estourando.
           let semAtQ = supabase.from("leads")
-            .select("id,nome,vendedor_id,created_at,modulo,profiles!leads_vendedor_id_fkey(name)")
+            .select("id,nome,vendedor_id,created_at,atribuido_em,modulo,profiles!leads_vendedor_id_fkey(name)")
             .not("vendedor_id", "is", null).is("primeiro_contato_em", null).is("interagido_em", null)
             .eq("descartado", false).limit(300);
           semAtQ = seguros ? semAtQ.or("modulo.eq.seguros,modulo.is.null") : semAtQ.eq("modulo", "consorcios");
           const { data: semAtendimento } = await semAtQ;
 
           for (const l of (semAtendimento as any[]) ?? []) {
-            const minSemAt = Math.floor((Date.now() - new Date(l.created_at).getTime()) / 60000);
+            // A régua é do RECEBIMENTO pelo consultor (igual C2S) — lead que
+            // passou horas no bolsão não pode nascer "sem atendimento há 6h"
+            // pra quem acabou de pegar.
+            const base = l.atribuido_em && new Date(l.atribuido_em) > new Date(l.created_at) ? l.atribuido_em : l.created_at;
+            const minSemAt = Math.floor((Date.now() - new Date(base).getTime()) / 60000);
             // Dedup: só o degrau mais alto estourado que se aplica a ESTE usuário
             // (regra de destinatário igual ao C2S: 'usuario' só se dono do lead;
             // 'gestores' só se o usuário logado é gestor/admin).

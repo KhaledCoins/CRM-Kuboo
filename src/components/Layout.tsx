@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, Moon, Sun, Bell, X, Menu } from "lucide-react";
+import { toast } from "sonner";
 import { temaAtual, alternarTema } from "../lib/theme";
 import { NAV, type Modulo } from "../lib/nav";
 import { useAuth } from "../context/AuthContext";
@@ -8,6 +9,7 @@ import { initials } from "../lib/format";
 import { contarBolsao } from "../lib/leads";
 import { fetchAvisos, type Aviso } from "../lib/avisos";
 import { can } from "../lib/permissoes";
+import { supabase } from "../lib/supabase";
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -21,6 +23,7 @@ export function Layout() {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [avisosAbertos, setAvisosAbertos] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false); // drawer da sidebar no mobile
+  const [tick, setTick] = useState(0); // evento realtime força reload do sino/badge
 
   // Fecha o drawer ao navegar (mobile) e no Esc.
   useEffect(() => { setMenuAberto(false); }, [loc.pathname]);
@@ -49,7 +52,53 @@ export function Layout() {
     load();
     const t = setInterval(load, 60000); // recarrega sozinho; não depende de trocar de rota
     return () => { active = false; clearInterval(t); };
-  }, [modulo]);
+  }, [modulo, tick]);
+
+  // ── Lead novo em TEMPO REAL ────────────────────────────────────────────────
+  // O motor atribui no trigger (chega aqui como UPDATE com vendedor_id do dono)
+  // e o consultor fica sabendo NA HORA: toast sempre; notificação do sistema
+  // quando a aba não está em foco. Antes, o primeiro sinal era o poll de 60s do
+  // sino — e um lead recém-atribuído nem qualificava pra aviso. O Realtime
+  // respeita a RLS de leads (supabase/realtime-leads.sql).
+  const notificados = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const uid = user?.id;
+    if (!supabase || !uid) return;
+    const ch = supabase
+      .channel(`leads-vendedor-${uid}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads", filter: `vendedor_id=eq.${uid}` }, (payload) => {
+        const l = payload.new as { id?: string; nome?: string; modulo?: string | null; primeiro_contato_em?: string | null; descartado?: boolean; atribuido_em?: string | null };
+        if (!l?.id || l.primeiro_contato_em || l.descartado) return;
+        // Só atribuição RECENTE é "lead novo" — retoque em lead antigo
+        // (etiqueta, etapa) também chega como UPDATE e não pode apitar.
+        if (!l.atribuido_em || Date.now() - new Date(l.atribuido_em).getTime() > 15 * 60000) return;
+        if (notificados.current.has(l.id)) return;
+        notificados.current.add(l.id);
+        const rota = `/${l.modulo === "consorcios" ? "consorcios" : "seguros"}/leads/${l.id}`;
+        toast.info(`Lead novo — ${l.nome ?? "sem nome"}`, {
+          description: "Distribuído pra você. Faça o 1º contato dentro do SLA.",
+          action: { label: "Abrir", onClick: () => nav(rota) },
+          duration: 12000,
+        });
+        try {
+          if (typeof Notification !== "undefined" && Notification.permission === "granted" && !document.hasFocus()) {
+            new Notification(`Lead novo — ${l.nome ?? ""}`, { body: "Distribuído pra você no CRM Kuboo. Faça o 1º contato dentro do SLA.", icon: "/kuboo-symbol-3d.png", tag: `lead-${l.id}` });
+          }
+        } catch { /* mobile só notifica via service worker — o toast cobre */ }
+        setTick((t) => t + 1); // sino + badge do bolsão refletem o lead já
+      })
+      .subscribe();
+    return () => { void supabase?.removeChannel(ch); };
+  }, [user?.id, nav]);
+
+  // Permissão de notificação: pedida no PRIMEIRO clique (gesto real — pedir no
+  // load é bloqueado/ignorado pelos browsers). Uma vez só; recusou, respeita.
+  useEffect(() => {
+    if (typeof Notification === "undefined" || Notification.permission !== "default") return;
+    const pedir = () => { void Notification.requestPermission(); };
+    window.addEventListener("pointerdown", pedir, { once: true });
+    return () => window.removeEventListener("pointerdown", pedir);
+  }, []);
 
   const switchModulo = (m: Modulo) => nav(`/${m}`);
 

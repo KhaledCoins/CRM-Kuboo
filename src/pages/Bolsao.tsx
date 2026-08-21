@@ -7,7 +7,7 @@ import { fetchLeads, pegarLead, descartarLead, distribuirBolsao, noBolsao, modul
 import { DIAS_SEMANA, minutosLabel, type BolsaoConfig, type HorarioSemana } from "../lib/c2s";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { brl, waLink } from "../lib/format";
+import { brl, waLink, telLink } from "../lib/format";
 
 function esperaLabel(l: Lead): { txt: string; urgente: boolean } {
   const base = l.created_at ? new Date(l.created_at).getTime() : Date.now();
@@ -21,8 +21,11 @@ function esperaLabel(l: Lead): { txt: string; urgente: boolean } {
 }
 
 const origemTone: Record<string, "blue" | "green" | "violet" | "amber" | "slate"> = {
-  chatbot: "blue", formulario: "green", whatsapp: "green", indicacao: "violet", portal: "amber",
+  chatbot: "blue", formulario: "green", whatsapp: "green", indicacao: "violet", portal: "amber", webhook: "blue",
 };
+// O valor interno "webhook" não diz nada pro vendedor — no card vira o rótulo
+// do canal real (o mesmo que o filtro já usa: "Webhook (Meta/Make)").
+const origemLabel: Record<string, string> = { webhook: "Meta/Make", manual: "Manual" };
 
 const tempMeta: Record<Temperatura, { label: string; tone: "red" | "amber" | "blue"; Icon: typeof Flame }> = {
   quente: { label: "Quente", tone: "red", Icon: Flame },
@@ -262,13 +265,13 @@ export function Bolsao({ modulo }: { modulo: "seguros" | "consorcios" }) {
                 <div className="flex flex-wrap gap-1.5 mb-3">
                   <Badge tone={tm.tone}><tm.Icon size={11} /> {tm.label}</Badge>
                   {l.produto_interesse && <Badge tone="blue"><Tag size={11} /> {l.produto_interesse}</Badge>}
-                  {l.origem && <Badge tone={origemTone[l.origem] ?? "slate"}>{l.origem}</Badge>}
+                  {l.origem && <Badge tone={origemTone[l.origem] ?? "slate"}>{origemLabel[l.origem] ?? l.origem}</Badge>}
                   {reciclado && <Badge tone="amber">SLA estourado</Badge>}
                   {l.valor_potencial ? <Badge tone="green">{brl(l.valor_potencial)}</Badge> : null}
                 </div>
 
                 {l.telefone && (
-                  <a href={`tel:${l.telefone.replace(/[^\d+]/g, "")}`} title="Ligar"
+                  <a href={telLink(l.telefone) ?? undefined} title="Ligar"
                     className="text-xs text-muted hover:text-brand-600 flex items-center gap-1 mb-1 w-fit">
                     <Phone size={12} /> {l.telefone}
                   </a>

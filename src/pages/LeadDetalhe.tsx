@@ -12,7 +12,7 @@ import { RegistrarVendaModal } from "../components/RegistrarVendaModal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import type { TeamUser } from "../context/AuthContext";
-import { onlyDigits, waLink } from "../lib/format";
+import { onlyDigits, waLink, telLink } from "../lib/format";
 import {
   type Lead, registrarContato, devolverBolsao, descartarLead, moverEtapa, limiteSlaMinutos,
 } from "../lib/leads";
@@ -335,7 +335,7 @@ function ModalEditar({ lead, onClose, onDone }: { lead: LeadDetalhado; onClose: 
 // ─── Card: WhatsApp rápido com mensagens prontas ─────────────────────────────
 function CardWhatsapp({ lead, atual, mensagens, user, meuPerfil, onUsar }: {
   lead: LeadDetalhado; atual: Atividade | null; mensagens: MensagemPronta[]; user: TeamUser | null;
-  meuPerfil: { phone?: string | null; assinatura?: string | null } | null; onUsar: () => void;
+  meuPerfil: { phone?: string | null; assinatura?: string | null } | null; onUsar: (info?: { template?: string; texto?: string }) => void;
 }) {
   const [selecionada, setSelecionada] = useState("");
   const template = mensagens.find((m) => m.id === selecionada);
@@ -357,7 +357,7 @@ function CardWhatsapp({ lead, atual, mensagens, user, meuPerfil, onUsar }: {
 
   async function copiar() {
     if (!texto) return;
-    try { await navigator.clipboard.writeText(texto); toast.success("Mensagem copiada."); onUsar(); }
+    try { await navigator.clipboard.writeText(texto); toast.success("Mensagem copiada."); onUsar({ template: template?.nome, texto }); }
     catch { toast.error("Não foi possível copiar a mensagem."); }
   }
 
@@ -376,7 +376,7 @@ function CardWhatsapp({ lead, atual, mensagens, user, meuPerfil, onUsar }: {
           <div className="flex gap-2 mt-3">
             <Button size="sm" variant="outline" icon={Copy} disabled={!texto} onClick={copiar}>Copiar</Button>
             {href && (
-              <a href={href} target="_blank" rel="noopener noreferrer" onClick={onUsar}>
+              <a href={href} target="_blank" rel="noopener noreferrer" onClick={() => onUsar({ template: template?.nome, texto })}>
                 <Button size="sm" variant="wa" icon={Send}>Abrir WhatsApp</Button>
               </a>
             )}
@@ -717,7 +717,7 @@ export function LeadDetalhe() {
     toast.success("Lead devolvido ao bolsão.");
   }
 
-  async function onUsarWhatsapp() {
+  async function onUsarWhatsapp(info?: { template?: string; texto?: string }) {
     if (!lead) return;
     const now = new Date().toISOString();
     await atualizar("leads", lead.id, { interagido_em: now });
@@ -726,6 +726,13 @@ export function LeadDetalhe() {
     const marcouContato = lead.primeiro_contato_em ? true : await registrarContato(lead.id);
     if (!marcouContato) toast.error("Abri o WhatsApp, mas não consegui registrar o 1º contato — o SLA continua correndo.");
     setLead((p) => (p ? { ...p, interagido_em: now, primeiro_contato_em: marcouContato ? (p.primeiro_contato_em ?? now) : p.primeiro_contato_em } : p));
+    // Paridade com o chat do C2S (o que der via wa.me): o texto enviado fica
+    // registrado como observação — o gestor vê O QUE foi dito, não só quando.
+    if (info?.texto && user) {
+      const cab = info.template ? `📨 WhatsApp — "${info.template}":` : "📨 WhatsApp:";
+      const ok = await inserir("lead_observacoes", { lead_id: lead.id, texto: `${cab}\n${info.texto}`.slice(0, 2000), criado_por: user.id });
+      if (ok) reload();
+    }
   }
 
   async function onConcluirAtividade(atividadeId: string) {
@@ -865,7 +872,7 @@ export function LeadDetalhe() {
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-sm text-muted">
               {lead.telefone && (
-                <a href={`tel:${lead.telefone.replace(/[^\d+]/g, "")}`} title="Ligar" className="flex items-center gap-1.5 hover:text-brand-600">
+                <a href={telLink(lead.telefone) ?? undefined} title="Ligar" className="flex items-center gap-1.5 hover:text-brand-600">
                   <Phone size={13} /> {lead.telefone}
                 </a>
               )}
@@ -899,7 +906,16 @@ export function LeadDetalhe() {
         <div className="space-y-5">
           <Card>
             <h3 className="font-bold text-ink mb-3">Mensagem do lead</h3>
-            {lead.mensagem ? <p className="text-sm text-ink whitespace-pre-wrap">{lead.mensagem}</p> : <p className="text-sm text-muted">Sem mensagem inicial.</p>}
+            {(() => {
+              // Lead do Meta: a mensagem é SINTETIZADA do próprio formulário
+              // ("• Pergunta: resposta") — mostrar as duas era a mesma
+              // informação em dobro; a dl abaixo é a versão legível.
+              const temForm = !!(lead.formulario && typeof lead.formulario === "object" && Object.keys(lead.formulario).length > 0);
+              const sintetizada = temForm && (lead.mensagem ?? "").startsWith("• ");
+              if (lead.mensagem && !sintetizada) return <p className="text-sm text-ink whitespace-pre-wrap">{lead.mensagem}</p>;
+              if (!temForm) return <p className="text-sm text-muted">Sem mensagem inicial.</p>;
+              return null;
+            })()}
             {lead.formulario && typeof lead.formulario === "object" && Object.keys(lead.formulario).length > 0 && (
               <div className="mt-4 border-t border-slate-100 pt-3">
                 <p className="text-xs font-bold text-slate-500 mb-2">Respostas do formulário</p>

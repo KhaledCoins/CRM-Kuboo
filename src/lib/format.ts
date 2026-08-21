@@ -38,6 +38,16 @@ export function waLink(telefone?: string | null, texto?: string): string | null 
   return `https://wa.me/${comPais}${texto ? `?text=${encodeURIComponent(texto)}` : ""}`;
 }
 
+// Mesma regra pro discador: tel: sem DDI disca de qualquer celular BR, mas
+// softphone/discador corporativo exige E.164 — prefixa +55 quando não veio.
+// Fonte única, igual ao waLink (as telas montavam o tel: na mão).
+export function telLink(telefone?: string | null): string | null {
+  const digits = onlyDigits(telefone || "");
+  if (!digits) return null;
+  const comPais = digits.startsWith("55") && digits.length >= 12 ? digits : `55${digits}`;
+  return `tel:+${comPais}`;
+}
+
 // Documento do cliente para EXIBIÇÃO: 11 dígitos vira CPF, 14 vira CNPJ.
 // A validação de verdade (dígito verificador) é do servidor, em
 // api/_documento.js — aqui é só máscara. Valor legado já formatado, ou de

@@ -14,7 +14,7 @@ import {
   type Atividade, type Etiqueta, TIPOS_ATIVIDADE, atividadeAtual, atividadeAtrasada,
   favoritosDoUsuario, alternarFavorito, listarEquipe, inserir, listar,
 } from "../lib/c2s";
-import { onlyDigits, waLink } from "../lib/format";
+import { onlyDigits, waLink, telLink } from "../lib/format";
 import { paraNumero } from "../lib/num";
 import type { Modulo } from "../lib/nav";
 
@@ -49,8 +49,11 @@ const ABAS: { valor: AbaChave; rotulo: string; icon: typeof ListChecks }[] = [
 ];
 
 const origemTone: Record<string, "blue" | "green" | "violet" | "amber" | "slate"> = {
-  chatbot: "blue", formulario: "green", whatsapp: "green", indicacao: "violet", portal: "amber",
+  chatbot: "blue", formulario: "green", whatsapp: "green", indicacao: "violet", portal: "amber", webhook: "blue",
 };
+// O valor interno "webhook" não diz nada pro vendedor — no card vira o rótulo
+// do canal real (o mesmo que o filtro já usa: "Webhook (Meta/Make)").
+const origemLabel: Record<string, string> = { webhook: "Meta/Make", manual: "Manual" };
 
 // ─── Modal "Novo lead" (paridade "Criar novo lead" do C2S — ver docs/C2S-SCAN.md) ──
 const URGENCIA_OPCOES = [
@@ -408,7 +411,7 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-ink">{l.nome}</span>
                 {l.telefone && (
-                  <a href={`tel:${l.telefone.replace(/[^\d+]/g, "")}`} onClick={(e) => e.stopPropagation()} title="Ligar"
+                  <a href={telLink(l.telefone) ?? undefined} onClick={(e) => e.stopPropagation()} title="Ligar"
                     className="text-xs text-muted hover:text-brand-600 flex items-center gap-1">
                     <Phone size={11} /> {l.telefone}
                   </a>
@@ -419,7 +422,7 @@ export function MeusLeads({ modulo }: { modulo: Modulo }) {
                 {l.produto_interesse && <Badge tone="blue"><Tag size={11} /> {l.produto_interesse}</Badge>}
                 {l.campanha && <Badge tone="violet">{l.campanha}</Badge>}
                 {(l.fonte || l.canal) && <Badge tone="amber">{[l.fonte, l.canal].filter(Boolean).join(" · ")}</Badge>}
-                {l.origem && <Badge tone={origemTone[l.origem] ?? "slate"}>{l.origem}</Badge>}
+                {l.origem && <Badge tone={origemTone[l.origem] ?? "slate"}>{origemLabel[l.origem] ?? l.origem}</Badge>}
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted">
                 <span>Recebido em {dateTimeBR(l.created_at) ?? "—"}</span>
