@@ -4,6 +4,7 @@
 //   npx vite-node api/__tests__/telefone.test.mjs
 import assert from "node:assert/strict";
 import { formatarTelefone, digits } from "../_telefone.js";
+import { CONTRATO, SELO, selo } from "./contrato-telefone.mjs";
 
 let ok = 0;
 const t = (nome, fn) => { fn(); ok++; console.log(`  ok  ${nome}`); };
@@ -42,6 +43,23 @@ t("mesmo número em formatos diferentes converge pro MESMO texto (chave de fusã
 t("digits extrai só os números", () => {
   assert.equal(digits("+55 (12) 98877-6655"), "5512988776655");
   assert.equal(digits(null), "");
+});
+
+
+// ── Contrato compartilhado com o outro repo ────────────────────────────────
+// A tabela é IDÊNTICA nos dois lados (ver o cabeçalho de contrato-telefone.mjs).
+// É ela que impede o mesmo cliente de virar DOIS leads quando chega pelo
+// anúncio e pelo site: as duas máscaras vivem em repositórios diferentes e
+// nada além disto as obriga a concordar.
+t("o SELO bate — a tabela não foi mexida de um lado só", () => {
+  assert.equal(selo(CONTRATO), SELO,
+    "tabela alterada: recalcule o SELO e copie o arquivo para o OUTRO repositório");
+});
+
+t("as 22 linhas do contrato passam nesta implementação", () => {
+  for (const [entrada, esperado] of CONTRATO) {
+    assert.equal(formatarTelefone(entrada), esperado, `entrada ${JSON.stringify(entrada)}`);
+  }
 });
 
 console.log(`\n${ok} testes de telefone passaram`);
