@@ -42,6 +42,8 @@ const MUTACOES = [
     '.filter((x) => x != null)', '.filter(() => true)'],
 
   // ─── Direcionamento: seguros x consórcios ─────────────────────────────────
+  ["api/_modulo.js", "casa pedaço de palavra (cota dentro de cotação)",
+    'regexTermo(termo).test(t)', 't.includes(semAcento(termo))'],
   ["api/_modulo.js", "modulo explícito deixa de ganhar da heurística",
     'if (sinais.modulo === "seguros" || sinais.modulo === "consorcios") return sinais.modulo;', ''],
 

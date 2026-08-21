@@ -48,10 +48,27 @@ const semAcento = (s) =>
 // Conta quantos termos de cada lista aparecem — vence quem tiver mais sinais.
 // Contar em vez de "primeiro que casar" evita que um "seguro" solto no meio de
 // uma campanha de consórcio sequestre o lead (e vice-versa).
+// Casa PALAVRA INTEIRA (com plural opcional), não pedaço de palavra. Com
+// `includes` cru, "cota" casava dentro de "cotAÇÃO" — e "cotação" é palavra
+// de SEGURO: "Cotação de seguro auto" empatava 1x1 e caía em Consórcios.
+// Mesma armadilha para "vida" em "convida" e "lance" em "lancheteria".
+// Os termos das listas são fixos e sem caractere especial de regex, por isso
+// não há escape aqui — se algum dia entrar termo com ponto/parêntese, escapar.
+const cacheRegex = new Map();
+function regexTermo(termo) {
+  const chave = semAcento(termo);
+  let re = cacheRegex.get(chave);
+  if (!re) {
+    re = new RegExp("\\b" + chave + "s?\\b");
+    cacheRegex.set(chave, re);
+  }
+  return re;
+}
+
 function pontuar(texto, termos) {
   const t = semAcento(texto);
   let n = 0;
-  for (const termo of termos) if (t.includes(semAcento(termo))) n++;
+  for (const termo of termos) if (regexTermo(termo).test(t)) n++;
   return n;
 }
 
